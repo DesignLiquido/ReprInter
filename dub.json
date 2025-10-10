@@ -1,0 +1,11 @@
+{
+	"authors": [
+		"Fernando Dev"
+	],
+	"copyright": "Copyright © 2025, Fernando Dev",
+	"description": "A minimal D application.",
+	"license": "MIT",
+	"name": "reprinter",
+	"targetType": "executable",
+	"dflags": ["-betterC"]
+}

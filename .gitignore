@@ -1,0 +1,16 @@
+.dub
+docs.json
+__dummy.html
+docs/
+/reprinter
+reprinter.so
+reprinter.dylib
+reprinter.dll
+reprinter.a
+reprinter.lib
+reprinter-test-*
+*.exe
+*.pdb
+*.o
+*.obj
+*.lst
