@@ -4,13 +4,13 @@ Representação Intermediária 100% em português.
 
 ## Motivação
 
-Assim como existem diversas implementações de máquinas virtuais em linguagens de programação em inglês, como JVM para Java, IR para .NET, LLVM para C, C++ e Rust, é interessante para a conunidade lusófona entender como funciona uma representação intermediária. 
+Assim como existem diversas implementações de máquinas virtuais em linguagens de programação em inglês, como JVM para Java, IR para .NET, LLVM para C, C++ e Rust, é interessante para a comunidade lusófona entender como funciona uma representação intermediária. 
 
-Este repositório se dedica não apenas a documentar como funciona essa representação intermediária, como também a fornecer exemplos funcionais e ferramentas para a compilação dessa representação intermdiária em código binário. 
+Este repositório se dedica não apenas a documentar como funciona essa representação intermediária, como também a fornecer exemplos funcionais e ferramentas para a compilação dessa representação intermediária em código binário. 
 
 ## Exemplos
 
-```
+```ir
 // suporte a importação de outros arquivos. Copiará todas as funções e constantes
 // para o novo contexto (contexto do arquivo que fez a importação)
 // exemplo de sintaxe:
