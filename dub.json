@@ -7,5 +7,5 @@
 	"license": "MIT",
 	"name": "reprinter",
 	"targetType": "executable",
-	"dflags": ["-betterC"]
+	"targetName": "harpy"
 }

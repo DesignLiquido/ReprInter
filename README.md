@@ -1,48 +1,65 @@
 # ReprInter
 
-Representação Intermediária 100% em português.
+**ReprInter** é uma representação intermediária (IR) projetada para a máquina virtual **HarpyVM** — uma VM leve, eficiente e focada em simplicidade.
+
+---
+
+## Sobre a HarpyVM
+
+A **HarpyVM** é uma máquina virtual baseada em pilha (stack-based), desenvolvida com foco em:
+
+- **Simplicidade**: Inspirada na filosofia de design do Lua, priorizando clareza e facilidade de uso
+- **Performance**: Capaz de executar centenas de milhares ou até milhões de operações por segundo
+- **Startup instantâneo**: Sem overhead de inicialização, ideal para execução rápida
+- **Eficiência de memória**: Escrita em D, aproveita o garbage collector nativo da linguagem
+
+Ao contrário de VMs complexas como o V8 (Google), a Harpy mantém uma arquitetura enxuta que facilita compreensão e manutenção, sem sacrificar desempenho.
+
+### Características principais
+
+- **IR próprio (ReprInter)**: Representação intermediária simples e direta que abstrai complexidades desnecessárias
+- **Múltiplos frontends**: Geradores de IR disponíveis em D e TypeScript
+- **Foco no essencial**: Implementação concentrada nas operações críticas, delegando aspectos secundários ao ecossistema D
+
+---
 
 ## Motivação
 
-Assim como existem diversas implementações de máquinas virtuais em linguagens de programação em inglês, como JVM para Java, IR para .NET, LLVM para C, C++ e Rust, é interessante para a comunidade lusófona entender como funciona uma representação intermediária. 
+Enquanto existem inúmeras implementações de máquinas virtuais e representações intermediárias documentadas em inglês (JVM para Java, IL para .NET, LLVM para C/C++/Rust), há uma lacuna de recursos educacionais em português sobre esse tema fundamental.
 
-Este repositório se dedica não apenas a documentar como funciona essa representação intermediária, como também a fornecer exemplos funcionais e ferramentas para a compilação dessa representação intermediária em código binário. 
+Este projeto tem como objetivos:
 
-## Exemplos
+1. **Educação**: Explicar de forma clara e acessível como funciona uma representação intermediária
+2. **Prática**: Fornecer exemplos funcionais e ferramentas prontas para uso
+3. **Comunidade**: Contribuir para o ecossistema de desenvolvimento em língua portuguesa
 
-```ir
-// suporte a importação de outros arquivos. Copiará todas as funções e constantes
-// para o novo contexto (contexto do arquivo que fez a importação)
-// exemplo de sintaxe:
-incluir "nome_do_arquivo.rp"
-// a extensão .rp vem de ReprInter
+Aqui você encontrará não apenas documentação teórica, mas também ferramentas para compilar ReprInter em código binário executável.
 
-// ReprInter viabiliza implementar uma VM (_Virtual Machine_, ou Máquina Virtual) baseada em _Stack_ (pilha).
-// Tudo definido com % será uma variavel, seja temporária ou não.
-// Variáveis temporárias serão criadas automaticamente com um _front-end_ (camada superior) geradora de código ReprInter.
+---
 
-// Todo código ReprInter requer um ponto de entrada.
-// O ponto de entrada não tem retorno.
-declarar principal() vazio {
-    alocar %0, i32
-    %0 = chamar somar(60, 9)
-    chamar escreva(%0)
-    fim
-}
+## Licença
 
-// ...    = variádico com qualquer tipo (vazio*)
-// ...i32 = variádico com tipo i32 (i32*)
-declarar escreva(...i32) vazio {
-    escrevaPonteiro variadico // a variavel variádica é criada automaticamente
-    // `escrevaPonteiro` é uma instrução que irá escrever tudo que contém dentro do variádico independente do tipo
-    // caso tenha um asterisco - * - então o método aceita variádico com qualquer tipo
-    // ou variádico será `T*` ou `vazio*`, dependerá da assinatura da função
-}
+```
+MIT License
 
-// i32 = inteiro de 32 bits
-declarar somar(x i32, y i32) i32 {
-    alocar %resultado, i32 // %resultado recebe o endereço dele na pilha, o `adicionar` a seguir irá editar esse valor
-    adicionar %resultado, x, y
-    retornar %resultado
-}
+Copyright (c) 2025 Fernando
+Supported by Design Liquido
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
 ```

@@ -32,7 +32,7 @@ estrutura Usuario {
 }
 
 declarar olaUsuario(u Usuario*) vazio {
-    __builtinvm_escreva("Olá ", u*.nome, "\n")
+    __embutidovm_escreva("Olá ", u*.nome, "\n")
 }
 */
 
@@ -44,7 +44,7 @@ incluir "nome_do_arquivo.rp"
 
 // e se tivesse stdlib do próprio IR, poderia incluir as stdlibs assim talvez
 incluir biblioteca_padrao.es // es = entrada e saida -> io
-// sendo assim, toda função builtin teria que ter implementação tanto pra VM quanto pra outros BackEnds no futuro
+// sendo assim, toda função embutida teria que ter implementação tanto pra VM quanto pra outros BackEnds no futuro
 // será extremamente complexo sem duvidas
 
 // ReprInter viabiliza implementar uma VM (_Virtual Machine_, ou Máquina Virtual) baseada em _Stack_ (pilha).
@@ -57,7 +57,7 @@ declarar principal() vazio {
     // alocar %0, i32
     // %0 i32 = ; // variavel temporaria não inicializada
     %0 i32 = somar(60, 9) // variavel temporaria inicializada
-    __bultinvm_escreva(%0)
+    __embutidovm_escreva(%0)
     fim // halt da VM
 }
 

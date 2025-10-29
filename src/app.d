@@ -1,57 +1,46 @@
-import core.stdc.stdio, core.stdc.stdlib;
-import vm;
+import std.stdio, std.file, std.path, std.array;
+import frontend.lexer.token, frontend.lexer.lexer;
 
-extern (C)
-int main()
+void main(string[] argumentos)
 {
-	VM vm;
+	// ainda não temos suporte ao windows
+	version (Windows)
+	{
+		writeln("Sem suporte ao windows ainda, apenas a sistemas Unix.");
+		return;
+	}
 
-	// Exemplo 1: (9 + 60) * 2 = 138
-	printf("=== Teste 1: (9 + 60) * 2 ===\n");
-	int c1 = vm.addConstant(TypedValue.makeInt(9));
-	int c2 = vm.addConstant(TypedValue.makeInt(60));
-	int c3 = vm.addConstant(TypedValue.makeInt(2));
+	// verifica se foram passados argumentos
+	// o argumentos[0] por padrão contem o nome do executavel que está sendo executado
+	if (argumentos.length == 1)
+	{
+		writeln("Era esperado um arquivo de extensão '.rp' como argumento.");
+		return;
+	}
 
-	vm.emit(OpCode.Push, c1);
-	vm.emit(OpCode.Push, c2);
-	vm.emit(OpCode.AddI32);
-	vm.emit(OpCode.Push, c3);
-	vm.emit(OpCode.MulI32);
-	vm.emit(OpCode.PrintLn);
-	vm.emit(OpCode.Halt);
+	// arquivo aparentemente passado, vamos validar
+	string arquivo = argumentos[1];
 
-	vm.run();
+	// é um arquivo ou existe?
+	if (!exists(arquivo))
+	{
+		writefln("O arquivo '%s' não existe.", arquivo);
+		return;
+	}
+	if (!isFile(arquivo))
+	{
+		writefln("'%s' não é um arquivo.", arquivo);
+		return;
+	}
 
-	// Exemplo 2: Comparação e lógica
-	printf("\n=== Teste 2: 10 > 5 ===\n");
-	VM vm2;
-	int d1 = vm2.addConstant(TypedValue.makeInt(10));
-	int d2 = vm2.addConstant(TypedValue.makeInt(5));
+	// valida a extensão do arquivo
+	if (extension(arquivo) != ".rp")
+	{
+		writefln("O arquivo '%s' precisa ter a extensão '.rp'.", arquivo);
+		return;
+	}
 
-	vm2.emit(OpCode.Push, d1);
-	vm2.emit(OpCode.Push, d2);
-	vm2.emit(OpCode.GtI32);
-	vm2.emit(OpCode.PrintLn);
-	vm2.emit(OpCode.Halt);
-
-	vm2.run();
-
-	// Exemplo 3: Jump condicional (simples if)
-	printf("\n=== Teste 3: If 5 < 10 então print 999 ===\n");
-	VM vm3;
-	int e1 = vm3.addConstant(TypedValue.makeInt(5));
-	int e2 = vm3.addConstant(TypedValue.makeInt(10));
-	int e3 = vm3.addConstant(TypedValue.makeInt(999));
-
-	vm3.emit(OpCode.Push, e1); // 0
-	vm3.emit(OpCode.Push, e2); // 1
-	vm3.emit(OpCode.LtI32); // 2
-	vm3.emit(OpCode.JumpIfFalse, 6); // 3 - se falso, pula para 6 (Halt)
-	vm3.emit(OpCode.Push, e3); // 4
-	vm3.emit(OpCode.PrintLn); // 5
-	vm3.emit(OpCode.Halt); // 6
-
-	vm3.run();
-
-	return 0;
+	// lê o arquivo e pega o conteudo
+	string conteudo = readText(arquivo);
+	writeln(conteudo);
 }
