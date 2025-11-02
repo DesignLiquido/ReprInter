@@ -8,18 +8,30 @@ enum TokenKind
     // keywords (palavras chave)
     Declarar,
     Alocar,
+    Se,
+    Senao,
+    Retorne,
     Fim,
+    Verdadeiro,
+    Falso,
 
     // tipos
     I32,
+    Int,
+    Inteiro,
     I64,
     F32,
+    Dec,
+    Decimal,
     F64,
     F128,
+    Txt,
     Vazio,
+    Logico,
 
     Identifier, // identificador
     Number, // 0-9
+    Double, // 0-9.0-9
     String, // "FernandoDev"
 
     // simbolos
@@ -77,6 +89,7 @@ struct Token
     }
 }
 
+// estrutura que define dados de localização do token
 struct Loc
 {
     string filename; // nome do arquivo

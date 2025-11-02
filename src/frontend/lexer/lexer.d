@@ -17,6 +17,7 @@ private:
     TokenKind[string] symbols; // tabela de simbolos
     DiagnosticError error; // classe de erro (instancia global)
 
+    pragma(inline, true);
     void setKeywords()
     {
         // palavras chave
@@ -24,16 +25,27 @@ private:
         keywords["alocar"] = TokenKind.Alocar;
         keywords["fim"] = TokenKind.Fim;
         keywords["vazio"] = TokenKind.Vazio;
+        keywords["se"] = TokenKind.Se;
+        keywords["senao"] = TokenKind.Senao;
+        keywords["retorne"] = TokenKind.Retorne;
+        keywords["verdadeiro"] = TokenKind.Verdadeiro;
+        keywords["false"] = TokenKind.Falso;
 
         // tipos
         keywords["i32"] = TokenKind.I32;
+        keywords["int"] = TokenKind.I64;
+        keywords["inteiro"] = TokenKind.I64;
         keywords["i64"] = TokenKind.I64;
         keywords["f32"] = TokenKind.F32;
+        keywords["dec"] = TokenKind.F64;
+        keywords["decimal"] = TokenKind.F64;
         keywords["f64"] = TokenKind.F64;
         keywords["f128"] = TokenKind.F128;
+        keywords["logico"] = TokenKind.Logico;
     }
 
     // define todos os simbolos da representação intermediaria em uma tabela
+    pragma(inline, true);
     void setSymbols()
     {
         symbols["("] = TokenKind.LParen;
@@ -138,6 +150,7 @@ private:
         }
     }
 
+    pragma(inline, true);
     char peek(int lookahead = 0)
     {
         long pos = offset + lookahead;
@@ -434,12 +447,12 @@ public:
                 if (offset < source.length && peek() == '"')
                 {
                     advance();
-                    createToken(TokenKind.String, Variant(buff), buff.length + 3);
+                    createToken(TokenKind.Txt, Variant(buff), buff.length + 3);
                 }
                 else
                 {
                     error.addError(Diagnostic("String não terminada", createLoc(1, line_)));
-                    createToken(TokenKind.String, Variant(buff), buff.length + 1);
+                    createToken(TokenKind.Txt, Variant(buff), buff.length + 1);
                 }
                 continue;
             }

@@ -1,0 +1,21 @@
+declarar fibonacci1(n int) int {
+    se n <= 1 retorne n
+    retorne fibonacci1(n - 1) + fibonacci1(n - 2)
+}
+
+declarar fibonacci2(n inteiro) i64 {
+    se n == 0 {
+        retorne 0
+    } senao se n == 1 {
+        retorne 1
+    }
+    retorne fibonacci2(n - 1) + fibonacci2(n - 2)
+}
+
+declarar principal vazio {
+    __corevm_print(fibonacci1(10))
+    __corevm_print(fibonacci2(15))
+    __corevm_print(fibonacci2(25))
+    __corevm_print(fibonacci2(30))
+    fim
+}
