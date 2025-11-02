@@ -1,0 +1,114 @@
+@import url('https://fonts.googleapis.com/css2?family=Google+Sans+Code:wght@300;400;500;600;700&display=swap');
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: "Google Sans Code", monospace;
+    background: #ffffff;
+    color: #000000;
+}
+
+header {
+    padding: 1.5rem 3rem;
+    background: #ffffff;
+    border-bottom: 2px solid #000000;
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+
+header img {
+    width: 80px;
+    height: 80px;
+}
+
+.principal {
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 4rem 3rem;
+}
+
+h1 {
+    font-size: 3.5rem;
+    font-weight: 700;
+    color: #000000;
+    margin-bottom: 2rem;
+    line-height: 1.2;
+}
+
+p {
+    font-size: 1.2rem;
+    line-height: 1.8;
+    color: #333333;
+    font-weight: 400;
+}
+
+.empresa {
+    font-weight: 600;
+    color: #000000;
+}
+
+.destaque {
+    background: #f5f5f5;
+    padding: 2rem;
+    margin-top: 3rem;
+    border-left: 4px solid #000000;
+}
+
+.destaque h2 {
+    font-size: 1.5rem;
+    font-weight: 600;
+    margin-bottom: 1rem;
+}
+
+.destaque ul {
+    list-style: none;
+    margin-top: 1.5rem;
+}
+
+.destaque li {
+    font-size: 1.1rem;
+    padding: 0.8rem 0;
+    color: #444444;
+    border-bottom: 1px solid #e0e0e0;
+}
+
+.destaque li:last-child {
+    border-bottom: none;
+}
+
+.destaque li strong {
+    color: #000000;
+    font-weight: 600;
+}
+
+@media (max-width: 768px) {
+    header {
+        padding: 1.5rem 2rem;
+    }
+
+    header img {
+        width: 60px;
+        height: 60px;
+    }
+
+    .principal {
+        padding: 3rem 2rem;
+    }
+
+    h1 {
+        font-size: 2.5rem;
+    }
+
+    p {
+        font-size: 1.1rem;
+    }
+
+    .destaque {
+        padding: 1.5rem;
+    }
+}
