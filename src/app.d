@@ -1,5 +1,6 @@
 import std.stdio, std.file, std.path, std.array;
 import frontend.lexer.token, frontend.lexer.lexer;
+import erro;
 
 void main(string[] argumentos)
 {
@@ -40,7 +41,23 @@ void main(string[] argumentos)
 		return;
 	}
 
+	DiagnosticError erro = new DiagnosticError; // classe que gera os erros de todo o sistema
+
 	// lê o arquivo e pega o conteudo
 	string conteudo = readText(arquivo);
-	writeln(conteudo);
+	// passa o conteudo pro lexer pegando todos os tokens criados pelo lexer
+
+	Token[] tokens = new Lexer(arquivo, conteudo, ".", erro).tokenize();
+
+	if (erro.hasWarnings())
+		erro.printDiagnostics();
+
+	if (erro.hasErrors())
+	{
+		erro.printDiagnostics();
+		return;
+	}
+
+	foreach (Token token; tokens)
+		token.print();
 }

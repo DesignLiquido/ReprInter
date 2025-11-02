@@ -6,7 +6,9 @@ import std.variant, std.stdio, std.conv;
 enum TokenKind
 {
     // keywords (palavras chave)
-    // nenhuma ainda
+    Declarar,
+    Alocar,
+    Fim,
 
     // tipos
     I32,
@@ -14,6 +16,7 @@ enum TokenKind
     F32,
     F64,
     F128,
+    Vazio,
 
     Identifier, // identificador
     Number, // 0-9
@@ -43,6 +46,7 @@ enum TokenKind
     RangeEquals, // ..=
     Bang, // !
     Modulo, // %
+    Dolar, // $
 
     GreaterThan, // >
     GreaterThanEquals, // >=
@@ -69,7 +73,7 @@ struct Token
     {
         writeln("TokenKind: ", to!string(kind));
         writeln("TokenValue: ", to!string(value));
-        writeln("Loc: ", loc);
+        writeln("Loc: ", loc, "\n-----------");
     }
 }
 

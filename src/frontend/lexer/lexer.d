@@ -20,6 +20,10 @@ private:
     void setKeywords()
     {
         // palavras chave
+        keywords["declarar"] = TokenKind.Declarar;
+        keywords["alocar"] = TokenKind.Alocar;
+        keywords["fim"] = TokenKind.Fim;
+        keywords["vazio"] = TokenKind.Vazio;
 
         // tipos
         keywords["i32"] = TokenKind.I32;
@@ -55,6 +59,7 @@ private:
         symbols["!"] = TokenKind.Bang;
         symbols["%"] = TokenKind.Modulo;
         symbols["&"] = TokenKind.Ampersand;
+        symbols["$"] = TokenKind.Dolar;
 
         // 2
         symbols["||"] = TokenKind.Or;
@@ -103,11 +108,13 @@ private:
         return false;
     }
 
+    pragma(inline, true);
     Loc createLoc(ulong len, long line_ = -1)
     {
         return Loc(filename, dir, line_ == -1 ? line : line_, lineOffset - len + 1, lineOffset);
     }
 
+    pragma(inline, true);
     void createToken(TokenKind kind, Variant value, ulong len)
     {
         tokens ~= Token(kind, value, createLoc(len));
