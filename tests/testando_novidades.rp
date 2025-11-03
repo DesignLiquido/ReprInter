@@ -1,0 +1,42 @@
+declarar maior(x f64, y dec) decimal {
+    se x > y retorne x
+    retorne y
+}
+
+// se não houver argumentos não precisa abrir e fechar '()'
+declarar principal vazio {
+    // loop
+    para alocar i int = 0; i < 5; i++ {
+        __nucleo_harpy_escreva(i, "\n")
+    }
+
+    // operadores compostos (+=, -=, *=, /=, %=)
+    // operadores unarios (+, -, ++ (prefix e postfix), -- (prefix e postfix))
+    alocar x int = 69
+    __nucleo_harpy_escreva(1 + +1, "\n") // 2
+    __nucleo_harpy_escreva(1 - -1, "\n") // 2
+    __nucleo_harpy_escreva(x++, "\n") // 69
+    __nucleo_harpy_escreva(++x, "\n") // 71 => 70 + 1
+    x *= 2
+    __nucleo_harpy_escreva(x) // 71 * 2
+
+    alocar y int = 10
+    y += 5   // 15
+    y -= 3   // 12
+    y /= 2   // 6
+    __nucleo_harpy_escreva(y, "\n")  // deve imprimir 6
+
+    alocar z int = 5
+    __nucleo_harpy_escreva(--z, "\n")  // deve imprimir 4
+    __nucleo_harpy_escreva(z--, "\n")  // deve imprimir 4, depois z = 3
+    __nucleo_harpy_escreva(z, "\n")    // deve imprimir 3
+
+    alocar nome texto = "Fernando"
+    alocar idade inteiro = 25
+    alocar pi decimal = 3.14159
+    alocar ativo logico = verdadeiro
+    __nucleo_harpy_escreva(nome, " ", idade, " ", pi, " ", ativo, "\n")
+    __nucleo_harpy_escreva(maior(10.01, 10.02), "\n")
+    
+    fim
+}

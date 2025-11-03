@@ -8,18 +8,31 @@ enum TokenKind
     // keywords (palavras chave)
     Declarar,
     Alocar,
+    Se,
+    Senao,
+    Retorne,
     Fim,
+    Verdadeiro,
+    Falso,
+    Para,
 
     // tipos
     I32,
+    Int,
+    Inteiro,
     I64,
     F32,
+    Dec,
+    Decimal,
     F64,
     F128,
+    Txt,
     Vazio,
+    Logico,
 
     Identifier, // identificador
     Number, // 0-9
+    Double, // 0-9.0-9
     String, // "FernandoDev"
 
     // simbolos
@@ -34,7 +47,6 @@ enum TokenKind
     Minus, // -
     MinusMinus, // --
     Star, // *
-    Ampersand, // &
     Slash, // /
     Comma, // ,
     Colon, // :
@@ -47,6 +59,7 @@ enum TokenKind
     Bang, // !
     Modulo, // %
     Dolar, // $
+    Arrow, // ->
 
     GreaterThan, // >
     GreaterThanEquals, // >=
@@ -54,10 +67,28 @@ enum TokenKind
     LessThanEquals, // <=
     Or, // ||
     And, // &&
-    PlusEquals, // +=
-    Arrow, // ->
-
     EqualsEquals, // ==
+    NotEquals, // ==
+
+    BitAnd, // &
+    BitOr, // |
+    BitXor, // ^
+    BitNot, // ~
+    BitSHL, // <<
+    BitSHR, // >>
+    BitSAR, // >>>
+
+    BitAndEquals, // &=
+    BitOrEquals, // |=
+    BitXorEquals, // ^=
+    BitSHLEquals, // <<=
+    BitSHREquals, // >>=
+
+    PlusEquals, // +=
+    MinusEquals, // -=
+    StarEquals, // *=
+    SlashEquals, // /=
+    ModuloEquals, // %=
 
     Eof // EndOfFile (FimDoArquivo)
 }
@@ -77,6 +108,7 @@ struct Token
     }
 }
 
+// estrutura que define dados de localização do token
 struct Loc
 {
     string filename; // nome do arquivo
