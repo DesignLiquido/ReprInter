@@ -1,4 +1,4 @@
-import std.stdio, std.file, std.path, std.array, std.getopt;
+import std.stdio, std.file, std.path, std.array, std.getopt, std.datetime.stopwatch;
 import frontend.lexer.token, frontend.lexer.lexer;
 import frontend.parser.ast, frontend.parser.parser;
 import middle.semantic_analyzer;
@@ -6,7 +6,7 @@ import backend.codegen, backend.harpyvm;
 import core.stdc.stdlib : exit;
 import erro;
 
-const string VERSION = "0.1.0";
+const string VERSAO = "0.1.0";
 
 // verifica se há erros ou avisos a serem mostrados
 void checkErrors(DiagnosticError erro)
@@ -30,6 +30,7 @@ void ajuda()
 	writeln("	-a, --ajuda       Mostra a mensagem de ajuda.");
 	writeln("	--token           Mostra os tokens (debug).");
 	writeln("	--ast             Mostra as ast's  (debug).");
+	writeln("	-t, --tempo       Mostra métricas de execução do programa.");
 	writeln("\nExemplos:");
 	writeln("	harpy -v");
 	writeln("	harpy ola_mundo.hp");
@@ -39,7 +40,7 @@ void ajuda()
 void versao()
 {
 	// mostra uma mensagem de ajuda
-	writefln("HarpyVM - %s", VERSION);
+	writefln("HarpyVM - %s", VERSAO);
 }
 
 void main(string[] argumentos)
@@ -56,13 +57,14 @@ void main(string[] argumentos)
 		SetConsoleOutputCP(65_001);
 		SetConsoleCP(65_001);
 	}
-	else version (linux)
+
+	version (linux)
 	{
 		// ...
 	}
 
 	DiagnosticError erro = new DiagnosticError; // classe que gera os erros de todo o sistema
-	bool mostrarVersao, mostrarAjuda, mostrarToken, mostrarAst;
+	bool mostrarVersao, mostrarAjuda, mostrarToken, mostrarAst, mostrarTempo;
 
 	try
 	{
@@ -72,6 +74,7 @@ void main(string[] argumentos)
 			"a|ajuda", &mostrarAjuda,
 			"token", &mostrarToken,
 			"ast", &mostrarAst,
+			"t|tempo", &mostrarTempo
 		);
 
 		if (mostrarVersao)
@@ -120,40 +123,69 @@ void main(string[] argumentos)
 		// ignore
 		string[] bibliotecasExternas;
 
+		// vamos salvar métricas de tempo pra analisar a velocidade do sistema
+		auto tempoTotal = StopWatch(AutoStart.yes);
 		// lê o arquivo e pega o conteudo
 		string conteudo = readText(arquivo);
 		// passa o conteudo pro lexer pegando todos os tokens criados pelo lexer
 
 		// primeiro passe
+		auto tempoLexer = StopWatch(AutoStart.yes);
 		Token[] tokens = new Lexer(arquivo, conteudo, ".", erro).tokenize();
 		// esssas chamadas são feitas para verificar se há erros ou avisos no passe anterior
 		// o passe é cada processo do sistema
 		checkErrors(erro);
 
+		// para a contagem de tempo
+		tempoLexer.stop();
+
 		if (mostrarToken)
-		{
 			foreach (Token token; tokens)
 				token.print();
-		}
 
+		auto tempoParser = StopWatch(AutoStart.yes);
 		// segundo passe
 		Program programa = new Parser(tokens, erro).parse();
 		checkErrors(erro);
+		tempoParser.stop();
 
 		if (mostrarAst)
 			programa.print();
 
 		// terceiro passe
+		auto tempoSA = StopWatch(AutoStart.yes);
 		new SemanticAnalyzer(erro).analyze(programa);
 		checkErrors(erro);
+		tempoSA.stop();
 
 		// quarto passe
 		HarpyVM motor = new HarpyVM();
+		auto tempoCG = StopWatch(AutoStart.yes);
 		Instruction[] instrucoes = new CodeGen(motor, erro, bibliotecasExternas).generate(programa);
+		tempoCG.stop();
 		motor.code = instrucoes;
 
+		auto tempoMotor = StopWatch(AutoStart.yes);
 		// rodando tudo na vm (no motor)
 		motor.run();
+
+		tempoMotor.stop();
+		tempoTotal.stop();
+
+		if (mostrarTempo)
+		{
+			writefln("\nTempo do lexer (geração de tokens): %d µs", tempoLexer.peek()
+					.total!"usecs");
+			writefln("Tempo do parser (geração de nós): %d µs", tempoParser.peek()
+					.total!"usecs");
+			writefln("Tempo do analisador semantico: %d µs", tempoSA.peek()
+					.total!"usecs");
+			writefln("Tempo do gerador de bytecode (codegen): %d µs", tempoCG.peek()
+					.total!"usecs");
+			writefln("Tempo do motor (execução da HarpyVM): %d µs", tempoMotor.peek()
+					.total!"usecs");
+			writefln("Tempo total: %d µs", tempoTotal.peek().total!"usecs");
+		}
 	}
 	catch (Exception e)
 	{

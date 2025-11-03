@@ -3,14 +3,19 @@ module frontend.parser.parser;
 import std.format, std.stdio, std.conv, std.variant;
 import frontend.lexer.token, frontend.parser.ast, frontend.type, erro;
 
-// niveis de precendencia
 enum Precedence
 {
     LOWEST = 1,
-    CALL = 2,
-    SUM = 3,
-    MUL = 4,
-    HIGHEST = 8,
+    ASSIGN = 2, // =, +=, -=, |=, &=, <<=, >>=
+    EQUALS = 3, // ==, !=
+    BIT_OR = 4, // |
+    BIT_XOR = 5, // ^
+    BIT_AND = 6, // &
+    SUM = 7, // +, -
+    MUL = 8, // *, /
+    BIT_SHIFT = 9, // <<, >>
+    CALL = 10, // funções, index
+    HIGHEST = 11,
 }
 
 class Parser
@@ -39,6 +44,10 @@ private:
                 return new UnaryExpr(postOp.value.get!string, operand, token.loc, true);
             }
             return operand;
+        case TokenKind.LParen:
+            Node node = this.parseExpression(Precedence.LOWEST);
+            this.consume(TokenKind.RParen, "Esperado ')' após a expressão.");
+            return node;
         case TokenKind.I64:
             return new IntLiteral(to!long(token.value.get!string), token.loc);
         case TokenKind.F64:
@@ -64,6 +73,7 @@ private:
         case TokenKind.PlusPlus:
         case TokenKind.MinusMinus:
         case TokenKind.Bang:
+        case TokenKind.BitNot:
             Node operand = this.parseExpression(Precedence.HIGHEST);
             return new UnaryExpr(token.value.get!string, operand, token.loc, false);
         case TokenKind.Fim:
@@ -253,10 +263,24 @@ private:
         case TokenKind.Star:
         case TokenKind.Slash:
 
+        case TokenKind.BitAnd:
+        case TokenKind.BitOr:
+        case TokenKind.BitXor:
+        case TokenKind.BitSHL:
+        case TokenKind.BitSHR:
+        case TokenKind.BitSAR:
+
         case TokenKind.PlusEquals:
         case TokenKind.MinusEquals:
         case TokenKind.StarEquals:
         case TokenKind.SlashEquals:
+        case TokenKind.ModuloEquals:
+
+        case TokenKind.BitAndEquals:
+        case TokenKind.BitOrEquals:
+        case TokenKind.BitXorEquals:
+        case TokenKind.BitSHLEquals:
+        case TokenKind.BitSHREquals:
 
         case TokenKind.EqualsEquals:
         case TokenKind.GreaterThan:
@@ -354,26 +378,53 @@ private:
     {
         switch (kind)
         {
-        case TokenKind.Plus:
-        case TokenKind.Minus:
-
-        case TokenKind.PlusPlus:
-        case TokenKind.MinusMinus:
-
+        case TokenKind.Equals:
         case TokenKind.PlusEquals:
         case TokenKind.MinusEquals:
+        case TokenKind.StarEquals:
+        case TokenKind.SlashEquals:
+        case TokenKind.ModuloEquals:
+        case TokenKind.BitAndEquals:
+        case TokenKind.BitOrEquals:
+        case TokenKind.BitXorEquals:
+        case TokenKind.BitSHLEquals:
+        case TokenKind.BitSHREquals:
+            return Precedence.ASSIGN;
 
         case TokenKind.EqualsEquals:
+        case TokenKind.NotEquals:
         case TokenKind.GreaterThan:
         case TokenKind.LessThan:
         case TokenKind.LessThanEquals:
         case TokenKind.GreaterThanEquals:
+            return Precedence.EQUALS;
+
+        case TokenKind.BitOr:
+            return Precedence.BIT_OR;
+        case TokenKind.BitXor:
+            return Precedence.BIT_XOR;
+        case TokenKind.BitAnd:
+            return Precedence.BIT_AND;
+
+        case TokenKind.Plus:
+        case TokenKind.Minus:
+        case TokenKind.PlusPlus:
+        case TokenKind.MinusMinus:
             return Precedence.SUM;
         case TokenKind.Star:
         case TokenKind.Slash:
-        case TokenKind.StarEquals:
-        case TokenKind.SlashEquals:
+        case TokenKind.Modulo:
             return Precedence.MUL;
+
+        case TokenKind.BitSHL:
+        case TokenKind.BitSHR:
+        case TokenKind.BitSAR:
+            return Precedence.BIT_SHIFT;
+
+        case TokenKind.LParen:
+        case TokenKind.LBracket:
+            return Precedence.CALL;
+
         default:
             return Precedence.LOWEST;
         }

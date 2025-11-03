@@ -345,7 +345,7 @@ public:
 
     void generateCallExpr(CallExpr node)
     {
-        if (node.id == "__corevm_print")
+        if (node.id == "__nucleo_harpy_escreva")
         {
             foreach (arg; node.args)
             {
@@ -370,6 +370,12 @@ public:
             node.left.type.baseType == BaseType.Double ||
             node.left.type.baseType == BaseType.Real;
 
+        void erroBitWise(bool check, Loc loc)
+        {
+            if (check)
+                deErro("Operadores bitwise não podem operar em números não inteiros.", loc);
+        }
+
         if (node.left.type.baseType == BaseType.String)
         {
             cg.emit(Instruction(OpCode.PUSH, engine.makeStr(
@@ -393,10 +399,47 @@ public:
         case "/":
             opcode = isFloat ? OpCode.DIVF : OpCode.DIVI;
             break;
+        case "%":
+            opcode = isFloat ? OpCode.MODF : OpCode.MODI;
+            break;
+        case "&":
+            erroBitWise(isFloat, node.loc);
+            opcode = OpCode.AND;
+            break;
+        case "|":
+            erroBitWise(isFloat, node.loc);
+            opcode = OpCode.OR;
+            break;
+        case "^":
+            erroBitWise(isFloat, node.loc);
+            opcode = OpCode.XOR;
+            break;
+        case "~":
+            erroBitWise(isFloat, node.loc);
+            opcode = OpCode.NOT;
+            break;
+        case "<<":
+            erroBitWise(isFloat, node.loc);
+            opcode = OpCode.SHL;
+            break;
+        case ">>":
+            erroBitWise(isFloat, node.loc);
+            opcode = OpCode.SHR;
+            break;
+        case ">>>":
+            erroBitWise(isFloat, node.loc);
+            opcode = OpCode.SAR;
+            break;
         case "+=":
         case "-=":
         case "/=":
         case "*=":
+        case "%=":
+        case "&=":
+        case "|=":
+        case "^=":
+        case "<<=":
+        case ">>=":
             if (node.left.kind != NodeKind.Identifier)
                 deErro(
                     "Para realizar esta operação é necessário que a expressão a esquerda seja uma variavel.",
@@ -423,6 +466,29 @@ public:
                 break;
             case "*=":
                 cg.emit(Instruction(!isFloat ? OpCode.MULI : OpCode.MULF));
+                break;
+            case "%=":
+                cg.emit(Instruction(!isFloat ? OpCode.MODI : OpCode.MODF));
+                break;
+            case "&=":
+                erroBitWise(isFloat, node.loc);
+                cg.emit(Instruction(OpCode.AND));
+                break;
+            case "|=":
+                erroBitWise(isFloat, node.loc);
+                cg.emit(Instruction(OpCode.OR));
+                break;
+            case "^=":
+                erroBitWise(isFloat, node.loc);
+                cg.emit(Instruction(OpCode.XOR));
+                break;
+            case "<<=":
+                erroBitWise(isFloat, node.loc);
+                cg.emit(Instruction(OpCode.SHL));
+                break;
+            case ">>=":
+                erroBitWise(isFloat, node.loc);
+                cg.emit(Instruction(OpCode.SHR));
                 break;
             }
 
@@ -468,6 +534,9 @@ public:
             bool isFloat = node.operand.type.baseType == BaseType.Float ||
                 node.operand.type.baseType == BaseType.Double;
             cg.emit(Instruction(isFloat ? OpCode.MULF : OpCode.MULI, engine.makeInt(0)));
+            break;
+        case "~":
+            cg.emit(Instruction(OpCode.NOT));
             break;
         case "+":
             // só ignorar

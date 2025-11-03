@@ -72,7 +72,7 @@ public:
 
     Valor print(Valor valor)
     {
-        emitir(format("__corevm_print(%s)", valor.valor));
+        emitir(format("__nucleo_harpy_escreva(%s)", valor.valor));
         return valor;
     }
 

@@ -47,7 +47,6 @@ enum TokenKind
     Minus, // -
     MinusMinus, // --
     Star, // *
-    Ampersand, // &
     Slash, // /
     Comma, // ,
     Colon, // :
@@ -60,6 +59,7 @@ enum TokenKind
     Bang, // !
     Modulo, // %
     Dolar, // $
+    Arrow, // ->
 
     GreaterThan, // >
     GreaterThanEquals, // >=
@@ -67,13 +67,28 @@ enum TokenKind
     LessThanEquals, // <=
     Or, // ||
     And, // &&
+    EqualsEquals, // ==
+    NotEquals, // ==
+
+    BitAnd, // &
+    BitOr, // |
+    BitXor, // ^
+    BitNot, // ~
+    BitSHL, // <<
+    BitSHR, // >>
+    BitSAR, // >>>
+
+    BitAndEquals, // &=
+    BitOrEquals, // |=
+    BitXorEquals, // ^=
+    BitSHLEquals, // <<=
+    BitSHREquals, // >>=
+
     PlusEquals, // +=
     MinusEquals, // -=
     StarEquals, // *=
     SlashEquals, // /=
-    Arrow, // ->
-
-    EqualsEquals, // ==
+    ModuloEquals, // %=
 
     Eof // EndOfFile (FimDoArquivo)
 }

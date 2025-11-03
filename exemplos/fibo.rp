@@ -13,9 +13,9 @@ declarar fibonacci2(n inteiro) i64 {
 }
 
 declarar principal vazio {
-    __corevm_print(fibonacci1(10))
-    __corevm_print(fibonacci2(15))
-    __corevm_print(fibonacci2(25))
-    __corevm_print(fibonacci2(30))
+    __nucleo_harpy_escreva(fibonacci1(10), "\n")
+    __nucleo_harpy_escreva(fibonacci2(15), "\n")
+    __nucleo_harpy_escreva(fibonacci2(25), "\n")
+    __nucleo_harpy_escreva(fibonacci2(30), "\n")
     fim
 }

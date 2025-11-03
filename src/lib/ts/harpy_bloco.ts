@@ -72,7 +72,7 @@ export default class HarpyBloco {
     }
 
     print(valor: HarpyValor): HarpyValor {
-        this.emitir(`__corevm_print(${valor.valor})`);
+        this.emitir(`__nucleo_harpy_escreva(${valor.valor})`);
         return valor;
     }
 

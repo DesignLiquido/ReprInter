@@ -13,21 +13,33 @@ enum OpCode
     SUBI,
     MULI,
     DIVI,
+    MODI,
     // opcodes para otimizar calculo
     PPADDI, // push push addi
     PPSUBI, // push push subi
     PPMULI, // push push muli
     PPDIVI, // push push divi
+    PPMODI, // push push modi
     // double
     ADDF,
     SUBF,
     MULF,
     DIVF,
+    MODF,
     // opcodes para otimizar calculo
     PPADDF, // push push addf
     PPSUBF, // push push subf
     PPMULF, // push push mulf
     PPDIVF, // push push divf
+    PPMODF, // push push modf
+
+    AND, // &
+    OR, // |
+    XOR, // ^
+    NOT, // ~
+    SHR, // >>
+    SHL, //<<
+    SAR, // >>>
     // }}
 
     // Jumps
@@ -262,6 +274,13 @@ class HarpyVM
                 pc++;
                 break;
 
+            case OpCode.MODI:
+                long b = pop().value.i64;
+                long a = pop().value.i64;
+                push(makeInt(a % b));
+                pc++;
+                break;
+
             case OpCode.ADDF:
                 double b = pop().value.f64;
                 double a = pop().value.f64;
@@ -287,6 +306,61 @@ class HarpyVM
                 double b = pop().value.f64;
                 double a = pop().value.f64;
                 push(makeFloat(a / b));
+                pc++;
+                break;
+
+            case OpCode.MODF:
+                double b = pop().value.f64;
+                double a = pop().value.f64;
+                push(makeFloat(a % b));
+                pc++;
+                break;
+
+            case OpCode.AND:
+                Value v2 = pop();
+                Value v1 = pop();
+                push(makeInt(v1.value.i64 & v2.value.i64));
+                pc++;
+                break;
+
+            case OpCode.OR:
+                Value v2 = pop();
+                Value v1 = pop();
+                push(makeInt(v1.value.i64 | v2.value.i64));
+                pc++;
+                break;
+
+            case OpCode.XOR:
+                Value v2 = pop();
+                Value v1 = pop();
+                push(makeInt(v1.value.i64 ^ v2.value.i64));
+                pc++;
+                break;
+
+            case OpCode.NOT:
+                Value v1 = pop();
+                push(makeInt(~v1.value.i64));
+                pc++;
+                break;
+
+            case OpCode.SHR:
+                Value v2 = pop();
+                Value v1 = pop();
+                push(makeInt(v1.value.i64 >> v2.value.i64));
+                pc++;
+                break;
+
+            case OpCode.SHL:
+                Value v2 = pop();
+                Value v1 = pop();
+                push(makeInt(v1.value.i64 << v2.value.i64));
+                pc++;
+                break;
+
+            case OpCode.SAR:
+                Value v2 = pop();
+                Value v1 = pop();
+                push(makeInt(v1.value.i64 >>> v2.value.i64));
                 pc++;
                 break;
 
@@ -519,19 +593,19 @@ class HarpyVM
                 final switch (v.type)
                 {
                 case Type.Int:
-                    printf("%lld\n".toStringz(), v.value.i64);
+                    printf("%lld".toStringz(), v.value.i64);
                     break;
                 case Type.Float:
-                    printf("%.8f\n".toStringz(), v.value.f64);
+                    printf("%.8f".toStringz(), v.value.f64);
                     break;
                 case Type.String:
-                    printf("%s\n", v.value.str.toStringz());
+                    printf("%s", v.value.str.toStringz());
                     break;
                 case Type.Bool:
-                    printf("%s\n".toStringz(), v.value.i1 ? "true".toStringz() : "false".toStringz());
+                    printf("%s".toStringz(), v.value.i1 ? "verdadeiro".toStringz() : "falso".toStringz());
                     break;
                 case Type.Array:
-                    printf("<Array>\n".toStringz());
+                    printf("<Array>".toStringz());
                     break;
                 }
                 pc++;

@@ -1,6 +1,6 @@
-declarar principal() vazio {
+declarar principal vazio {
     para alocar i int = 0; i < 10; ++i {
-        __corevm_print(i)
+        __nucleo_harpy_escreva(i, " ")
     }
     fim
 }

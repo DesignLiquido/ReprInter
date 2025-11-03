@@ -1,16 +1,4 @@
-// int = inteiro = i64
-// dec = decimal = f64
-
-// ponto de entrada do programa
-declarar principal() vazio {
-    // aloca a variavel na stack
-    // $0 será o identificador temporario utilizado
-    // i64 é o tipo
-    // alocar $0 int
-    // $0 = 60 + 9
-    alocar $0 int = 60 + 9
-    // $0 = 69
-    __corevm_print(++$0) // 70
-    // fim do programa
+declarar principal vazio {
+    __nucleo_harpy_escreva("Olá Mundo!", "\n")
     fim
 }

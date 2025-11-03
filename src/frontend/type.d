@@ -14,16 +14,16 @@ module frontend.type;
 // tipo base
 enum BaseType : string
 {
-    String = "string",
+    String = "texto",
 
     // Numérico
-    Int = "int",
-    Double = "double",
-    Float = "float",
-    Real = "real",
+    Int = "inteiro",
+    Double = "decimal",
+    Float = "f32",
+    Real = "f128",
 
-    Bool = "bool",
-    Void = "void",
+    Bool = "logico",
+    Void = "vazio",
 }
 
 // tipos que um Type pode ter

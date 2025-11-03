@@ -311,7 +311,7 @@ private:
         node.left = analyze(node.left);
         node.right = analyze(node.right);
 
-        if (node.op == "==" || node.op == "!=" || node.op == "<" ||
+        if (node.op == "==" || node.op == "!=" || node.op == "!=" || node.op == "<" ||
             node.op == ">" || node.op == "<=" || node.op == ">=")
         {
             node.type = Type(Types.Literal, BaseType.Bool);
@@ -323,7 +323,6 @@ private:
             if (node.left.type.baseType != BaseType.Bool || node.right.type.baseType != BaseType
                 .Bool)
                 deErro("Os operadores lógicos requerem operandos lógicos.", node.loc);
-
             node.type = Type(Types.Literal, BaseType.Bool);
             return node;
         }
@@ -341,21 +340,18 @@ private:
         {
             if (node.operand.type.baseType != BaseType.Bool)
                 deErro("O operador '!' requer um operando booleano.", node.loc);
-
             node.type = Type(Types.Literal, BaseType.Bool);
         }
-        else if (node.op == "-" || node.op == "+")
+        else if (node.op == "++" || node.op == "--" || node.op == "-" || node.op == "+")
         {
             if (!node.operand.type.isNumeric())
                 deErro(format("O operador '%s' requer um operando numérico.", node.op), node.loc);
-
             node.type = node.operand.type;
         }
-        else if (node.op == "++" || node.op == "--")
+        else if (node.op == "~")
         {
-            if (!node.operand.type.isNumeric())
+            if (!node.operand.type.isNumeric() || node.operand.type.toStr() != "inteiro")
                 deErro(format("O operador '%s' requer um operando numérico.", node.op), node.loc);
-
             node.type = node.operand.type;
         }
 
@@ -381,7 +377,7 @@ public:
     void analyze(ref Program program)
     {
         pushScope();
-        globalFuncs["__corevm_print"] = Symbol(Type(Types.Void, BaseType.Void), Node.init, false, true, true,
+        globalFuncs["__nucleo_harpy_escreva"] = Symbol(Type(Types.Void, BaseType.Void), Node.init, false, true, true,
             [Symbol(Type(Types.Undefined, BaseType.Void))]);
         try
             foreach (ref stmt; program.body)

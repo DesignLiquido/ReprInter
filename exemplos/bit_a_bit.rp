@@ -1,0 +1,33 @@
+declarar principal vazio {
+    alocar a inteiro = 5
+    alocar b inteiro = 3
+    alocar c inteiro = 12
+
+    alocar r1 inteiro = (a & b) + (a | b) * 2
+    alocar r2 inteiro = (a ^ b) << 2
+    alocar r3 inteiro = (~a + 10) >> 1
+    alocar r4 inteiro = ((a + b) << 1) & 15
+    alocar r5 inteiro = (c >> 2) | (a & b)
+    alocar r6 inteiro = (a + b * c) ^ (a << 3)
+
+    __nucleo_harpy_escreva("r1 = ", r1, "\n")
+    __nucleo_harpy_escreva("r2 = ", r2, "\n")
+    __nucleo_harpy_escreva("r3 = ", r3, "\n")
+    __nucleo_harpy_escreva("r4 = ", r4, "\n")
+    __nucleo_harpy_escreva("r5 = ", r5, "\n")
+    __nucleo_harpy_escreva("r6 = ", r6, "\n")
+
+    alocar x inteiro = (10 << 2) + (10 & 3)
+    __nucleo_harpy_escreva("x = (x << 2) + (x & 3) -> ", x, "\n")
+
+    x ^= (a | b)
+    __nucleo_harpy_escreva("x ^= (a | b) -> ", x, "\n")
+
+    x &= ((a << 1) + b)
+    __nucleo_harpy_escreva("x &= ((a << 1) + b) -> ", x, "\n")
+
+    x >>= 1
+    __nucleo_harpy_escreva("x >>= 1 -> ", x, "\n")
+
+    fim
+}
