@@ -16,6 +16,41 @@ private:
     TokenKind[string] keywords; // tabela de palavras chave
     TokenKind[string] symbols; // tabela de simbolos
     DiagnosticError error; // classe de erro (instancia global)
+    // otimizações
+    string[256] charToStr;
+    string[string] internedStrings;
+    bool[256] isIdentStart;
+    bool[256] isIdentCont;
+
+    string intern(string s)
+    {
+        if (auto cached = s in internedStrings)
+            return *cached;
+        internedStrings[s] = s;
+        return s;
+    }
+
+    pragma(inline, true);
+    void setCharToStrAndAsIdent()
+    {
+        foreach (i; 0 .. 256)
+            charToStr[i] = [cast(char) i];
+
+        foreach (c; 'a' .. 'z' + 1)
+        {
+            isIdentStart[c] = true;
+            isIdentCont[c] = true;
+        }
+        foreach (c; 'A' .. 'Z' + 1)
+        {
+            isIdentStart[c] = true;
+            isIdentCont[c] = true;
+        }
+        isIdentStart['_'] = true;
+        isIdentCont['_'] = true;
+        foreach (c; '0' .. '9' + 1)
+            isIdentCont[c] = true;
+    }
 
     pragma(inline, true);
     void setKeywords()
@@ -57,28 +92,28 @@ private:
         symbols["}"] = TokenKind.RBrace;
         symbols["["] = TokenKind.LBracket;
         symbols["]"] = TokenKind.RBracket;
+
         symbols["+"] = TokenKind.Plus;
         symbols["-"] = TokenKind.Minus;
         symbols["*"] = TokenKind.Star;
         symbols["/"] = TokenKind.Slash;
+        symbols["%"] = TokenKind.Modulo;
+
+        symbols[">"] = TokenKind.GreaterThan;
+        symbols["<"] = TokenKind.LessThan;
+        symbols["!"] = TokenKind.Bang;
+
+        symbols["."] = TokenKind.Dot;
         symbols[":"] = TokenKind.Colon;
         symbols[","] = TokenKind.Comma;
         symbols[";"] = TokenKind.SemiColon;
-        symbols[">"] = TokenKind.GreaterThan;
-        symbols[">="] = TokenKind.GreaterThanEquals;
-        symbols["<"] = TokenKind.LessThan;
-        symbols["<="] = TokenKind.LessThanEquals;
-        symbols["=="] = TokenKind.EqualsEquals;
-        symbols["."] = TokenKind.Dot;
-        symbols["!"] = TokenKind.Bang;
-        symbols["%"] = TokenKind.Modulo;
-        symbols["&"] = TokenKind.Ampersand;
         symbols["$"] = TokenKind.Dolar;
         symbols["="] = TokenKind.Equals;
-        symbols["+="] = TokenKind.PlusEquals;
-        symbols["-="] = TokenKind.MinusEquals;
-        symbols["/="] = TokenKind.SlashEquals;
-        symbols["*="] = TokenKind.StarEquals;
+
+        symbols["&"] = TokenKind.BitAnd;
+        symbols["|"] = TokenKind.BitOr;
+        symbols["^"] = TokenKind.BitXor;
+        symbols["~"] = TokenKind.BitNot;
 
         // 2
         symbols["||"] = TokenKind.Or;
@@ -86,17 +121,36 @@ private:
         symbols[".."] = TokenKind.Range;
         symbols["++"] = TokenKind.PlusPlus;
         symbols["--"] = TokenKind.MinusMinus;
-        symbols["+="] = TokenKind.PlusEquals;
         symbols["->"] = TokenKind.Arrow;
+
+        symbols["+="] = TokenKind.PlusEquals;
+        symbols["-="] = TokenKind.MinusEquals;
+        symbols["/="] = TokenKind.SlashEquals;
+        symbols["*="] = TokenKind.StarEquals;
+        symbols["%="] = TokenKind.ModuloEquals;
+        symbols["&="] = TokenKind.BitAndEquals;
+        symbols["|="] = TokenKind.BitOrEquals;
+        symbols["^="] = TokenKind.BitXorEquals;
+
+        symbols["<<"] = TokenKind.BitSHL;
+        symbols[">>"] = TokenKind.BitSHR;
+
+        symbols[">="] = TokenKind.GreaterThanEquals;
+        symbols["<="] = TokenKind.LessThanEquals;
+        symbols["=="] = TokenKind.EqualsEquals;
+        symbols["!="] = TokenKind.NotEquals;
 
         // 3
         symbols["..."] = TokenKind.Variadic;
         symbols["..="] = TokenKind.RangeEquals;
+        symbols[">>>"] = TokenKind.BitSAR;
+        symbols[">>="] = TokenKind.BitSHREquals;
+        symbols["<<="] = TokenKind.BitSHLEquals;
     }
 
     bool lexChar(char c)
     {
-        string ch = to!string(c);
+        string ch = charToStr[c];
 
         if (offset + 2 < source.length)
         {
@@ -173,6 +227,7 @@ public:
         this.error = error;
         setKeywords(); // faz o startup das palavras chave
         setSymbols(); // faz o startup dos simbolos
+        setCharToStrAndAsIdent();
     }
 
     Token[] tokenize()
@@ -193,35 +248,35 @@ public:
                 continue;
             }
 
-            if (isAlpha(ch) || ch == '_')
+            if (isIdentStart[ch] || ch == '_')
             {
-                // long startOffset = lineOffset;
+                long startOffset = offset;
                 string id;
 
-                while (offset < source.length && (isAlpha(peek()) || peek() == '_' || isDigit(
-                        peek())))
-                {
-                    id ~= to!string(peek());
+                while (offset < source.length && (isIdentStart[peek()] || peek() == '_' || isDigit(
+                        peek()))
+                    )
                     advance();
-                }
+
+                id = source[startOffset .. offset];
 
                 if (id in keywords)
-                    createToken(keywords[id], Variant(id), id.length + 1);
+                    createToken(keywords[id], Variant(intern(id)), id.length + 1);
                 else
-                    createToken(TokenKind.Identifier, Variant(id), id.length + 1);
+                    createToken(TokenKind.Identifier, Variant(intern(id)), id.length + 1);
                 continue;
             }
 
             if (isDigit(ch))
             {
-                // long startOffset = lineOffset;
+                long startOffset = offset;
                 string n;
                 bool isDouble = false;
 
                 while (offset < source.length && (isDigit(peek()) || peek() == '_'))
                 {
                     if (peek() != '_')
-                        n ~= to!string(peek());
+                        n ~= charToStr[peek()];
                     advance();
                 }
 
@@ -230,12 +285,11 @@ public:
                     n ~= ".";
                     advance();
                     isDouble = true;
+                    long offsetSave = offset;
 
                     while (offset < source.length && isDigit(peek()))
-                    {
-                        n ~= to!string(peek());
                         advance();
-                    }
+                    n ~= source[offsetSave .. offset];
                 }
 
                 if (offset < source.length)
@@ -244,29 +298,29 @@ public:
                     if (suffix == 'F' || suffix == 'f')
                     {
                         advance();
-                        createToken(TokenKind.F32, Variant(n), n.length + 1);
+                        createToken(TokenKind.F32, Variant(intern(n)), n.length + 1);
                     }
                     else if (suffix == 'D' || suffix == 'd')
                     {
                         advance();
-                        createToken(TokenKind.F64, Variant(n), n.length + 1);
+                        createToken(TokenKind.F64, Variant(intern(n)), n.length + 1);
                     }
                     else if (suffix == 'L')
                     {
                         advance();
-                        createToken(TokenKind.F128, Variant(n), n.length + 1);
+                        createToken(TokenKind.F128, Variant(intern(n)), n.length + 1);
                     }
                     else if (isDouble)
-                        createToken(TokenKind.F64, Variant(n), n.length + 1);
+                        createToken(TokenKind.F64, Variant(intern(n)), n.length + 1);
                     else
-                        createToken(TokenKind.I64, Variant(n), n.length + 1);
+                        createToken(TokenKind.I64, Variant(intern(n)), n.length + 1);
                 }
                 else
                 {
                     if (isDouble)
-                        createToken(TokenKind.F64, Variant(n), n.length + 1);
+                        createToken(TokenKind.F64, Variant(intern(n)), n.length + 1);
                     else
-                        createToken(TokenKind.I64, Variant(n), n.length + 1);
+                        createToken(TokenKind.I64, Variant(intern(n)), n.length + 1);
                 }
                 continue;
             }
@@ -282,7 +336,7 @@ public:
             {
                 if (offset + 2 < source.length)
                 {
-                    string three = to!string(ch) ~ source[offset + 1] ~ source[offset + 2];
+                    string three = charToStr[ch] ~ source[offset + 1] ~ source[offset + 2];
                     if (three in symbols)
                     {
                         advance(3);
@@ -292,7 +346,7 @@ public:
 
                 if (offset + 1 < source.length)
                 {
-                    string two = to!string(ch) ~ source[offset + 1];
+                    string two = charToStr[ch] ~ source[offset + 1];
                     if (two in symbols)
                     {
                         advance(2);
