@@ -10,6 +10,7 @@ enum NodeKind
     Identifier,
     IfStatement,
     ElseStatement,
+    ForStatement,
     Return,
 
     // literais
@@ -334,6 +335,9 @@ class UnaryExpr : Node
 {
     string op; // "-", "!", "+"
     Node operand;
+    // define se o operador veio antes ou após a exressão
+    // i++ = true
+    // ++i = false
     bool postFix;
 
     this(string op, Node operand, Loc loc, bool postFix = false)
@@ -466,6 +470,65 @@ class Return : Node
             value.get!Node.print(ident + continuation.length + 4, true);
         else
             println(continuation ~ "    └── (nulo)", ident);
+    }
+}
+
+class ForStatement : Node
+{
+    Node init_;
+    Node condition;
+    Node increment;
+    Node[] body;
+
+    this(Node init_, Node condition, Node increment, Node[] body, Loc loc)
+    {
+        this.kind = NodeKind.ForStatement;
+        this.type = Type(Types.Void, BaseType.Void);
+        this.value = null;
+        this.init_ = init_;
+        this.condition = condition;
+        this.increment = increment;
+        this.body = body;
+        this.loc = loc;
+    }
+
+    override void print(ulong ident = 0, bool isLast = false)
+    {
+        string prefix = isLast ? "└── " : "├── ";
+        string continuation = isLast ? "    " : "│   ";
+
+        println(prefix ~ "ForStatement", ident);
+        println(continuation ~ "├── Tipo: " ~ cast(string) type.baseType, ident);
+
+        // inicialização
+        println(continuation ~ "├── Inicialização:", ident);
+        if (init_ !is null)
+            init_.print(ident + continuation.length + 4, false);
+        else
+            println(continuation ~ "│   └── (nulo)", ident);
+
+        // condição
+        println(continuation ~ "├── Condição:", ident);
+        if (condition !is null)
+            condition.print(ident + continuation.length + 4, false);
+        else
+            println(continuation ~ "│   └── (nulo)", ident);
+
+        // incremento
+        println(continuation ~ "├── Incremento:", ident);
+        if (increment !is null)
+            increment.print(ident + continuation.length + 4, false);
+        else
+            println(continuation ~ "│   └── (nulo)", ident);
+
+        // corpo
+        println(continuation ~ "└── Corpo (" ~ to!string(body.length) ~ " nó(s)):", ident);
+        foreach (size_t i, Node node; body)
+            if (i == cast(uint)
+                body.length - 1)
+                node.print(ident + continuation.length + 4, true);
+            else
+                node.print(ident + continuation.length + 4, false);
     }
 }
 

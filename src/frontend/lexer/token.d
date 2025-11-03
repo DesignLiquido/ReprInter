@@ -14,6 +14,7 @@ enum TokenKind
     Fim,
     Verdadeiro,
     Falso,
+    Para,
 
     // tipos
     I32,
@@ -67,6 +68,9 @@ enum TokenKind
     Or, // ||
     And, // &&
     PlusEquals, // +=
+    MinusEquals, // -=
+    StarEquals, // *=
+    SlashEquals, // /=
     Arrow, // ->
 
     EqualsEquals, // ==

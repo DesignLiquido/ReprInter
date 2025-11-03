@@ -2,7 +2,7 @@ module backend.codegen;
 
 import std.stdio, std.format, std.conv, std.algorithm, std.string;
 import core.sys.posix.dlfcn;
-import frontend.parser.ast, frontend.type;
+import frontend.parser.ast, frontend.type, frontend.lexer.token : Loc;
 import backend.harpyvm, erro;
 
 class CodeGen
@@ -85,23 +85,33 @@ private:
         return funcContextStack.length == 0;
     }
 
+    pragma(inline, true);
+    void deAviso(string message, Loc loc, Suggestion[] sugestoes = [])
+    {
+        error.addWarning(Diagnostic(message, loc, sugestoes));
+    }
+
+    void deErro(string message, Loc loc, Suggestion[] sugestoes = [])
+    {
+        error.addError(Diagnostic(message, loc, sugestoes));
+        throw new Exception(message);
+    }
+
     Value makeValue(Node node)
     {
         switch (node.kind)
         {
         case NodeKind.IntLiteral:
             return engine.makeInt(node.value.get!long);
-
         case NodeKind.DoubleLiteral:
             return engine.makeFloat(node.value.get!double);
-
         case NodeKind.StringLiteral:
             return engine.makeStr(node.value.get!string);
-
+        case NodeKind.BoolLiteral:
+            return engine.makeBool(node.value.get!bool);
         default:
-            error.addError(Diagnostic(format("Literal desconhecido: %s", node.kind), node
-                    .loc));
-            throw new Exception(format("Literal desconhecido: %s", node.kind));
+            deErro(format("Literal desconhecido: %s", node.kind), node.loc);
+            throw new Exception("");
         }
     }
 
@@ -142,51 +152,87 @@ public:
         case NodeKind.VarDeclaration:
             generateVarDecl(cast(VarDeclaration) node);
             break;
-
         case NodeKind.FuncDeclaration:
             generateFuncDecl(cast(FunctionDeclaration) node);
             break;
-
         case NodeKind.CallExpr:
             generateCallExpr(cast(CallExpr) node);
             break;
-
         case NodeKind.BinaryExpr:
             generateBinaryExpr(cast(BinaryExpr) node);
             break;
-
         case NodeKind.UnaryExpr:
             generateUnaryExpr(cast(UnaryExpr) node);
             break;
-
         case NodeKind.Identifier:
             generateIdentifier(cast(Identifier) node);
             break;
-
         case NodeKind.IfStatement:
             generateIfStmt(cast(IfStatement) node);
             break;
-
         case NodeKind.Return:
             generateReturn(cast(Return) node);
             break;
-
+        case NodeKind.ForStatement:
+            generateForStmt(cast(ForStatement) node);
+            break;
         case NodeKind.IntLiteral:
         case NodeKind.DoubleLiteral:
         case NodeKind.StringLiteral:
+        case NodeKind.BoolLiteral:
             generateLiteral(node);
             break;
-
         case NodeKind.EoP:
             halt = true;
             cg.emit(Instruction(OpCode.HALT));
             break;
-
         default:
-            error.addError(Diagnostic(format("Code generation not implemented for: %s", node.kind), node
-                    .loc));
-            throw new Exception(format("Code generation not implemented for: %s", node.kind));
+            deErro(format("Geração de código não implementada para: %s", node.kind), node.loc);
+            break;
         }
+    }
+
+    void generateForStmt(ForStatement node)
+    {
+        pushScope();
+
+        string loopLabel = genLabel("loop");
+        string endLabel = genLabel("end_loop");
+
+        if (node.init_ !is null)
+            generateNode(node.init_);
+
+        cg.label(loopLabel);
+
+        if (node.condition !is null)
+        {
+            generateNode(node.condition);
+            cg.emit(Instruction(OpCode.JZ, engine.makeInt(-1)));
+            int jzIdx = cast(int) cg.program.length - 1;
+
+            foreach (stmt; node.body)
+                generateNode(stmt);
+
+            if (node.increment !is null)
+                generateNode(node.increment);
+
+            cg.emit(Instruction(OpCode.JMP, engine.makeInt(cast(long) cg.labels[loopLabel])));
+            cg.label(endLabel);
+            cg.program[jzIdx].val = engine.makeInt(cast(long) cg.program.length);
+        }
+        else
+        {
+            // Loop infinito
+            foreach (stmt; node.body)
+                generateNode(stmt);
+
+            if (node.increment !is null)
+                generateNode(node.increment);
+
+            cg.emit(Instruction(OpCode.JMP, engine.makeInt(cast(long) cg.labels[loopLabel])));
+        }
+
+        popScope();
     }
 
     void generateReturn(Return node)
@@ -301,7 +347,7 @@ public:
     {
         if (node.id == "__corevm_print")
         {
-            foreach_reverse (arg; node.args)
+            foreach (arg; node.args)
             {
                 generateNode(arg);
                 cg.emit(Instruction(OpCode.PRINT));
@@ -347,6 +393,44 @@ public:
         case "/":
             opcode = isFloat ? OpCode.DIVF : OpCode.DIVI;
             break;
+        case "+=":
+        case "-=":
+        case "/=":
+        case "*=":
+            if (node.left.kind != NodeKind.Identifier)
+                deErro(
+                    "Para realizar esta operação é necessário que a expressão a esquerda seja uma variavel.",
+                    node.left.loc
+                );
+
+            Identifier id = cast(Identifier) node.left;
+            string name = id.value.get!string;
+            VarInfo* varInfo = lookupVar(name);
+
+            if (varInfo is null)
+                deErro(format("Váriavel não encontrada: %s", name), node.loc);
+
+            final switch (node.op)
+            {
+            case "+=":
+                cg.emit(Instruction(!isFloat ? OpCode.ADDI : OpCode.ADDF));
+                break;
+            case "-=":
+                cg.emit(Instruction(!isFloat ? OpCode.SUBI : OpCode.SUBF));
+                break;
+            case "/=":
+                cg.emit(Instruction(!isFloat ? OpCode.DIVI : OpCode.DIVF));
+                break;
+            case "*=":
+                cg.emit(Instruction(!isFloat ? OpCode.MULI : OpCode.MULF));
+                break;
+            }
+
+            if (varInfo.isGlobal)
+                cg.emit(Instruction(OpCode.STOREG, engine.makeStr(name)));
+            else
+                cg.storeLocal(name);
+            return;
         case "<":
             opcode = OpCode.LT;
             break;
@@ -366,8 +450,8 @@ public:
             opcode = OpCode.NE;
             break;
         default:
-            error.addError(Diagnostic(format("Unsupported binary operator: %s", node.op), node.loc));
-            throw new Exception(format("Unsupported binary operator: %s", node.op));
+            deErro(format("Operador não suportado: %s", node.op), node.loc);
+            break;
         }
 
         cg.emit(Instruction(opcode, engine.makeInt(0)));
@@ -385,42 +469,38 @@ public:
                 node.operand.type.baseType == BaseType.Double;
             cg.emit(Instruction(isFloat ? OpCode.MULF : OpCode.MULI, engine.makeInt(0)));
             break;
-
+        case "+":
+            // só ignorar
+            break;
         case "!":
             // TODO: NOT lógico
             cg.push(engine.makeBool(false));
             cg.emit(Instruction(OpCode.EQ, engine.makeInt(0)));
             break;
-
         case "++":
         case "--":
-            if (!node.postFix)
-            {
-                generateNode(node.operand);
-                cg.push(engine.makeInt(node.op == "++" ? 1 : -1));
-                cg.emit(Instruction(OpCode.ADDI, engine.makeInt(0)));
+            if (node.operand.kind != NodeKind.Identifier)
+                deErro("A expressao unaria '++' e '--' espera que o operando seja uma variavel.", node
+                        .operand.loc);
+            // carrega o valor 10 na stack (por exemplo)
+            generateNode(node.operand);
+            cg.push(engine.makeInt(node.op == "++" ? 1 : -1));
+            // opera no ultimo valor adicionado na stack
+            cg.emit(Instruction(OpCode.ADDI));
+            // se não for postFix ele duplica o valor da stack
+            if (!node.postFix) // duplica o valor com DUP
+                cg.emit(Instruction(OpCode.DUP));
 
-                if (node.operand.kind == NodeKind.Identifier)
-                {
-                    Identifier id = cast(Identifier) node.operand;
-                    VarInfo* varInfo = lookupVar(id.value.get!string);
-                    if (varInfo.isGlobal)
-                        cg.emit(Instruction(OpCode.STOREG, engine.makeStr(id.value.get!string)));
-                    else
-                        cg.storeLocal(id.value.get!string);
-                }
-            }
+            Identifier id = cast(Identifier) node.operand;
+            VarInfo* varInfo = lookupVar(id.value.get!string);
+            if (varInfo.isGlobal)
+                cg.emit(Instruction(OpCode.STOREG, engine.makeStr(id.value.get!string)));
             else
-            {
-                // TODO:
-                // Post-incremento: retorna valor antigo, depois modifica
-                // (mais complexo, requer duplicação do valor)
-            }
+                cg.storeLocal(id.value.get!string);
             break;
-
         default:
-            error.addError(Diagnostic(format("Unsupported unary operator: %s", node.op), node.loc));
-            throw new Exception(format("Unsupported unary operator: %s", node.op));
+            deErro(format("Operador não suportado: %s", node.op), node.loc);
+            break;
         }
     }
 
@@ -430,10 +510,7 @@ public:
         VarInfo* varInfo = lookupVar(name);
 
         if (varInfo is null)
-        {
-            error.addError(Diagnostic(format("Variable not found: %s", name), node.loc));
-            throw new Exception(format("Variable not found: %s", name));
-        }
+            deErro(format("Váriavel não encontrada: %s", name), node.loc);
 
         if (varInfo.isGlobal)
             cg.emit(Instruction(OpCode.LOADG, engine.makeStr(name)));

@@ -57,17 +57,25 @@ private:
         scopes[$ - 1][name] = sym;
     }
 
+    pragma(inline, true);
+    void deAviso(string message, Loc loc, Suggestion[] sugestoes = [])
+    {
+        error.addWarning(Diagnostic(message, loc, sugestoes));
+    }
+
+    void deErro(string message, Loc loc, Suggestion[] sugestoes = [])
+    {
+        error.addError(Diagnostic(message, loc, sugestoes));
+        throw new Exception(message);
+    }
+
     void checkType(Type left, Type right, ref Loc loc)
     {
         if (!left.isCompatibleWith(right))
-        {
-            string msg = format(
-                "Type mismatch: expected '%s', found '%s'",
-                left.toStr(), right.toStr()
-            );
-            error.addError(Diagnostic(msg, loc));
-            throw new Exception(msg);
-        }
+            deErro(format(
+                    "Tipo inesperado: esperado '%s', recebido '%s'",
+                    left.toStr(), right.toStr()
+            ), loc);
     }
 
     Node analyze(Node node)
@@ -94,27 +102,52 @@ private:
             return analyzeIfStmt(cast(IfStatement) node);
         case NodeKind.ElseStatement:
             return analyzeElseStmt(cast(ElseStatement) node);
+        case NodeKind.ForStatement:
+            return analyzeForStmt(cast(ForStatement) node);
 
             // literais não precisam de análise especial
         case NodeKind.IntLiteral:
         case NodeKind.DoubleLiteral:
+        case NodeKind.BoolLiteral:
         case NodeKind.StringLiteral:
         case NodeKind.EoP:
             return node;
 
         default:
-            error.addError(Diagnostic("Nó não suportado: " ~ to!string(node.kind), node.loc));
-            throw new Exception("Nó não suportado: " ~ to!string(node.kind));
+            deErro("Nó não suportado: " ~ to!string(node.kind), node.loc);
+            return node;
         }
+    }
+
+    Node analyzeForStmt(ForStatement node)
+    {
+        pushScope();
+        scope (exit)
+            popScope();
+
+        if (node.init_ !is null)
+            node.init_ = analyze(node.init_);
+
+        if (node.condition !is null)
+        {
+            node.condition = analyze(node.condition);
+            if (node.condition.type.baseType != BaseType.Bool)
+                deErro("A condição do 'para' deve ser do tipo lógico (boolean).", node.loc);
+        }
+
+        if (node.increment !is null)
+            node.increment = analyze(node.increment);
+
+        foreach (ref stmt; node.body)
+            stmt = analyze(stmt);
+
+        return node;
     }
 
     Node analyzeReturn(Return node)
     {
         if (!insideFunction)
-        {
-            error.addError(Diagnostic("O 'retorne' foi usado fora de uma função", node.loc));
-            throw new Exception("O 'retorne' foi usado fora de uma função");
-        }
+            deErro("O 'retorne' foi usado fora de uma função.", node.loc);
 
         if (node.ret && node.value.convertsTo!Node)
         {
@@ -124,10 +157,7 @@ private:
             checkType(currentFuncReturnType, returnValue.type, node.loc);
         }
         else if (!node.ret && currentFuncReturnType.baseType != BaseType.Void)
-        {
-            error.addError(Diagnostic("A função deve retornar um valor", node.loc));
-            throw new Exception("A função deve retornar um valor");
-        }
+            deErro("A função deve retornar um valor.", node.loc);
 
         return node;
     }
@@ -136,10 +166,7 @@ private:
     {
         node.condition = analyze(node.condition);
         if (node.condition.type.baseType != BaseType.Bool)
-        {
-            error.addError(Diagnostic("A condição 'se' deve ser logica", node.loc));
-            throw new Exception("A condição 'se' deve ser logica");
-        }
+            deErro("A condição 'se' deve ser logica.", node.loc);
 
         pushScope();
         scope (exit)
@@ -189,10 +216,7 @@ private:
     Node analyzeFuncDecl(FunctionDeclaration node)
     {
         if (node.name in globalFuncs)
-        {
-            error.addError(Diagnostic(format("Function '%s' already declared", node.name), node.loc));
-            throw new Exception(format("Function '%s' already declared", node.name));
-        }
+            deErro(format("A função '%s' já foi declarada.", node.name), node.loc);
 
         Symbol funcSym;
         funcSym.isFunc = true;
@@ -236,10 +260,7 @@ private:
     {
         Symbol* funcSym = lookupSymbol(node.id);
         if (funcSym is null || !funcSym.isFunc)
-        {
-            error.addError(Diagnostic(format("Function '%s' not declared", node.id), node.loc));
-            throw new Exception(format("Function '%s' not declared", node.id));
-        }
+            deErro(format("A Função '%s' não existe.", node.id), node.loc);
 
         ulong expectedArgsMin = 0;
         bool hasVariadic = false;
@@ -258,25 +279,17 @@ private:
 
         // Verifica número mínimo de argumentos
         if (node.args.length < expectedArgsMin)
-        {
-            string msg = format(
-                "Function '%s' expects at least %d arguments, but got %d",
-                node.id, expectedArgsMin, node.args.length
-            );
-            error.addError(Diagnostic(msg, node.loc));
-            throw new Exception(msg);
-        }
+            deErro(format(
+                    "A função '%s' espera pelo menos %d argumentos, mas recebeu %d.",
+                    node.id, expectedArgsMin, node.args.length
+            ), node.loc);
 
         // Verifica número máximo se não for variadic
         if (!hasVariadic && node.args.length > funcSym.funcArgs.length)
-        {
-            string msg = format(
-                "Function '%s' expects %d arguments, but got %d",
-                node.id, funcSym.funcArgs.length, node.args.length
-            );
-            error.addError(Diagnostic(msg, node.loc));
-            throw new Exception(msg);
-        }
+            deErro(format(
+                    "A função '%s' espera %d argumentos, mas recebeu %d.",
+                    node.id, funcSym.funcArgs.length, node.args.length
+            ), node.loc);
 
         foreach (i, ref arg; node.args)
         {
@@ -309,10 +322,7 @@ private:
         {
             if (node.left.type.baseType != BaseType.Bool || node.right.type.baseType != BaseType
                 .Bool)
-            {
-                error.addError(Diagnostic("Logical operators require boolean operands", node.loc));
-                throw new Exception("Logical operators require boolean operands");
-            }
+                deErro("Os operadores lógicos requerem operandos lógicos.", node.loc);
 
             node.type = Type(Types.Literal, BaseType.Bool);
             return node;
@@ -330,32 +340,21 @@ private:
         if (node.op == "!")
         {
             if (node.operand.type.baseType != BaseType.Bool)
-            {
-                error.addError(Diagnostic("Operator '!' requires boolean operand", node.loc));
-                throw new Exception("Operator '!' requires boolean operand");
-            }
+                deErro("O operador '!' requer um operando booleano.", node.loc);
 
             node.type = Type(Types.Literal, BaseType.Bool);
         }
         else if (node.op == "-" || node.op == "+")
         {
             if (!node.operand.type.isNumeric())
-            {
-                error.addError(Diagnostic(format("Operator '%s' requires numeric operand", node.op), node
-                        .loc));
-                throw new Exception(format("Operator '%s' requires numeric operand", node.op));
-            }
+                deErro(format("O operador '%s' requer um operando numérico.", node.op), node.loc);
 
             node.type = node.operand.type;
         }
         else if (node.op == "++" || node.op == "--")
         {
             if (!node.operand.type.isNumeric())
-            {
-                error.addError(Diagnostic(format("Operator '%s' requires numeric operand", node.op), node
-                        .loc));
-                throw new Exception(format("Operator '%s' requires numeric operand", node.op));
-            }
+                deErro(format("O operador '%s' requer um operando numérico.", node.op), node.loc);
 
             node.type = node.operand.type;
         }
@@ -367,11 +366,7 @@ private:
     {
         Symbol* sym = lookupSymbol(node.value.get!string);
         if (sym is null)
-        {
-            error.addError(Diagnostic(format("Identifier '%s' not declared", node.value.get!string), node
-                    .loc));
-            throw new Exception(format("Identifier '%s' not declared", node.value.get!string));
-        }
+            deErro(format("Identificador '%s' não declarado.", node.value.get!string), node.loc);
 
         node.type = sym.type;
         return node;

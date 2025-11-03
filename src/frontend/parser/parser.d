@@ -26,16 +26,19 @@ private:
         switch (token.kind)
         {
         case TokenKind.Identifier:
+        case TokenKind.Dolar:
+            if (token.kind == TokenKind.Dolar)
+                token = this.advance();
             if (this.peek()
                 .kind == TokenKind.LParen)
                 return parseCallExpr(token.value.get!string, token.loc);
-            return new Identifier(token.value.get!string, token.loc);
-        case TokenKind.Dolar:
-            Token id = this.advance();
-            if (this.peek()
-                .kind == TokenKind.LParen)
-                return parseCallExpr(to!string(id.value), token.loc);
-            return new Identifier(to!string(id.value), token.loc);
+            Node operand = new Identifier(token.value.get!string, token.loc);
+            if (this.check(TokenKind.PlusPlus) || this.check(TokenKind.MinusMinus))
+            {
+                Token postOp = this.advance();
+                return new UnaryExpr(postOp.value.get!string, operand, token.loc, true);
+            }
+            return operand;
         case TokenKind.I64:
             return new IntLiteral(to!long(token.value.get!string), token.loc);
         case TokenKind.F64:
@@ -48,18 +51,39 @@ private:
             return this.parseFuncDecl();
         case TokenKind.Retorne:
             return this.parseReturn();
+        case TokenKind.Para:
+            return this.parseForStmt();
         case TokenKind.Se:
             return this.parseIfStatement();
         case TokenKind.Verdadeiro:
             return new BoolLiteral(true, token.loc);
         case TokenKind.Falso:
             return new BoolLiteral(false, token.loc);
+        case TokenKind.Plus:
+        case TokenKind.Minus:
+        case TokenKind.PlusPlus:
+        case TokenKind.MinusMinus:
+        case TokenKind.Bang:
+            Node operand = this.parseExpression(Precedence.HIGHEST);
+            return new UnaryExpr(token.value.get!string, operand, token.loc, false);
         case TokenKind.Fim:
             return new EoP(token.loc);
         default:
             error.addError(Diagnostic("Token desconhecido: " ~ to!string(token), token.loc));
             throw new Exception("Token desconhecido: " ~ to!string(token));
         }
+    }
+
+    ForStatement parseForStmt()
+    {
+        Loc start = previous().loc;
+        Node init = this.parseExpression(Precedence.LOWEST); // alocar i int = 0
+        this.consume(TokenKind.SemiColon, "Esperado ';' após a inicialização do 'para'.");
+        Node condition = this.parseExpression(Precedence.LOWEST); // i < 1000
+        this.consume(TokenKind.SemiColon, "Esperado ';' após a condição do 'para'.");
+        Node increment = this.parseExpression(Precedence.LOWEST); // i++, ++i, --i, i--, i = i + 1, i += 1, ...
+        Node[] body = this.parseBody(); // { ... }
+        return new ForStatement(init, condition, increment, body, start);
     }
 
     IfStatement parseIfStatement()
@@ -204,6 +228,8 @@ private:
             return Type(Types.Literal, BaseType.Double);
         case TokenKind.Txt:
             return Type(Types.Literal, BaseType.String);
+        case TokenKind.Logico:
+            return Type(Types.Literal, BaseType.Bool);
         case TokenKind.Vazio:
             return Type(Types.Void, BaseType.Void);
         default:
@@ -225,6 +251,13 @@ private:
         case TokenKind.Plus:
         case TokenKind.Minus:
         case TokenKind.Star:
+        case TokenKind.Slash:
+
+        case TokenKind.PlusEquals:
+        case TokenKind.MinusEquals:
+        case TokenKind.StarEquals:
+        case TokenKind.SlashEquals:
+
         case TokenKind.EqualsEquals:
         case TokenKind.GreaterThan:
         case TokenKind.GreaterThanEquals:
@@ -323,6 +356,13 @@ private:
         {
         case TokenKind.Plus:
         case TokenKind.Minus:
+
+        case TokenKind.PlusPlus:
+        case TokenKind.MinusMinus:
+
+        case TokenKind.PlusEquals:
+        case TokenKind.MinusEquals:
+
         case TokenKind.EqualsEquals:
         case TokenKind.GreaterThan:
         case TokenKind.LessThan:
@@ -331,6 +371,8 @@ private:
             return Precedence.SUM;
         case TokenKind.Star:
         case TokenKind.Slash:
+        case TokenKind.StarEquals:
+        case TokenKind.SlashEquals:
             return Precedence.MUL;
         default:
             return Precedence.LOWEST;

@@ -1,4 +1,4 @@
-import std.stdio, std.file, std.path, std.array;
+import std.stdio, std.file, std.path, std.array, std.getopt;
 import frontend.lexer.token, frontend.lexer.lexer;
 import frontend.parser.ast, frontend.parser.parser;
 import middle.semantic_analyzer;
@@ -6,17 +6,40 @@ import backend.codegen, backend.harpyvm;
 import core.stdc.stdlib : exit;
 import erro;
 
+const string VERSION = "0.1.0";
+
 // verifica se há erros ou avisos a serem mostrados
 void checkErrors(DiagnosticError erro)
 {
 	if (erro.hasErrors() || erro.hasWarnings())
 	{
 		erro.printDiagnostics();
+		// fecha o programa com código -1 caso haja erros
+		if (erro.hasErrors())
+			exit(-1);
 		erro.clear();
 	}
-	// fecha o programa com código -1 caso haja erros
-	if (erro.hasErrors())
-		exit(-1);
+}
+
+void ajuda()
+{
+	// mostra uma mensagem de ajuda
+	writeln("Forma de uso: harpy <arquivo.rp> [opções]\n");
+	writeln("Opções:");
+	writeln("	-v, --versao      Mostra a versão da maquina virtual.");
+	writeln("	-a, --ajuda       Mostra a mensagem de ajuda.");
+	writeln("	--token           Mostra os tokens (debug).");
+	writeln("	--ast             Mostra as ast's  (debug).");
+	writeln("\nExemplos:");
+	writeln("	harpy -v");
+	writeln("	harpy ola_mundo.hp");
+	writeln("	harpy ola_mundo.hp --token --ast");
+}
+
+void versao()
+{
+	// mostra uma mensagem de ajuda
+	writefln("HarpyVM - %s", VERSION);
 }
 
 void main(string[] argumentos)
@@ -38,40 +61,62 @@ void main(string[] argumentos)
 		// ...
 	}
 
-	// verifica se foram passados argumentos
-	// o argumentos[0] por padrão contem o nome do executavel que está sendo executado
-	if (argumentos.length == 1)
-	{
-		writeln("Era esperado um arquivo de extensão '.rp' como argumento.");
-		return;
-	}
-
-	// arquivo aparentemente passado, vamos validar
-	string arquivo = argumentos[1];
-
-	// é um arquivo ou existe?
-	if (!exists(arquivo))
-	{
-		writefln("O arquivo '%s' não existe.", arquivo);
-		return;
-	}
-	if (!isFile(arquivo))
-	{
-		writefln("'%s' não é um arquivo.", arquivo);
-		return;
-	}
-
-	// valida a extensão do arquivo
-	if (extension(arquivo) != ".rp")
-	{
-		writefln("O arquivo '%s' precisa ter a extensão '.rp'.", arquivo);
-		return;
-	}
-
 	DiagnosticError erro = new DiagnosticError; // classe que gera os erros de todo o sistema
+	bool mostrarVersao, mostrarAjuda, mostrarToken, mostrarAst;
 
 	try
 	{
+		// configura todos os argumentos do sistema
+		getopt(argumentos,
+			"v|versao", &mostrarVersao,
+			"a|ajuda", &mostrarAjuda,
+			"token", &mostrarToken,
+			"ast", &mostrarAst,
+		);
+
+		if (mostrarVersao)
+		{
+			versao();
+			return;
+		}
+
+		if (mostrarAjuda)
+		{
+			ajuda();
+			return;
+		}
+
+		// verifica se foram passados argumentos
+		// o argumentos[0] por padrão contem o nome do executavel que está sendo executado
+		if (argumentos.length == 1)
+		{
+			writeln("Era esperado um arquivo de extensão '.rp' como argumento.");
+			ajuda();
+			return;
+		}
+
+		// arquivo aparentemente passado, vamos validar
+		string arquivo = argumentos[1];
+
+		// é um arquivo ou existe?
+		if (!exists(arquivo))
+		{
+			writefln("O arquivo '%s' não existe.", arquivo);
+			return;
+		}
+		if (!isFile(arquivo))
+		{
+			writefln("'%s' não é um arquivo.", arquivo);
+			return;
+		}
+
+		// valida a extensão do arquivo
+		if (extension(arquivo) != ".rp")
+		{
+			writefln("O arquivo '%s' precisa ter a extensão '.rp'.", arquivo);
+			return;
+		}
+
 		// ignore
 		string[] bibliotecasExternas;
 
@@ -85,13 +130,18 @@ void main(string[] argumentos)
 		// o passe é cada processo do sistema
 		checkErrors(erro);
 
-		// foreach (Token token; tokens)
-		// 	token.print();
+		if (mostrarToken)
+		{
+			foreach (Token token; tokens)
+				token.print();
+		}
 
 		// segundo passe
 		Program programa = new Parser(tokens, erro).parse();
 		checkErrors(erro);
-		// programa.print();
+
+		if (mostrarAst)
+			programa.print();
 
 		// terceiro passe
 		new SemanticAnalyzer(erro).analyze(programa);

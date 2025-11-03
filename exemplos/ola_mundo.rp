@@ -9,7 +9,8 @@ declarar principal() vazio {
     // alocar $0 int
     // $0 = 60 + 9
     alocar $0 int = 60 + 9
-    __corevm_print($0)
+    // $0 = 69
+    __corevm_print(++$0) // 70
     // fim do programa
     fim
 }

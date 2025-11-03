@@ -30,6 +30,7 @@ private:
         keywords["retorne"] = TokenKind.Retorne;
         keywords["verdadeiro"] = TokenKind.Verdadeiro;
         keywords["false"] = TokenKind.Falso;
+        keywords["para"] = TokenKind.Para;
 
         // tipos
         keywords["i32"] = TokenKind.I32;
@@ -42,6 +43,8 @@ private:
         keywords["f64"] = TokenKind.F64;
         keywords["f128"] = TokenKind.F128;
         keywords["logico"] = TokenKind.Logico;
+        keywords["texto"] = TokenKind.Txt;
+        keywords["txt"] = TokenKind.Txt;
     }
 
     // define todos os simbolos da representação intermediaria em uma tabela
@@ -61,7 +64,6 @@ private:
         symbols[":"] = TokenKind.Colon;
         symbols[","] = TokenKind.Comma;
         symbols[";"] = TokenKind.SemiColon;
-        symbols["="] = TokenKind.Equals;
         symbols[">"] = TokenKind.GreaterThan;
         symbols[">="] = TokenKind.GreaterThanEquals;
         symbols["<"] = TokenKind.LessThan;
@@ -72,6 +74,11 @@ private:
         symbols["%"] = TokenKind.Modulo;
         symbols["&"] = TokenKind.Ampersand;
         symbols["$"] = TokenKind.Dolar;
+        symbols["="] = TokenKind.Equals;
+        symbols["+="] = TokenKind.PlusEquals;
+        symbols["-="] = TokenKind.MinusEquals;
+        symbols["/="] = TokenKind.SlashEquals;
+        symbols["*="] = TokenKind.StarEquals;
 
         // 2
         symbols["||"] = TokenKind.Or;

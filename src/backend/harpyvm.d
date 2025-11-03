@@ -64,6 +64,7 @@ enum OpCode
     PUSH,
     POP,
     CALL,
+    DUP,
     // TAILCALL,
     RET,
     HALT
@@ -156,6 +157,14 @@ class HarpyVM
         return v;
     }
 
+    pragma(inline, true);
+    Value peek()
+    {
+        if (valueStack.length == 0)
+            throw new Exception("Harpy Virtual Machine Error - Stack underflow");
+        return valueStack[$ - 1];
+    }
+
     ref StackFrame currentFrame()
     {
         return frameStack[$ - 1];
@@ -217,6 +226,11 @@ class HarpyVM
 
             case OpCode.POP:
                 pop();
+                pc++;
+                break;
+
+            case OpCode.DUP:
+                push(peek());
                 pc++;
                 break;
 
