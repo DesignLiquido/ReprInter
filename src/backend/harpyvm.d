@@ -2,7 +2,7 @@ module backend.harpyvm;
 import std.stdio, std.variant, std.conv, std.datetime.stopwatch, std.string;
 import core.stdc.stdio, core.stdc.stdlib, core.sys.posix.dlfcn;
 
-enum OpCode
+enum OpCode : ubyte
 {
     // Builtin
     PRINT,
@@ -228,7 +228,6 @@ class HarpyVM
         while (pc < code.length)
         {
             Instruction inst = code[pc];
-
             switch (inst.op)
             {
             case OpCode.PUSH:

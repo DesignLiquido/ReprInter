@@ -1,12 +1,79 @@
-import std.stdio, std.file, std.path, std.array, std.getopt, std.datetime.stopwatch;
+import std.stdio, std.file, std.path, std.array, std.getopt, std.datetime.stopwatch, std.algorithm;
 import frontend.lexer.token, frontend.lexer.lexer;
 import frontend.parser.ast, frontend.parser.parser;
-import middle.semantic_analyzer;
-import backend.codegen, backend.harpyvm;
+import middle.semantic_analyzer, middle.constant_folding;
+import backend.codegen, backend.harpyvm, backend.compiler;
 import core.stdc.stdlib : exit;
 import erro;
 
 const string VERSAO = "0.1.0";
+
+// area de compilação do sistema {{
+void executarHvm(ref string arquivo_, bool mostrarTempo = false)
+{
+	auto tempoTotal = StopWatch(AutoStart.yes);
+	auto arquivo = File(arquivo_, "rb");
+	try
+	{
+		ubyte maior, menor, patch;
+
+		if (!validarCabecalho(arquivo, maior, menor, patch))
+		{
+			writeln(
+				"O binário contém contém um cabeçalho inválido! O arquivo pode estar corrompido.");
+			exit(-1);
+		}
+
+		ubyte tipo;
+		uint tamanho;
+		lerItemTLV(arquivo, tipo, tamanho);
+
+		if (tipo != HarpyBinTipo.SECAO_BYTECODE)
+		{
+			writeln(
+				"O binário é inválido! O arquivo pode estar corrompido.");
+			exit(-1);
+		}
+
+		Instruction[] programa = lerPrograma(arquivo);
+		HarpyVM motor = new HarpyVM();
+		motor.code = programa;
+
+		auto tempoMotor = StopWatch(AutoStart.yes);
+		motor.run();
+
+		tempoMotor.stop();
+		tempoTotal.stop();
+
+		if (mostrarTempo)
+		{
+			writefln("\nTempo do motor (execução da HarpyVM): %d µs", tempoMotor.peek()
+					.total!"usecs");
+			writefln("Tempo total: %d µs", tempoTotal.peek().total!"usecs");
+		}
+	}
+	catch (Exception e)
+	{
+		writeln("Um erro ocorreu ao tentar ler o binário!");
+		writeln(e);
+		exit(-1);
+	}
+	finally
+		arquivo.close();
+
+	exit(0);
+}
+
+void compilarPrograma(ref Instruction[] instrucoes, string saida = "harpy.hvm")
+{
+	ubyte[] buffer;
+	adicionarCabecalho(buffer, 0, 1, 0);
+	adicionarPrograma(buffer, instrucoes);
+	writeln("Compilação concluida!");
+	salvarArquivoBinario(saida, buffer);
+	exit(0);
+}
+// }}
 
 // verifica se há erros ou avisos a serem mostrados
 void checkErrors(DiagnosticError erro)
@@ -31,6 +98,9 @@ void ajuda()
 	writeln("	--token           Mostra os tokens (debug).");
 	writeln("	--ast             Mostra as ast's  (debug).");
 	writeln("	-t, --tempo       Mostra métricas de execução do programa.");
+	writeln("	-c, --compilar    Compila o programa e gera um arquivo binário.");
+	writeln(
+		"	-s, --saida       Especifica o arquivo de saida do arquivo binario (padrão = harpy.hvm).");
 	writeln("\nExemplos:");
 	writeln("	harpy -v");
 	writeln("	harpy ola_mundo.hp");
@@ -64,7 +134,8 @@ void main(string[] argumentos)
 	}
 
 	DiagnosticError erro = new DiagnosticError; // classe que gera os erros de todo o sistema
-	bool mostrarVersao, mostrarAjuda, mostrarToken, mostrarAst, mostrarTempo;
+	bool mostrarVersao, mostrarAjuda, mostrarToken, mostrarAst, mostrarTempo, compilar, otimizar;
+	string saida = "harpy.hvm";
 
 	try
 	{
@@ -74,7 +145,10 @@ void main(string[] argumentos)
 			"a|ajuda", &mostrarAjuda,
 			"token", &mostrarToken,
 			"ast", &mostrarAst,
-			"t|tempo", &mostrarTempo
+			"t|tempo", &mostrarTempo,
+			"c|compilar", &compilar,
+			"s|saida", &saida,
+			"otimizar", &otimizar
 		);
 
 		if (mostrarVersao)
@@ -95,7 +169,7 @@ void main(string[] argumentos)
 		{
 			writeln("Era esperado um arquivo de extensão '.rp' como argumento.");
 			ajuda();
-			return;
+			exit(-1);
 		}
 
 		// arquivo aparentemente passado, vamos validar
@@ -110,14 +184,18 @@ void main(string[] argumentos)
 		if (!isFile(arquivo))
 		{
 			writefln("'%s' não é um arquivo.", arquivo);
-			return;
+			exit(-1);
 		}
+
+		// se a extensão for .hvm então executaremos o bytecode diretamente
+		if (extension(arquivo) == ".hvm")
+			executarHvm(arquivo, mostrarTempo);
 
 		// valida a extensão do arquivo
 		if (extension(arquivo) != ".rp")
 		{
-			writefln("O arquivo '%s' precisa ter a extensão '.rp'.", arquivo);
-			return;
+			writefln("O arquivo '%s' precisa ter a extensão '.rp' ou '.hvm'.", arquivo);
+			exit(-1);
 		}
 
 		// ignore
@@ -163,8 +241,12 @@ void main(string[] argumentos)
 		auto tempoCG = StopWatch(AutoStart.yes);
 		Instruction[] instrucoes = new CodeGen(motor, erro, bibliotecasExternas).generate(programa);
 		tempoCG.stop();
-		motor.code = instrucoes;
 
+		// verifica se o usuário deseja compilar o programa
+		if (compilar)
+			compilarPrograma(instrucoes, saida);
+
+		motor.code = instrucoes;
 		auto tempoMotor = StopWatch(AutoStart.yes);
 		// rodando tudo na vm (no motor)
 		motor.run();
@@ -189,6 +271,12 @@ void main(string[] argumentos)
 	}
 	catch (Exception e)
 	{
+		if (find("Unrecognized option", e.msg))
+		{
+			writeln("Opção desconhecida passada: ", e.msg[20 .. $]);
+			ajuda();
+			return;
+		}
 		// se for um erro do sistema ele irá fechar o programa, caso contrário irá motrar o e.msg
 		checkErrors(erro);
 		writeln("Erro critico: ", e.msg);

@@ -4,6 +4,7 @@ import std.stdio, std.conv, std.format;
 import backend.harpyvm : OpCode, EValue, Value, Type, Instruction;
 import erro;
 
+// AVISO: está extremamente instavel, é necessario recriar todo o sistema
 // passe de otimização -> constant folding
 // esse sistema faz constant folding no bytecode da vm, nas instruções diretamente
 class HarpyConstantFolding
@@ -18,7 +19,7 @@ private:
         switch (op)
         {
         case OpCode.ADDI, OpCode.SUBI, OpCode.MULI, OpCode.DIVI,
-            OpCode.ADDF, OpCode.SUBF, OpCode.MULF, OpCode.DIVF:
+            OpCode.ADDF, OpCode.SUBF, OpCode.MULF, OpCode.DIVF, OpCode.MODF, OpCode.MODI:
             return true;
         default:
             return false;
@@ -70,10 +71,21 @@ private:
             result.f64 = v1.value.f64 / v2.value.f64;
             resultType = Type.Float;
             break;
+        case OpCode.MODF:
+            if (v2.value.f64 == 0.0)
+                return; // mantém original
+            result.f64 = v1.value.f64 / v2.value.f64;
+            resultType = Type.Float;
+            break;
+        case OpCode.MODI:
+            if (v2.value.i64 == 0)
+                return; // mantém original
+            result.i64 = v1.value.i64 / v2.value.i64;
+            resultType = Type.Int;
+            break;
         default:
             return;
         }
-
         output ~= Instruction(OpCode.PUSH, Value(resultType, result));
     }
 
@@ -123,7 +135,6 @@ public:
             }
 
             auto inst = instructions[i];
-
             // Propagação de LOADG
             if (inst.op == OpCode.LOADG)
             {
@@ -160,15 +171,17 @@ public:
                     localConsts.remove(inst.val.value.str);
             // Invalida tracking em CALL/FFI
             else if (inst.op == OpCode.CALL || inst.op == OpCode.FFIC || inst.op == OpCode.FFIL)
+            {
                 if (globalConsts.length > 0)
                     globalConsts.clear();
-            if (localConsts.length > 0)
-                localConsts.clear();
+                if (localConsts.length > 0)
+                    localConsts.clear();
+            }
             output ~= inst;
             i++;
         }
 
         instructions = output;
-        return instructions;
+        return output;
     }
 }
