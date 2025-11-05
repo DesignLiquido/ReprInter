@@ -8,6 +8,18 @@ import erro;
 
 const string VERSAO = "0.1.0";
 
+// guarda informações de tempo para métricas, serve para passar todas as métricas para a função de compilação
+// é privada pois não deve ser usada fora deste arquivo (main.d)
+private struct Tempo
+{
+	bool tempo; // flag
+	StopWatch tempoTotal;
+	StopWatch tempoLexer;
+	StopWatch tempoParser;
+	StopWatch tempoSA;
+	StopWatch tempoCG;
+}
+
 // area de compilação do sistema {{
 void executarHvm(ref string arquivo_, bool mostrarTempo = false)
 {
@@ -64,13 +76,35 @@ void executarHvm(ref string arquivo_, bool mostrarTempo = false)
 	exit(0);
 }
 
-void compilarPrograma(ref Instruction[] instrucoes, string saida = "harpy.hvm")
+// a saida tem um arquivo padrão caso nada seja passado
+// saida = "harpy.hvm"
+// coloquei aqui assim como na variavel principal na função "main" por garantia
+void compilarPrograma(ref Instruction[] instrucoes, string saida = "harpy.hvm", Tempo tempo)
 {
 	ubyte[] buffer;
+	auto tempoCompilacao = StopWatch(AutoStart.yes);
 	adicionarCabecalho(buffer, 0, 1, 0);
 	adicionarPrograma(buffer, instrucoes);
 	writeln("Compilação concluida!");
 	salvarArquivoBinario(saida, buffer);
+	tempoCompilacao.stop();
+	tempo.tempoTotal.stop();
+
+	if (tempo.tempo)
+	{
+		writefln("\nTempo do lexer (geração de tokens): %d µs", tempo.tempoLexer.peek()
+				.total!"usecs");
+		writefln("Tempo do parser (geração de nós): %d µs", tempo.tempoParser.peek()
+				.total!"usecs");
+		writefln("Tempo do analisador semantico: %d µs", tempo.tempoSA.peek()
+				.total!"usecs");
+		writefln("Tempo do gerador de bytecode (codegen): %d µs", tempo.tempoCG.peek()
+				.total!"usecs");
+		writefln("Tempo de compilação: %d µs", tempoCompilacao.peek()
+				.total!"usecs");
+		writefln("Tempo total: %d µs", tempo.tempoTotal.peek().total!"usecs");
+	}
+
 	exit(0);
 }
 // }}
@@ -128,6 +162,8 @@ void main(string[] argumentos)
 	// não sei muito sobre instaladores do windows então se eu puder embutir o binario no instalador então assim farei
 	version (Windows)
 	{
+		import core.sys.windows.windows;
+
 		writeln("AVISO: O windows possui suporte parcial.");
 		SetConsoleOutputCP(65_001);
 		SetConsoleCP(65_001);
@@ -140,7 +176,7 @@ void main(string[] argumentos)
 
 	DiagnosticError erro = new DiagnosticError; // classe que gera os erros de todo o sistema
 	bool mostrarVersao, mostrarAjuda, mostrarToken, mostrarAst, mostrarTempo, compilar, otimizar, verboso;
-	string saida = "harpy.hvm";
+	string saida = "harpy.hvm"; // arquivo padrão caso nenhuma saída seja passada
 
 	try
 	{
@@ -274,7 +310,7 @@ void main(string[] argumentos)
 
 		// verifica se o usuário deseja compilar o programa
 		if (compilar)
-			compilarPrograma(instrucoes, saida);
+			compilarPrograma(instrucoes, saida, Tempo(mostrarTempo, tempoLexer, tempoLexer, tempoParser, tempoSA, tempoCG));
 
 		motor.code = instrucoes;
 

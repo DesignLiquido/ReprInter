@@ -456,7 +456,7 @@ public:
                                     import std.utf : encode;
 
                                     char[4] utf8Buf;
-                                    size_t len = encode(utf8Buf, cast(dchar) unicodeValue);
+                                    long len = encode(utf8Buf, cast(dchar) unicodeValue);
                                     buff ~= utf8Buf[0 .. len];
                                     advance();
                                     advance();
