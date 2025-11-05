@@ -1,7 +1,7 @@
 import std.stdio, std.file, std.path, std.array, std.getopt, std.datetime.stopwatch, std.algorithm;
 import frontend.lexer.token, frontend.lexer.lexer;
 import frontend.parser.ast, frontend.parser.parser;
-import middle.semantic_analyzer, middle.constant_folding;
+import middle.semantic_analyzer, middle.harpy_optimizer;
 import backend.codegen, backend.harpyvm, backend.compiler;
 import core.stdc.stdlib : exit;
 import erro;
@@ -95,16 +95,21 @@ void ajuda()
 	writeln("Opções:");
 	writeln("	-v, --versao      Mostra a versão da maquina virtual.");
 	writeln("	-a, --ajuda       Mostra a mensagem de ajuda.");
-	writeln("	--token           Mostra os tokens (debug).");
-	writeln("	--ast             Mostra as ast's  (debug).");
 	writeln("	-t, --tempo       Mostra métricas de execução do programa.");
 	writeln("	-c, --compilar    Compila o programa e gera um arquivo binário.");
+	writeln(
+		"	-o, --otimizar    Realiza otimizações no código (use quando compilar um programa, será melhor).");
+	writeln("	--verboso         Ativa o modo verboso.");
+	writeln("	--token           Mostra os tokens (debug).");
+	writeln("	--ast             Mostra as ast's  (debug).");
 	writeln(
 		"	-s, --saida       Especifica o arquivo de saida do arquivo binario (padrão = harpy.hvm).");
 	writeln("\nExemplos:");
 	writeln("	harpy -v");
 	writeln("	harpy ola_mundo.hp");
 	writeln("	harpy ola_mundo.hp --token --ast");
+	writeln("	harpy ola_mundo.hp --compilar --saida ola.hvm");
+	writeln("	harpy ola_mundo.hp -c -s -o ola.hvm");
 }
 
 void versao()
@@ -134,7 +139,7 @@ void main(string[] argumentos)
 	}
 
 	DiagnosticError erro = new DiagnosticError; // classe que gera os erros de todo o sistema
-	bool mostrarVersao, mostrarAjuda, mostrarToken, mostrarAst, mostrarTempo, compilar, otimizar;
+	bool mostrarVersao, mostrarAjuda, mostrarToken, mostrarAst, mostrarTempo, compilar, otimizar, verboso;
 	string saida = "harpy.hvm";
 
 	try
@@ -148,7 +153,8 @@ void main(string[] argumentos)
 			"t|tempo", &mostrarTempo,
 			"c|compilar", &compilar,
 			"s|saida", &saida,
-			"otimizar", &otimizar
+			"o|otimizar", &otimizar,
+			"verboso", &verboso
 		);
 
 		if (mostrarVersao)
@@ -242,11 +248,36 @@ void main(string[] argumentos)
 		Instruction[] instrucoes = new CodeGen(motor, erro, bibliotecasExternas).generate(programa);
 		tempoCG.stop();
 
+		if (otimizar)
+		{
+			if (verboso)
+				writeln("Numero de instruções antes da otimização: ", instrucoes.length);
+
+			// executa passes até o numero de instruções não mudar mais
+			auto cf = new HarpyOptimizer(instrucoes);
+			ulong tamanhoAnterior;
+			uint passe = 1;
+			do
+			{
+				tamanhoAnterior = cast(ulong) instrucoes.length;
+				instrucoes = cf.optimize();
+				cf.instructions = instrucoes;
+				if (verboso)
+					writefln("Passe %d, %d instruções.", passe++, instrucoes
+							.length);
+			}
+			while (instrucoes.length < tamanhoAnterior);
+
+			if (verboso)
+				writeln("Numero de instruções depois da otimização: : ", instrucoes.length);
+		}
+
 		// verifica se o usuário deseja compilar o programa
 		if (compilar)
 			compilarPrograma(instrucoes, saida);
 
 		motor.code = instrucoes;
+
 		auto tempoMotor = StopWatch(AutoStart.yes);
 		// rodando tudo na vm (no motor)
 		motor.run();
@@ -271,17 +302,18 @@ void main(string[] argumentos)
 	}
 	catch (Exception e)
 	{
-		if (find("Unrecognized option", e.msg))
-		{
-			writeln("Opção desconhecida passada: ", e.msg[20 .. $]);
-			ajuda();
-			return;
-		}
+		// if (find("Unrecognized option", e.msg))
+		// {
+		// 	writeln("Opção desconhecida passada: ", e.msg[20 .. $]);
+		// 	ajuda();
+		// 	return;
+		// }
 		// se for um erro do sistema ele irá fechar o programa, caso contrário irá motrar o e.msg
 		checkErrors(erro);
 		writeln("Erro critico: ", e.msg);
 		writeln("Arquivo: ", e.file);
 		writeln("Linha: ", e.line);
 		writeln("Erro critico: ", e);
+		exit(-1);
 	}
 }

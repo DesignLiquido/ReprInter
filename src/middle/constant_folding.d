@@ -5,14 +5,21 @@ import backend.harpyvm : OpCode, EValue, Value, Type, Instruction;
 import erro;
 
 // AVISO: está extremamente instavel, é necessario recriar todo o sistema
+// Ja foi recriado, não utilize isso!
 // passe de otimização -> constant folding
 // esse sistema faz constant folding no bytecode da vm, nas instruções diretamente
+
+// Descontinuado
+// vou manter o código apenas para backup
+// a nova versão está em harpy_optimizer.d
+
 class HarpyConstantFolding
 {
 private:
-    Instruction[] instructions;
+    public Instruction[] instructions;
     Value[string] globalConsts;
     Value[string] localConsts;
+    ulong[size_t] addressMap; // mapa de endereços antigos → novos
 
     static bool isFoldable(OpCode op) pure nothrow @nogc @safe
     {
@@ -74,19 +81,42 @@ private:
         case OpCode.MODF:
             if (v2.value.f64 == 0.0)
                 return; // mantém original
-            result.f64 = v1.value.f64 / v2.value.f64;
+            result.f64 = v1.value.f64 % v2.value.f64;
             resultType = Type.Float;
             break;
         case OpCode.MODI:
             if (v2.value.i64 == 0)
                 return; // mantém original
-            result.i64 = v1.value.i64 / v2.value.i64;
+            result.i64 = v1.value.i64 % v2.value.i64;
             resultType = Type.Int;
             break;
         default:
             return;
         }
         output ~= Instruction(OpCode.PUSH, Value(resultType, result));
+    }
+
+    // Corrige endereços de JMP, CALL, etc após otimização
+    void fixAddresses(ref Instruction[] output)
+    {
+        foreach (ref inst; output)
+        {
+            // Atualiza JMP, JZ, JNZ
+            if (inst.op == OpCode.JMP || inst.op == OpCode.JZ ||
+                inst.op == OpCode.JNZ)
+            {
+                size_t oldAddr = cast(size_t) inst.val.value.i64;
+                if (oldAddr in addressMap)
+                    inst.val.value.i64 = cast(long) addressMap[oldAddr];
+            }
+            // Atualiza CALL
+            else if (inst.op == OpCode.CALL)
+            {
+                size_t oldAddr = cast(size_t) inst.val.value.i64;
+                if (oldAddr in addressMap)
+                    inst.val.value.i64 = cast(long) addressMap[oldAddr];
+            }
+        }
     }
 
 public:
@@ -97,7 +127,6 @@ public:
 
     Instruction[] opt()
     {
-        // Pre-aloca com tamanho exato (vai ser ≤ tamanho original)
         Instruction[] output;
         output.reserve(instructions.length);
 
@@ -106,6 +135,9 @@ public:
 
         while (i < len)
         {
+            // Mapeia o endereço antigo → novo
+            addressMap[i] = output.length;
+
             // Fast path: tenta constant folding (padrão mais comum)
             if (i + 2 < len)
             {
@@ -122,6 +154,9 @@ public:
 
                     if (output.length > before) // fold bem-sucedido
                     {
+                        // Mapeia os outros 2 endereços também
+                        addressMap[i + 1] = output.length;
+                        addressMap[i + 2] = output.length;
                         i += 3;
                         continue;
                     }
@@ -129,6 +164,8 @@ public:
                     output ~= i0;
                     output ~= i1;
                     output ~= i2;
+                    addressMap[i + 1] = cast(ulong) output.length - 2;
+                    addressMap[i + 2] = cast(ulong) output.length - 1;
                     i += 3;
                     continue;
                 }
@@ -180,6 +217,9 @@ public:
             output ~= inst;
             i++;
         }
+
+        // corrige todos os endereços de JMP, CALL, etc
+        fixAddresses(output);
 
         instructions = output;
         return output;
