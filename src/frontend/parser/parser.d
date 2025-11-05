@@ -287,6 +287,7 @@ private:
         case TokenKind.GreaterThanEquals:
         case TokenKind.LessThanEquals:
         case TokenKind.LessThan:
+        case TokenKind.NotEquals:
             leftOld = parseBinaryExpr(leftOld);
             return;
         default:

@@ -2,7 +2,7 @@ module backend.harpyvm;
 import std.stdio, std.variant, std.conv, std.datetime.stopwatch, std.string;
 import core.stdc.stdio, core.stdc.stdlib, core.sys.posix.dlfcn;
 
-enum OpCode
+enum OpCode : ubyte
 {
     // Builtin
     PRINT,
@@ -49,8 +49,10 @@ enum OpCode
 
     // Comparativos
     LT,
+    LE,
     LTE,
     GT,
+    GE,
     GTE,
     EQ,
     NE,
@@ -228,7 +230,6 @@ class HarpyVM
         while (pc < code.length)
         {
             Instruction inst = code[pc];
-
             switch (inst.op)
             {
             case OpCode.PUSH:
@@ -409,37 +410,106 @@ class HarpyVM
                 break;
 
             case OpCode.LT:
-                long b = pop().value.i64;
-                long a = pop().value.i64;
-                push(makeInt(a < b ? 1 : 0));
+                Value b = pop();
+                Value a = pop();
+                if (a.type == Type.Int && b.type == Type.Int)
+                    push(makeBool(a.value.i64 < b.value.i64 ? 1 : 0));
+                else if (a.type == Type.Float && b.type == Type.Float)
+                    push(makeBool(a.value.f64 < b.value.f64 ? 1 : 0));
+                else
+                    push(makeBool(0)); // tipos incompatíveis
+                pc++;
+                break;
+
+            case OpCode.LE:
+                Value b = pop();
+                Value a = pop();
+                if (a.type == Type.Int && b.type == Type.Int)
+                    push(makeBool(a.value.i64 <= b.value.i64 ? 1 : 0));
+                else if (a.type == Type.Float && b.type == Type.Float)
+                    push(makeBool(a.value.f64 <= b.value.f64 ? 1 : 0));
+                else
+                    push(makeBool(0));
                 pc++;
                 break;
 
             case OpCode.LTE:
-                long b = pop().value.i64;
-                long a = pop().value.i64;
-                push(makeInt(a <= b ? 1 : 0));
+                Value b = pop();
+                Value a = pop();
+                if (a.type == Type.Int && b.type == Type.Int)
+                    push(makeBool(a.value.i64 <= b.value.i64 ? 1 : 0));
+                else if (a.type == Type.Float && b.type == Type.Float)
+                    push(makeBool(a.value.f64 <= b.value.f64 ? 1 : 0));
+                else
+                    push(makeBool(0));
                 pc++;
                 break;
 
             case OpCode.GT:
-                long b = pop().value.i64;
-                long a = pop().value.i64;
-                push(makeInt(a > b ? 1 : 0));
+                Value b = pop();
+                Value a = pop();
+                if (a.type == Type.Int && b.type == Type.Int)
+                    push(makeBool(a.value.i64 > b.value.i64 ? 1 : 0));
+                else if (a.type == Type.Float && b.type == Type.Float)
+                    push(makeBool(a.value.f64 > b.value.f64 ? 1 : 0));
+                else
+                    push(makeBool(0));
+                pc++;
+                break;
+
+            case OpCode.GE:
+                Value b = pop();
+                Value a = pop();
+                if (a.type == Type.Int && b.type == Type.Int)
+                    push(makeBool(a.value.i64 >= b.value.i64 ? 1 : 0));
+                else if (a.type == Type.Float && b.type == Type.Float)
+                    push(makeBool(a.value.f64 >= b.value.f64 ? 1 : 0));
+                else
+                    push(makeBool(0));
                 pc++;
                 break;
 
             case OpCode.GTE:
-                long b = pop().value.i64;
-                long a = pop().value.i64;
-                push(makeInt(a >= b ? 1 : 0));
+                Value b = pop();
+                Value a = pop();
+                if (a.type == Type.Int && b.type == Type.Int)
+                    push(makeBool(a.value.i64 >= b.value.i64 ? 1 : 0));
+                else if (a.type == Type.Float && b.type == Type.Float)
+                    push(makeBool(a.value.f64 >= b.value.f64 ? 1 : 0));
+                else
+                    push(makeBool(0));
                 pc++;
                 break;
 
             case OpCode.EQ:
-                long b = pop().value.i64;
-                long a = pop().value.i64;
-                push(makeInt(a == b ? 1 : 0));
+                Value b = pop();
+                Value a = pop();
+                if (a.type == Type.Int && b.type == Type.Int)
+                    push(makeBool(a.value.i64 == b.value.i64 ? 1 : 0));
+                else if (a.type == Type.Float && b.type == Type.Float)
+                    push(makeBool(a.value.f64 == b.value.f64 ? 1 : 0));
+                else if (a.type == Type.String && b.type == Type.String)
+                    push(makeBool(a.value.str == b.value.str ? 1 : 0));
+                else if (a.type == Type.Bool && b.type == Type.Bool)
+                    push(makeBool(a.value.i64 == b.value.i64 ? 1 : 0));
+                else
+                    push(makeBool(0));
+                pc++;
+                break;
+
+            case OpCode.NE:
+                Value b = pop();
+                Value a = pop();
+                if (a.type == Type.Int && b.type == Type.Int)
+                    push(makeBool(a.value.i64 != b.value.i64 ? 1 : 0));
+                else if (a.type == Type.Float && b.type == Type.Float)
+                    push(makeBool(a.value.f64 != b.value.f64 ? 1 : 0));
+                else if (a.type == Type.String && b.type == Type.String)
+                    push(makeBool(a.value.str != b.value.str ? 1 : 0));
+                else if (a.type == Type.Bool && b.type == Type.Bool)
+                    push(makeBool(a.value.i64 != b.value.i64 ? 1 : 0));
+                else
+                    push(makeBool(1));
                 pc++;
                 break;
 

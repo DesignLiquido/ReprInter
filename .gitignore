@@ -14,3 +14,4 @@ harpy-test-*
 *.o
 *.obj
 *.lst
+*.hvm
