@@ -162,6 +162,8 @@ void main(string[] argumentos)
 	// não sei muito sobre instaladores do windows então se eu puder embutir o binario no instalador então assim farei
 	version (Windows)
 	{
+		import core.sys.windows.windows;
+
 		writeln("AVISO: O windows possui suporte parcial.");
 		SetConsoleOutputCP(65_001);
 		SetConsoleCP(65_001);

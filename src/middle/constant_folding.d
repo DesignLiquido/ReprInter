@@ -19,7 +19,7 @@ private:
     public Instruction[] instructions;
     Value[string] globalConsts;
     Value[string] localConsts;
-    ulong[size_t] addressMap; // mapa de endereços antigos → novos
+    ulong[long] addressMap; // mapa de endereços antigos → novos
 
     static bool isFoldable(OpCode op) pure nothrow @nogc @safe
     {
@@ -105,14 +105,14 @@ private:
             if (inst.op == OpCode.JMP || inst.op == OpCode.JZ ||
                 inst.op == OpCode.JNZ)
             {
-                size_t oldAddr = cast(size_t) inst.val.value.i64;
+                long oldAddr = cast(long) inst.val.value.i64;
                 if (oldAddr in addressMap)
                     inst.val.value.i64 = cast(long) addressMap[oldAddr];
             }
             // Atualiza CALL
             else if (inst.op == OpCode.CALL)
             {
-                size_t oldAddr = cast(size_t) inst.val.value.i64;
+                long oldAddr = cast(long) inst.val.value.i64;
                 if (oldAddr in addressMap)
                     inst.val.value.i64 = cast(long) addressMap[oldAddr];
             }
@@ -130,8 +130,8 @@ public:
         Instruction[] output;
         output.reserve(instructions.length);
 
-        size_t i = 0;
-        size_t len = instructions.length;
+        long i = 0;
+        long len = instructions.length;
 
         while (i < len)
         {
@@ -149,7 +149,7 @@ public:
                     i1.op == OpCode.PUSH &&
                     isFoldable(i2.op))
                 {
-                    size_t before = output.length;
+                    long before = output.length;
                     foldInline(output, i2.op, i0.val, i1.val);
 
                     if (output.length > before) // fold bem-sucedido

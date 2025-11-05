@@ -14,7 +14,7 @@ private:
     Value[string] globalConsts;
     Value[string] localConsts;
     Value[string] copyMap;
-    size_t[size_t] addressMap;
+    long[long] addressMap;
 
     static bool isFoldable(OpCode op) pure nothrow @nogc @safe
     {
@@ -198,7 +198,7 @@ private:
     }
 
     // Peephole: simplificações algébricas (x + 0, x * 1, x * 0, etc)
-    bool algebraicSimplification(ref Instruction[] output, ref Instruction inst, size_t i)
+    bool algebraicSimplification(ref Instruction[] output, ref Instruction inst, long i)
     {
         // x + 0 = x ou x - 0 = x
         if ((inst.op == OpCode.ADDI || inst.op == OpCode.SUBI ||
@@ -289,7 +289,7 @@ private:
     }
 
     // Dead store elimination: detecta stores sem uso subsequente
-    bool deadStoreElimination(ref size_t i, size_t len)
+    bool deadStoreElimination(ref long i, long len)
     {
         auto inst = instructions[i];
 
@@ -300,7 +300,7 @@ private:
         bool temLoad = false;
 
         // Procura em uma janela de 200 instruções
-        for (size_t j = i + 1; j < len && j < i + 200; j++)
+        for (long j = i + 1; j < len && j < i + 200; j++)
         {
             auto futInst = instructions[j];
 
@@ -334,13 +334,13 @@ private:
             if (inst.op == OpCode.JMP || inst.op == OpCode.JZ ||
                 inst.op == OpCode.JNZ)
             {
-                size_t oldAddr = cast(size_t) inst.val.value.i64;
+                long oldAddr = cast(long) inst.val.value.i64;
                 if (oldAddr in addressMap)
                     inst.val.value.i64 = cast(long) addressMap[oldAddr];
             }
             else if (inst.op == OpCode.CALL)
             {
-                size_t oldAddr = cast(size_t) inst.val.value.i64;
+                long oldAddr = cast(long) inst.val.value.i64;
                 if (oldAddr in addressMap)
                     inst.val.value.i64 = cast(long) addressMap[oldAddr];
             }
@@ -358,8 +358,8 @@ public:
         Instruction[] output;
         output.reserve(instructions.length);
 
-        size_t i = 0;
-        size_t len = instructions.length;
+        long i = 0;
+        long len = instructions.length;
 
         while (i < len)
         {
@@ -378,7 +378,7 @@ public:
                     // Tenta fold aritmético
                     if (isFoldable(i2.op))
                     {
-                        size_t before = output.length;
+                        long before = output.length;
                         if (foldArithmetic(output, i2.op, i0.val, i1.val))
                         {
                             addressMap[i + 1] = output.length;

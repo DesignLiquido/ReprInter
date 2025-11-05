@@ -1,21 +1,9 @@
-declarar fibonacci1(n int) int {
+declarar fibonacci(n int) int {
     se n <= 1 retorne n
-    retorne fibonacci1(n - 1) + fibonacci1(n - 2)
-}
-
-declarar fibonacci2(n inteiro) i64 {
-    se n == 0 {
-        retorne 0
-    } senao se n == 1 {
-        retorne 1
-    }
-    retorne fibonacci2(n - 1) + fibonacci2(n - 2)
+    retorne fibonacci(n - 1) + fibonacci(n - 2)
 }
 
 declarar principal vazio {
-    __nucleo_harpy_escreva(fibonacci1(10), "\n")
-    __nucleo_harpy_escreva(fibonacci2(15), "\n")
-    __nucleo_harpy_escreva(fibonacci2(25), "\n")
-    __nucleo_harpy_escreva(fibonacci2(30), "\n")
+    __nucleo_harpy_escreva("Fibonacci(10) = ", fibonacci(10), "\n")
     fim
 }

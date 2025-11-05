@@ -264,7 +264,7 @@ private:
 
         ulong expectedArgsMin = 0;
         bool hasVariadic = false;
-        size_t variadicIndex = 0;
+        long variadicIndex = 0;
 
         foreach (i, ref arg; funcSym.funcArgs)
         {

@@ -59,7 +59,7 @@ class Program : Node
         println("├── Programa", ident);
         println("│   ├── Tipo: " ~ cast(string) type.baseType, ident);
         println("│   └── Corpo (" ~ to!string(body.length) ~ " nó(s)):", ident);
-        foreach (size_t i, Node node; body)
+        foreach (long i, Node node; body)
         {
             if (i == cast(uint)
                 body.length - 1)
@@ -104,7 +104,7 @@ class FunctionDeclaration : Node
         println(continuation ~ "├── Tipo: " ~ cast(string) type.baseType, ident);
         println(continuation ~ "├── Argumentos (" ~ to!string(args.length) ~ "):", ident);
 
-        foreach (size_t i, FunctionArgument arg; args)
+        foreach (long i, FunctionArgument arg; args)
         {
             string argPrefix = (i == cast(uint) args.length - 1) ? "└── " : "├── ";
             println(continuation ~ "│   " ~ argPrefix ~ "Argumento: " ~ arg.name, ident);
@@ -115,7 +115,7 @@ class FunctionDeclaration : Node
         }
 
         println(continuation ~ "└── Corpo (" ~ to!string(body.length) ~ " nó(s)):", ident);
-        foreach (size_t i, Node node; body)
+        foreach (long i, Node node; body)
         {
             if (i == cast(uint)
                 body.length - 1)
@@ -282,7 +282,7 @@ class CallExpr : Node
         println(continuation ~ "├── Tipo: " ~ cast(string) type.baseType, ident);
         println(continuation ~ "└── Argumentos (" ~ to!string(args.length) ~ "):", ident);
 
-        foreach (size_t i, Node arg; args)
+        foreach (long i, Node arg; args)
         {
             if (i == cast(uint) args.length - 1)
                 arg.print(ident + continuation.length + 4, true);
@@ -402,7 +402,7 @@ class IfStatement : Node
             println(continuation ~ "│   └── (nulo)", ident);
 
         println(continuation ~ "└── Corpo (" ~ to!string(body.length) ~ " nó(s)):", ident);
-        foreach (size_t i, Node node; body)
+        foreach (long i, Node node; body)
         {
             if (i == cast(uint)
                 body.length - 1)
@@ -440,7 +440,7 @@ class ElseStatement : Node
         println(continuation ~ "├── Tipo: " ~ cast(string) type.baseType, ident);
 
         println(continuation ~ "└── Corpo (" ~ to!string(body.length) ~ " nó(s)):", ident);
-        foreach (size_t i, Node node; body)
+        foreach (long i, Node node; body)
             node.print(ident + continuation.length + 4, false);
     }
 }
@@ -523,7 +523,7 @@ class ForStatement : Node
 
         // corpo
         println(continuation ~ "└── Corpo (" ~ to!string(body.length) ~ " nó(s)):", ident);
-        foreach (size_t i, Node node; body)
+        foreach (long i, Node node; body)
             if (i == cast(uint)
                 body.length - 1)
                 node.print(ident + continuation.length + 4, true);
