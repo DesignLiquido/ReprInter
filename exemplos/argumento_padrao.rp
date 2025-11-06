@@ -1,0 +1,12 @@
+declarar faca_algo() int {
+    retorne 9
+}
+
+declarar soma(x int, y int = faca_algo()) qualquer {
+    retorne x + y
+}
+
+declarar principal vazio {
+    __nucleo_harpy_escreva(soma(60), "\n")
+    fim
+}

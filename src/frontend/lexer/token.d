@@ -8,6 +8,7 @@ enum TokenKind
     // keywords (palavras chave)
     Declarar,
     Alocar,
+    Const,
     Se,
     Senao,
     Retorne,
@@ -29,6 +30,8 @@ enum TokenKind
     Txt,
     Vazio,
     Logico,
+    Qualquer,
+    Qqr,
 
     Identifier, // identificador
     Number, // 0-9

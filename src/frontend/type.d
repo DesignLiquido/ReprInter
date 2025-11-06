@@ -10,6 +10,7 @@ module frontend.type;
 // o poder dele é justamente em tipos complexos como Array tudo ainda se manter organizado
 // sendo fácil implementar ponteiros e outros
 // por padrão, o Type(Types.Array, Void) (array de tipo base Void) será um array que suporta todos os tipos
+import std.algorithm : canFind;
 
 // tipo base
 enum BaseType : string
@@ -24,6 +25,7 @@ enum BaseType : string
 
     Bool = "logico",
     Void = "vazio",
+    Any = "qualquer",
 }
 
 // tipos que um Type pode ter
@@ -44,6 +46,19 @@ struct Type
 
     bool isCompatibleWith(Type t)
     {
+        if (baseType == BaseType.Any || t.baseType == BaseType.Any)
+            return true;
+
+        // mapa de compatibilidade
+        string[][string] compatibilityMap = [
+            "inteiro": ["inteiro", "decimal", "qualquer"],
+            "texto": ["texto", "qualquer"],
+            "decimal": ["inteiro", "decimal", "qualquer"]
+        ];
+
+        if (toStr() in compatibilityMap && compatibilityMap[toStr()].canFind(t.toStr()))
+            return true;
+
         final switch (t.type)
         {
         case Types.Literal:
@@ -60,7 +75,8 @@ struct Type
     bool isNumeric()
     {
         return type == Types.Literal &&
-            (baseType == BaseType.Int || baseType == BaseType.Double || baseType == BaseType.Float);
+            (baseType == BaseType.Int || baseType == BaseType.Double
+                    || baseType == BaseType.Float || baseType == BaseType.Any);
     }
 
     string toStr()

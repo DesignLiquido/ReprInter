@@ -1,0 +1,11 @@
+// TODO
+
+externo "C" {
+    const PI decimal;
+    declarar escreva(...) vazio;
+    declarar soma(x i64|f64, y i64|f64) i64|f64;
+}
+
+declarar valor_padrao(x inteiro = 9, x inteiro = 60) inteiro {
+    retorne x + y
+}

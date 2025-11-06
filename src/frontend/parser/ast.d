@@ -22,6 +22,7 @@ enum NodeKind
     // declarações
     FuncDeclaration,
     VarDeclaration,
+    VarAssignmentDecl,
 
     // expressões
     BinaryExpr,
@@ -74,7 +75,7 @@ struct FunctionArgument
 {
     string name;
     Type type;
-    Variant value;
+    Node value;
     bool defaultValue;
     Loc loc;
 }
@@ -168,6 +169,30 @@ class VarDeclaration : Node
         println(prefix ~ "VarDeclaration: " ~ id, ident);
         println(continuation ~ "├── Tipo: " ~ cast(string) type.baseType, ident);
         println(continuation ~ "└── Valor:", ident);
+        value.get!Node.print(ident + continuation.length + 4, true);
+    }
+}
+
+class VarAssignmentDecl : Node
+{
+    string id;
+    this(string id, Type type, Node value, Loc loc)
+    {
+        this.kind = NodeKind.VarAssignmentDecl;
+        this.id = id;
+        this.type = type;
+        this.value = value;
+        this.loc = loc;
+    }
+
+    override void print(ulong ident = 0, bool isLast = false)
+    {
+        string prefix = isLast ? "└── " : "├── ";
+        string continuation = isLast ? "    " : "│   ";
+
+        println(prefix ~ "VarAssignmentDecl: " ~ id, ident);
+        println(continuation ~ "├── Type: " ~ cast(string) type.baseType, ident);
+        println(continuation ~ "└── Value:", ident);
         value.get!Node.print(ident + continuation.length + 4, true);
     }
 }

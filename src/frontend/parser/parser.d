@@ -37,6 +37,12 @@ private:
             if (this.peek()
                 .kind == TokenKind.LParen)
                 return parseCallExpr(token.value.get!string, token.loc);
+            if (this.peek().kind == TokenKind.Equals)
+            {
+                this.advance();
+                Node value = this.parseExpression(Precedence.LOWEST);
+                return new VarAssignmentDecl(token.value.get!string, value.type, value, token.loc);
+            }
             Node operand = new Identifier(token.value.get!string, token.loc);
             if (this.check(TokenKind.PlusPlus) || this.check(TokenKind.MinusMinus))
             {
@@ -186,15 +192,23 @@ private:
         FunctionArgument[] args;
         while (this.peek().kind != TokenKind.RParen && !this.isAtEnd())
         {
+            Node defaultValue = null;
+            bool dV = false;
             if (this.match([TokenKind.Variadic]))
             {
-                args ~= FunctionArgument("...", Type(Types.Undefined, BaseType.Void, true), Variant(
-                        null), false);
+                args ~= FunctionArgument("...", Type(Types.Undefined, BaseType.Void, true), defaultValue, dV);
                 break;
             }
             Token id = this.consume(TokenKind.Identifier, "Era esperado um nome para o argumento.");
             Type ty = this.parseType();
-            args ~= FunctionArgument(id.value.get!string, ty, Variant(null), false, id.loc);
+
+            if (this.match([TokenKind.Equals]))
+            {
+                defaultValue = this.parseExpression(Precedence.LOWEST);
+                dV = true;
+            }
+
+            args ~= FunctionArgument(id.value.get!string, ty, defaultValue, dV, id.loc);
             this.match([TokenKind.Comma]);
         }
         return args;
@@ -238,6 +252,9 @@ private:
             return Type(Types.Literal, BaseType.Double);
         case TokenKind.Txt:
             return Type(Types.Literal, BaseType.String);
+        case TokenKind.Qualquer:
+        case TokenKind.Qqr:
+            return Type(Types.Literal, BaseType.Any);
         case TokenKind.Logico:
             return Type(Types.Literal, BaseType.Bool);
         case TokenKind.Vazio:

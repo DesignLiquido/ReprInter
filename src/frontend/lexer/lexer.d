@@ -58,6 +58,7 @@ private:
         // palavras chave
         keywords["declarar"] = TokenKind.Declarar;
         keywords["alocar"] = TokenKind.Alocar;
+        keywords["const"] = TokenKind.Const;
         keywords["fim"] = TokenKind.Fim;
         keywords["vazio"] = TokenKind.Vazio;
         keywords["se"] = TokenKind.Se;
@@ -80,6 +81,8 @@ private:
         keywords["logico"] = TokenKind.Logico;
         keywords["texto"] = TokenKind.Txt;
         keywords["txt"] = TokenKind.Txt;
+        keywords["qualquer"] = TokenKind.Qqr;
+        keywords["qqr"] = TokenKind.Qqr;
     }
 
     // define todos os simbolos da representação intermediaria em uma tabela
