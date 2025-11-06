@@ -6,7 +6,7 @@ import frontend.type, frontend.parser.ast, erro, frontend.lexer.token : Loc;
 private struct Symbol
 {
     Type type = Type.init;
-    Node value = Node.init; // para variáveis
+    Node value = null; // para variáveis e valores padrão de argumentos
     bool isLet = true;
     bool isConst = false;
     bool isFunc = false;
@@ -86,6 +86,8 @@ private:
         {
         case NodeKind.VarDeclaration:
             return analyzeVarDecl(cast(VarDeclaration) node);
+        case NodeKind.VarAssignmentDecl:
+            return analyzeVarAssignment(cast(VarAssignmentDecl) node);
         case NodeKind.FuncDeclaration:
             return analyzeFuncDecl(cast(FunctionDeclaration) node);
         case NodeKind.CallExpr:
@@ -195,12 +197,17 @@ private:
 
     Node analyzeVarDecl(VarDeclaration node)
     {
+        Symbol* sym_ = lookupSymbol(node.id);
+        if (sym_ !is null)
+            deErro(format("Variavel já existe '%s'", node.id), node.loc);
+
         if (node.value.convertsTo!Node)
         {
             Node valueNode = node.value.get!Node;
             valueNode = analyze(valueNode);
             checkType(node.type, valueNode.type, node.loc);
             node.value = valueNode;
+            node.type = valueNode.type;
         }
 
         Symbol sym;
@@ -210,6 +217,27 @@ private:
         sym.value = node.value.get!Node;
 
         addSymbol(node.id, sym);
+        return node;
+    }
+
+    Node analyzeVarAssignment(VarAssignmentDecl node)
+    {
+        Symbol* sym = lookupSymbol(node.id);
+        if (sym is null)
+            deErro(format("Variavel não existe '%s'", node.id), node.loc);
+
+        if (sym.isConst)
+            deErro(format("Não é possível redeclarar uma constante.", node.id), node.loc);
+
+        if (node.value.convertsTo!Node)
+        {
+            Node valueNode = node.value.get!Node;
+            valueNode = analyze(valueNode);
+            checkType(sym.type, valueNode.type, node.loc);
+            node.value = valueNode;
+        }
+
+        node.type = sym.type;
         return node;
     }
 
@@ -232,6 +260,9 @@ private:
             paramSym.type = param.type;
             paramSym.isLet = true;
             paramSym.isConst = false;
+
+            if (param.defaultValue)
+                paramSym.value = param.value;
 
             addSymbol(param.name, paramSym);
             funcSym.funcArgs ~= paramSym;
@@ -274,7 +305,8 @@ private:
                 variadicIndex = i;
                 break;
             }
-            expectedArgsMin++;
+            if (arg.value is null)
+                expectedArgsMin++;
         }
 
         // Verifica número mínimo de argumentos
@@ -379,6 +411,7 @@ public:
         pushScope();
         globalFuncs["__nucleo_harpy_escreva"] = Symbol(Type(Types.Void, BaseType.Void), Node.init, false, true, true,
             [Symbol(Type(Types.Undefined, BaseType.Void))]);
+
         try
             foreach (ref stmt; program.body)
                 stmt = analyze(stmt);

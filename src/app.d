@@ -175,7 +175,7 @@ void main(string[] argumentos)
 	}
 
 	DiagnosticError erro = new DiagnosticError; // classe que gera os erros de todo o sistema
-	bool mostrarVersao, mostrarAjuda, mostrarToken, mostrarAst, mostrarTempo, compilar, otimizar, verboso;
+	bool mostrarVersao, mostrarAjuda, mostrarToken, mostrarAst, mostrarTempo, compilar, otimizar, verboso, mostrarAsm;
 	string saida = "harpy.hvm"; // arquivo padrão caso nenhuma saída seja passada
 
 	try
@@ -190,7 +190,8 @@ void main(string[] argumentos)
 			"c|compilar", &compilar,
 			"s|saida", &saida,
 			"o|otimizar", &otimizar,
-			"verboso", &verboso
+			"verboso", &verboso,
+			"asm", &mostrarAsm,
 		);
 
 		if (mostrarVersao)
@@ -313,6 +314,9 @@ void main(string[] argumentos)
 			compilarPrograma(instrucoes, saida, Tempo(mostrarTempo, tempoLexer, tempoLexer, tempoParser, tempoSA, tempoCG));
 
 		motor.code = instrucoes;
+
+		if (mostrarAsm)
+			HarpyDisassembler.run(instrucoes);
 
 		auto tempoMotor = StopWatch(AutoStart.yes);
 		// rodando tudo na vm (no motor)

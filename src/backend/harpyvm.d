@@ -33,6 +33,21 @@ enum OpCode : ubyte
     PPDIVF, // push push divf
     PPMODF, // push push modf
 
+    // operações que podem ser mais lentas mas extremamente poderosas {{
+    ADD, // detecta tipo e soma
+    SUB, // detecta tipo e subtrai
+    MUL, // detecta tipo e multiplica
+    DIV, // detecta tipo e divide
+    MOD, // detecta tipo e módulo
+
+    // Versões otimizadas polimórficas
+    PPADD, // push push add
+    PPSUB, // push push sub
+    PPMUL, // push push mul
+    PPDIV, // push push div
+    PPMOD, // push push mod
+    // }}
+
     AND, // &
     OR, // |
     XOR, // ^
@@ -68,6 +83,11 @@ enum OpCode : ubyte
     ARRG, // array get
     ARRS, // array set
     ARRL, // array length
+
+    // TODO: Structs
+    STCN, // struct new (cria uma nova struct)
+    STCG, // struct get (obtem o field de uma struct)
+    STCS, // struct set (seta um novo valor no field de uma struct)
 
     // FFI
     FFIL, // FFI Load
@@ -314,6 +334,118 @@ class HarpyVM
                 double b = pop().value.f64;
                 double a = pop().value.f64;
                 push(makeFloat(a % b));
+                pc++;
+                break;
+
+            case OpCode.ADD:
+                Value b = pop();
+                Value a = pop();
+                if (a.type == Type.Int && b.type == Type.Int)
+                    push(makeInt(a.value.i64 + b.value.i64));
+                else if (a.type == Type.Float && b.type == Type.Float)
+                    push(makeFloat(a.value.f64 + b.value.f64));
+                else if (a.type == Type.Int && b.type == Type.Float)
+                    push(makeFloat(cast(double) a.value.i64 + b.value.f64));
+                else if (a.type == Type.Float && b.type == Type.Int)
+                    push(makeFloat(a.value.f64 + cast(double) b.value.i64));
+                else
+                    throw new Exception("Tipos incompatíveis para ADD");
+                pc++;
+                break;
+
+            case OpCode.SUB:
+                Value b = pop();
+                Value a = pop();
+                if (a.type == Type.Int && b.type == Type.Int)
+                    push(makeInt(a.value.i64 - b.value.i64));
+                else if (a.type == Type.Float && b.type == Type.Float)
+                    push(makeFloat(a.value.f64 - b.value.f64));
+                else if (a.type == Type.Int && b.type == Type.Float)
+                    push(makeFloat(cast(double) a.value.i64 - b.value.f64));
+                else if (a.type == Type.Float && b.type == Type.Int)
+                    push(makeFloat(a.value.f64 - cast(double) b.value.i64));
+                else
+                    throw new Exception("Tipos incompatíveis para SUB");
+                pc++;
+                break;
+
+            case OpCode.MUL:
+                Value b = pop();
+                Value a = pop();
+                if (a.type == Type.Int && b.type == Type.Int)
+                    push(makeInt(a.value.i64 * b.value.i64));
+                else if (a.type == Type.Float && b.type == Type.Float)
+                    push(makeFloat(a.value.f64 * b.value.f64));
+                else if (a.type == Type.Int && b.type == Type.Float)
+                    push(makeFloat(cast(double) a.value.i64 * b.value.f64));
+                else if (a.type == Type.Float && b.type == Type.Int)
+                    push(makeFloat(a.value.f64 * cast(double) b.value.i64));
+                else
+                    throw new Exception("Tipos incompatíveis para MUL");
+                pc++;
+                break;
+
+            case OpCode.DIV:
+                Value b = pop();
+                Value a = pop();
+                if (a.type == Type.Int && b.type == Type.Int)
+                {
+                    if (b.value.i64 == 0)
+                        throw new Exception("Divisão por zero");
+                    push(makeInt(a.value.i64 / b.value.i64));
+                }
+                else if (a.type == Type.Float && b.type == Type.Float)
+                {
+                    if (b.value.f64 == 0.0)
+                        throw new Exception("Divisão por zero");
+                    push(makeFloat(a.value.f64 / b.value.f64));
+                }
+                else if (a.type == Type.Int && b.type == Type.Float)
+                {
+                    if (b.value.f64 == 0.0)
+                        throw new Exception("Divisão por zero");
+                    push(makeFloat(cast(double) a.value.i64 / b.value.f64));
+                }
+                else if (a.type == Type.Float && b.type == Type.Int)
+                {
+                    if (b.value.i64 == 0)
+                        throw new Exception("Divisão por zero");
+                    push(makeFloat(a.value.f64 / cast(double) b.value.i64));
+                }
+                else
+                    throw new Exception("Tipos incompatíveis para DIV");
+                pc++;
+                break;
+
+            case OpCode.MOD:
+                Value b = pop();
+                Value a = pop();
+                if (a.type == Type.Int && b.type == Type.Int)
+                {
+                    if (b.value.i64 == 0)
+                        throw new Exception("Módulo por zero");
+                    push(makeInt(a.value.i64 % b.value.i64));
+                }
+                else if (a.type == Type.Float && b.type == Type.Float)
+                {
+                    if (b.value.f64 == 0.0)
+                        throw new Exception("Módulo por zero");
+                    push(makeFloat(a.value.f64 % b.value.f64));
+                }
+                else if (a.type == Type.Int && b.type == Type.Float)
+                {
+                    if (b.value.f64 == 0.0)
+                        throw new Exception("Módulo por zero");
+                    push(makeFloat(cast(double) a.value.i64 % b.value.f64));
+                }
+                else if (a.type == Type.Float && b.type == Type.Int)
+                {
+                    if (b.value.i64 == 0)
+                        throw new Exception("Módulo por zero");
+                    push(makeFloat(a.value.f64 % cast(double) b.value.i64));
+                }
+                else
+                    throw new Exception("Tipos incompatíveis para MOD");
                 pc++;
                 break;
 
@@ -771,5 +903,195 @@ public:
             program[patchIdx].val = v;
         }
         return program;
+    }
+}
+
+class HarpyDisassembler
+{
+    static string valueToString(Value v)
+    {
+        final switch (v.type)
+        {
+        case Type.Int:
+            return to!string(v.value.i64);
+        case Type.Float:
+            return format("%.8f", v.value.f64);
+        case Type.String:
+            return "\"" ~ v.value.str ~ "\"";
+        case Type.Bool:
+            return v.value.i1 ? "verdadeiro" : "falso";
+        case Type.Array:
+            return format("<Array[%d]>", v.value.array.length);
+        }
+    }
+
+    static void run(Instruction[] code)
+    {
+        writeln("=== Harpy Disassembler ===\n");
+        for (ulong pc = 0; pc < code.length; pc++)
+        {
+            Instruction inst = code[pc];
+            writef("%04d: ", pc);
+            switch (inst.op)
+            {
+            case OpCode.PUSH:
+                writefln("PUSH %s", valueToString(inst.val));
+                break;
+            case OpCode.POP:
+                writeln("POP");
+                break;
+            case OpCode.DUP:
+                writeln("DUP");
+                break;
+            case OpCode.ADDI:
+                writeln("ADDI");
+                break;
+            case OpCode.SUBI:
+                writeln("SUBI");
+                break;
+            case OpCode.MULI:
+                writeln("MULI");
+                break;
+            case OpCode.DIVI:
+                writeln("DIVI");
+                break;
+            case OpCode.MODI:
+                writeln("MODI");
+                break;
+            case OpCode.ADD:
+                writeln("ADD");
+                break;
+            case OpCode.SUB:
+                writeln("SUB");
+                break;
+            case OpCode.MUL:
+                writeln("MUL");
+                break;
+            case OpCode.DIV:
+                writeln("DIV");
+                break;
+            case OpCode.MOD:
+                writeln("MOD");
+                break;
+            case OpCode.ADDF:
+                writeln("ADDF");
+                break;
+            case OpCode.SUBF:
+                writeln("SUBF");
+                break;
+            case OpCode.MULF:
+                writeln("MULF");
+                break;
+            case OpCode.DIVF:
+                writeln("DIVF");
+                break;
+            case OpCode.MODF:
+                writeln("MODF");
+                break;
+            case OpCode.AND:
+                writeln("AND");
+                break;
+            case OpCode.OR:
+                writeln("OR");
+                break;
+            case OpCode.XOR:
+                writeln("XOR");
+                break;
+            case OpCode.NOT:
+                writeln("NOT");
+                break;
+            case OpCode.SHR:
+                writeln("SHR");
+                break;
+            case OpCode.SHL:
+                writeln("SHL");
+                break;
+            case OpCode.SAR:
+                writeln("SAR");
+                break;
+            case OpCode.LOADL:
+                writefln("LOADL %s", valueToString(inst.val));
+                break;
+            case OpCode.STOREL:
+                writefln("STOREL %s", valueToString(inst.val));
+                break;
+            case OpCode.LOADG:
+                writefln("LOADG %s", valueToString(inst.val));
+                break;
+            case OpCode.STOREG:
+                writefln("STOREG %s", valueToString(inst.val));
+                break;
+            case OpCode.JMP:
+                writefln("JMP %d", inst.val.value.i64);
+                break;
+            case OpCode.JZ:
+                writefln("JZ %d", inst.val.value.i64);
+                break;
+            case OpCode.JNZ:
+                writefln("JNZ %d", inst.val.value.i64);
+                break;
+            case OpCode.LT:
+                writeln("LT");
+                break;
+            case OpCode.LE:
+                writeln("LE");
+                break;
+            case OpCode.LTE:
+                writeln("LTE");
+                break;
+            case OpCode.GT:
+                writeln("GT");
+                break;
+            case OpCode.GE:
+                writeln("GE");
+                break;
+            case OpCode.GTE:
+                writeln("GTE");
+                break;
+            case OpCode.EQ:
+                writeln("EQ");
+                break;
+            case OpCode.NE:
+                writeln("NE");
+                break;
+            case OpCode.ARRN:
+                writeln("ARRN");
+                break;
+            case OpCode.ARRG:
+                writeln("ARRG");
+                break;
+            case OpCode.ARRS:
+                writeln("ARRS");
+                break;
+            case OpCode.ARRL:
+                writeln("ARRL");
+                break;
+            case OpCode.CALL:
+                writefln("CALL %d", inst.val.value.i64);
+                break;
+            case OpCode.RET:
+                writeln("RET");
+                break;
+            case OpCode.FFIL:
+                writefln("FFIL %s", valueToString(inst.val));
+                break;
+            case OpCode.FFILI:
+                writeln("FFILI");
+                break;
+            case OpCode.FFIC:
+                writeln("FFIC");
+                break;
+            case OpCode.PRINT:
+                writeln("PRINT");
+                break;
+            case OpCode.HALT:
+                writeln("HALT");
+                break;
+            default:
+                writefln("OPCODE DESCONHECIDO: %s", inst.op);
+                break;
+            }
+        }
+        writeln("\n=== Fim ===");
     }
 }

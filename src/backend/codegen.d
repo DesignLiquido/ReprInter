@@ -14,12 +14,22 @@ private:
     string[] externLibs;
     bool halt = false;
 
+    struct FunctionArg
+    {
+        string name;
+        bool defaultValue = false;
+        Node value = null;
+    }
+
     struct FunctionContext
     {
         string name;
         string[] params;
         int localVarCount;
     }
+
+    // toda função declara isso para controlar as chamadas de funções
+    FunctionArg[][string] functionArguments;
 
     FunctionContext[] funcContextStack;
     int labelCounter = 0;
@@ -136,7 +146,7 @@ public:
             generateNode(stmt);
 
         if (!halt)
-            cg.emit(Instruction(OpCode.HALT, engine.makeInt(0)));
+            cg.emit(Instruction(OpCode.HALT));
         popScope();
         cg.callLabel("principal");
         return cg.build();
@@ -151,6 +161,9 @@ public:
         {
         case NodeKind.VarDeclaration:
             generateVarDecl(cast(VarDeclaration) node);
+            break;
+        case NodeKind.VarAssignmentDecl:
+            generateVarAssignment(cast(VarAssignmentDecl) node);
             break;
         case NodeKind.FuncDeclaration:
             generateFuncDecl(cast(FunctionDeclaration) node);
@@ -242,7 +255,7 @@ public:
             Node returnValue = node.value.get!Node;
             generateNode(returnValue);
         }
-        cg.emit(Instruction(OpCode.RET, engine.makeInt(0)));
+        cg.emit(Instruction(OpCode.RET));
     }
 
     void generateIfStmt(IfStatement node)
@@ -304,6 +317,17 @@ public:
         addVar(node.id, isGlobal);
     }
 
+    void generateVarAssignment(VarAssignmentDecl node)
+    {
+        VarInfo* varInfo = lookupVar(node.id);
+        if (varInfo is null)
+            deErro(format("Variable não existe: %s", node.id), node.loc);
+
+        Node valueNode = node.value.get!Node;
+        generateNode(valueNode);
+        cg.storeLocal(node.id);
+    }
+
     void generateFuncDecl(FunctionDeclaration node)
     {
         string skipLabel = genLabel("skip_func");
@@ -314,8 +338,13 @@ public:
 
         FunctionContext ctx;
         ctx.name = node.name;
+        FunctionArg[] args;
         foreach (arg; node.args)
+        {
             ctx.params ~= arg.name;
+            args ~= FunctionArg(arg.name, arg.defaultValue, arg.value);
+        }
+        functionArguments[node.name] = args;
         funcContextStack ~= ctx;
 
         pushScope();
@@ -333,7 +362,7 @@ public:
 
         // Return implícito se não houver
         if (node.body.length == 0)
-            cg.emit(Instruction(OpCode.RET, engine.makeInt(0)));
+            cg.emit(Instruction(OpCode.RET));
 
         popScope();
         funcContextStack = funcContextStack[0 .. $ - 1];
@@ -355,8 +384,27 @@ public:
             return;
         }
 
+        // vai gerar os argumentos
+        // pense na seguinte função: declarar soma(x int, y int = 1) int;
+        // ela tem um argumento padrão
+        // se o node.args tiver apenas o x
+        // ele será gerado tranquilamente
         foreach_reverse (arg; node.args)
             generateNode(arg);
+
+        // precisamos validar se há argumentos a serem tratados
+        // se a nossa chamada soma(10) for feita, o numero de args da chamada é 1 enquanto se espera 2 pelo menos
+        // logo ele cairá nesse if
+        FunctionArg[] fA = functionArguments[node.id];
+        if (node.args.length != fA.length)
+        {
+            // se fizer um for loop da pra gerar o resto que falta
+            // meu i se inicia em node.args.length que é onde o I deve ter parado
+            // se estivermos no nosso caso hipotetico de soma(10) o meu I começaria em 1, pulando o idx 0 que ja foi feito o push do valor
+            // vamos apenas completar o idx 1
+            for (long i = node.args.length; i < fA.length; i++)
+                generateNode(fA[i].value);
+        }
 
         cg.callLabel(node.id);
     }
@@ -369,6 +417,11 @@ public:
         bool isFloat = node.left.type.baseType == BaseType.Float ||
             node.left.type.baseType == BaseType.Double ||
             node.left.type.baseType == BaseType.Real;
+        bool isAny = node.left.type.baseType == BaseType.Any || node.right.type.baseType == BaseType
+            .Any;
+        bool isDiff = node.left.type.baseType != node.right.type.baseType;
+
+        isAny = true;
 
         void erroBitWise(bool check, Loc loc)
         {
@@ -388,19 +441,34 @@ public:
         switch (node.op)
         {
         case "+":
-            opcode = isFloat ? OpCode.ADDF : OpCode.ADDI;
+            if (isAny || isDiff)
+                opcode = OpCode.ADD;
+            else
+                opcode = isFloat ? OpCode.ADDF : OpCode.ADDI;
             break;
         case "-":
-            opcode = isFloat ? OpCode.SUBF : OpCode.SUBI;
+            if (isAny || isDiff)
+                opcode = OpCode.SUB;
+            else
+                opcode = isFloat ? OpCode.SUBF : OpCode.SUBI;
             break;
         case "*":
-            opcode = isFloat ? OpCode.MULF : OpCode.MULI;
+            if (isAny || isDiff)
+                opcode = OpCode.MUL;
+            else
+                opcode = isFloat ? OpCode.MULF : OpCode.MULI;
             break;
         case "/":
-            opcode = isFloat ? OpCode.DIVF : OpCode.DIVI;
+            if (isAny || isDiff)
+                opcode = OpCode.DIV;
+            else
+                opcode = isFloat ? OpCode.DIVF : OpCode.DIVI;
             break;
         case "%":
-            opcode = isFloat ? OpCode.MODF : OpCode.MODI;
+            if (isAny || isDiff)
+                opcode = OpCode.MOD;
+            else
+                opcode = isFloat ? OpCode.MODF : OpCode.MODI;
             break;
         case "&":
             erroBitWise(isFloat, node.loc);
@@ -520,7 +588,7 @@ public:
             break;
         }
 
-        cg.emit(Instruction(opcode, engine.makeInt(0)));
+        cg.emit(Instruction(opcode));
     }
 
     void generateUnaryExpr(UnaryExpr node)
@@ -531,9 +599,7 @@ public:
         {
         case "-":
             cg.push(engine.makeInt(-1));
-            bool isFloat = node.operand.type.baseType == BaseType.Float ||
-                node.operand.type.baseType == BaseType.Double;
-            cg.emit(Instruction(isFloat ? OpCode.MULF : OpCode.MULI, engine.makeInt(0)));
+            cg.emit(Instruction(OpCode.MUL));
             break;
         case "~":
             cg.emit(Instruction(OpCode.NOT));
@@ -544,7 +610,7 @@ public:
         case "!":
             // TODO: NOT lógico
             cg.push(engine.makeBool(false));
-            cg.emit(Instruction(OpCode.EQ, engine.makeInt(0)));
+            cg.emit(Instruction(OpCode.EQ));
             break;
         case "++":
         case "--":

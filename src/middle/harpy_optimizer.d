@@ -23,7 +23,7 @@ private:
         case OpCode.ADDI, OpCode.SUBI, OpCode.MULI, OpCode.DIVI,
             OpCode.ADDF, OpCode.SUBF, OpCode.MULF, OpCode.DIVF,
             OpCode.MODF, OpCode.MODI, OpCode.NOT, OpCode.XOR, OpCode.AND, OpCode.SHR, OpCode.SHL, OpCode.SAR, OpCode
-                .OR:
+                .OR, OpCode.ADD, OpCode.SUB, OpCode.MOD, OpCode.MUL, OpCode.DIV:
                 return true;
         default:
             return false;
@@ -98,7 +98,6 @@ private:
             result.f64 = v1.value.f64 % v2.value.f64;
             resultType = Type.Float;
             break;
-            // OpCode.XOR, OpCode.AND, OpCode.SHR, OpCode.SHL, OpCode.SAR, OpCode.OR
         case OpCode.NOT:
             result.i64 = ~v1.value.i64;
             resultType = Type.Int;
@@ -126,6 +125,142 @@ private:
         case OpCode.SHL:
             result.i64 = v1.value.i64 << v2.value.i64;
             resultType = Type.Int;
+            break;
+        case OpCode.ADD:
+            if (v1.type == Type.Int && v2.type == Type.Int)
+            {
+                result.i64 = v1.value.i64 + v2.value.i64;
+                resultType = Type.Int;
+            }
+            else if (v1.type == Type.Float && v2.type == Type.Float)
+            {
+                result.f64 = v1.value.f64 + v2.value.f64;
+                resultType = Type.Float;
+            }
+            else if (v1.type == Type.Int && v2.type == Type.Float)
+            {
+                result.f64 = cast(double) v1.value.i64 + v2.value.f64;
+                resultType = Type.Float;
+            }
+            else if (v1.type == Type.Float && v2.type == Type.Int)
+            {
+                result.f64 = v1.value.f64 + cast(double) v2.value.i64;
+                resultType = Type.Float;
+            }
+            else
+                return false;
+            break;
+        case OpCode.SUB:
+            if (v1.type == Type.Int && v2.type == Type.Int)
+            {
+                result.i64 = v1.value.i64 - v2.value.i64;
+                resultType = Type.Int;
+            }
+            else if (v1.type == Type.Float && v2.type == Type.Float)
+            {
+                result.f64 = v1.value.f64 - v2.value.f64;
+                resultType = Type.Float;
+            }
+            else if (v1.type == Type.Int && v2.type == Type.Float)
+            {
+                result.f64 = cast(double) v1.value.i64 - v2.value.f64;
+                resultType = Type.Float;
+            }
+            else if (v1.type == Type.Float && v2.type == Type.Int)
+            {
+                result.f64 = v1.value.f64 - cast(double) v2.value.i64;
+                resultType = Type.Float;
+            }
+            else
+                return false;
+            break;
+        case OpCode.MUL:
+            if (v1.type == Type.Int && v2.type == Type.Int)
+            {
+                result.i64 = v1.value.i64 * v2.value.i64;
+                resultType = Type.Int;
+            }
+            else if (v1.type == Type.Float && v2.type == Type.Float)
+            {
+                result.f64 = v1.value.f64 * v2.value.f64;
+                resultType = Type.Float;
+            }
+            else if (v1.type == Type.Int && v2.type == Type.Float)
+            {
+                result.f64 = cast(double) v1.value.i64 * v2.value.f64;
+                resultType = Type.Float;
+            }
+            else if (v1.type == Type.Float && v2.type == Type.Int)
+            {
+                result.f64 = v1.value.f64 * cast(double) v2.value.i64;
+                resultType = Type.Float;
+            }
+            else
+                return false;
+            break;
+        case OpCode.DIV:
+            if (v1.type == Type.Int && v2.type == Type.Int)
+            {
+                if (v2.value.i64 == 0)
+                    return false;
+                result.i64 = v1.value.i64 / v2.value.i64;
+                resultType = Type.Int;
+            }
+            else if (v1.type == Type.Float && v2.type == Type.Float)
+            {
+                if (v2.value.f64 == 0.0)
+                    return false;
+                result.f64 = v1.value.f64 / v2.value.f64;
+                resultType = Type.Float;
+            }
+            else if (v1.type == Type.Int && v2.type == Type.Float)
+            {
+                if (v2.value.f64 == 0.0)
+                    return false;
+                result.f64 = cast(double) v1.value.i64 / v2.value.f64;
+                resultType = Type.Float;
+            }
+            else if (v1.type == Type.Float && v2.type == Type.Int)
+            {
+                if (v2.value.i64 == 0)
+                    return false;
+                result.f64 = v1.value.f64 / cast(double) v2.value.i64;
+                resultType = Type.Float;
+            }
+            else
+                return false;
+            break;
+        case OpCode.MOD:
+            if (v1.type == Type.Int && v2.type == Type.Int)
+            {
+                if (v2.value.i64 == 0)
+                    return false;
+                result.i64 = v1.value.i64 % v2.value.i64;
+                resultType = Type.Int;
+            }
+            else if (v1.type == Type.Float && v2.type == Type.Float)
+            {
+                if (v2.value.f64 == 0.0)
+                    return false;
+                result.f64 = v1.value.f64 % v2.value.f64;
+                resultType = Type.Float;
+            }
+            else if (v1.type == Type.Int && v2.type == Type.Float)
+            {
+                if (v2.value.f64 == 0.0)
+                    return false;
+                result.f64 = cast(double) v1.value.i64 % v2.value.f64;
+                resultType = Type.Float;
+            }
+            else if (v1.type == Type.Float && v2.type == Type.Int)
+            {
+                if (v2.value.i64 == 0)
+                    return false;
+                result.f64 = v1.value.f64 % cast(double) v2.value.i64;
+                resultType = Type.Float;
+            }
+            else
+                return false;
             break;
         default:
             return false;

@@ -1,0 +1,6 @@
+declarar principal vazio {
+    __nucleo_harpy_escreva(1 + 1, "\n")
+    __nucleo_harpy_escreva(1.0 + 1.0, "\n")
+    __nucleo_harpy_escreva(1 + 1.000111, "\n")
+    fim
+}
