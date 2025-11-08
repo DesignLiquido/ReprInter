@@ -33,7 +33,7 @@ Este projeto tem como objetivos:
 2. **Prática**: Fornecer exemplos funcionais e ferramentas prontas para uso
 3. **Comunidade**: Contribuir para o ecossistema de desenvolvimento em língua portuguesa
 
-Aqui você encontrará não apenas documentação teórica, mas também ferramentas para compilar ReprInter em código binário executável.
+Aqui você encontrará não apenas documentação teórica, mas também ferramentas para compilar HarpyVM em código binário executável.
 
 ---
 

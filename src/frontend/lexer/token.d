@@ -16,6 +16,8 @@ enum TokenKind
     Verdadeiro,
     Falso,
     Para,
+    Estrutura,
+    Externo,
 
     // tipos
     I32,

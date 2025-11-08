@@ -67,6 +67,8 @@ private:
         keywords["verdadeiro"] = TokenKind.Verdadeiro;
         keywords["false"] = TokenKind.Falso;
         keywords["para"] = TokenKind.Para;
+        keywords["estrutura"] = TokenKind.Estrutura;
+        keywords["externo"] = TokenKind.Externo;
 
         // tipos
         keywords["i32"] = TokenKind.I32;

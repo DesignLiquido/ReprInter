@@ -8,5 +8,38 @@
 	"name": "reprinter",
 	"targetType": "executable",
 	"targetName": "harpy",
-	"dflags": ["-verrors=0"]
+	"buildTypes": {
+		"debug": {
+			"dflags-dmd": ["-g", "-debug"],
+			"dflags-ldc": ["-g", "-d-debug", "-O0"],
+			"dflags-gdc": ["-g", "-fdebug", "-O0"]
+		},
+		"release": {
+			"dflags-dmd": ["-O", "-release", "-inline"],
+			"dflags-ldc": ["-O3", "-release", "-enable-inlining", "-flto=full"],
+			"dflags-gdc": ["-O3", "-frelease", "-finline-functions", "-flto"]
+		},
+		"release-nobounds": {
+			"dflags-dmd": ["-O", "-release", "-inline", "-boundscheck=off"],
+			"dflags-ldc": [
+				"-O3",
+				"-release",
+				"-enable-inlining",
+				"-flto=full",
+				"-boundscheck=off"
+			],
+			"dflags-gdc": [
+				"-O3",
+				"-frelease",
+				"-finline-functions",
+				"-flto",
+				"-fno-bounds-check"
+			]
+		},
+		"release-size": {
+			"dflags-dmd": ["-O", "-release", "-inline"],
+			"dflags-ldc": ["-Oz", "-release", "-flto=full"],
+			"dflags-gdc": ["-Os", "-frelease", "-flto"]
+		}
+	}
 }

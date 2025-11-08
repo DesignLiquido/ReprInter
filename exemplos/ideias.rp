@@ -31,7 +31,7 @@ estrutura Usuario {
     idade i32
 }
 
-declarar olaUsuario(u Usuario*) vazio {
+declarar olaUsuario(u Usuario) vazio {
     __embutidovm_escreva("Olá ", u*.nome, "\n")
 }
 */

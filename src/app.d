@@ -1,12 +1,15 @@
-import std.stdio, std.file, std.path, std.array, std.getopt, std.datetime.stopwatch, std.algorithm;
+import std.stdio, std.file, std.path, std.array, std.getopt, std.datetime.stopwatch, std.algorithm, std
+	.string, std.process;
 import frontend.lexer.token, frontend.lexer.lexer;
 import frontend.parser.ast, frontend.parser.parser;
 import middle.semantic_analyzer, middle.harpy_optimizer;
 import backend.codegen, backend.harpyvm, backend.compiler;
 import core.stdc.stdlib : exit;
+import core.sys.posix.dlfcn;
 import erro;
 
 const string VERSAO = "0.1.0";
+string HOME, MAIN_DIR, DIR_LIBS, DIR_BIN;
 
 // guarda informações de tempo para métricas, serve para passar todas as métricas para a função de compilação
 // é privada pois não deve ser usada fora deste arquivo (main.d)
@@ -21,7 +24,7 @@ private struct Tempo
 }
 
 // area de compilação do sistema {{
-void executarHvm(ref string arquivo_, bool mostrarTempo = false)
+void executarHvm(ref string arquivo_, bool mostrarTempo = false, void*[string] bibliotecas)
 {
 	auto tempoTotal = StopWatch(AutoStart.yes);
 	auto arquivo = File(arquivo_, "rb");
@@ -49,6 +52,7 @@ void executarHvm(ref string arquivo_, bool mostrarTempo = false)
 
 		Instruction[] programa = lerPrograma(arquivo);
 		HarpyVM motor = new HarpyVM();
+		motor.libs = bibliotecas;
 		motor.code = programa;
 
 		auto tempoMotor = StopWatch(AutoStart.yes);
@@ -152,26 +156,57 @@ void versao()
 	writefln("HarpyVM - %s", VERSAO);
 }
 
+// retorna o nome da biblioteca concatenado com o diretório de bibliotecas instalado do sistema
+// nome = io
+// retorno = /home/<USER>/.harpy/libs/io.so
+string criarLibSys(string nome)
+{
+	return DIR_LIBS ~ nome ~ ".so";
+}
+
 void main(string[] argumentos)
 {
-	// suporte parcial
-	// caracteres especiais podem ser imprimidos de forma incorreta
-	// preciso testar muitos casos ainda, além do sistema de arquivos que necessitará
-	// além disso, será preciso criar um instalador pro Windows
-	// ele irá baixar alguma release pelo github, extrair o binario apenas e setar o PATH corretamente
-	// não sei muito sobre instaladores do windows então se eu puder embutir o binario no instalador então assim farei
-	version (Windows)
+	version (linux)
 	{
+		HOME = environment.get("HOME");
+		MAIN_DIR = HOME ~ "/.harpy/";
+		DIR_LIBS = MAIN_DIR ~ "libs/";
+		// cria o diretório padrão em ~/.harpy/
+		if (!exists(MAIN_DIR))
+			mkdir(MAIN_DIR);
+		// cria o diretório padrão em ~/.harpy/libs/
+		if (!exists(DIR_LIBS))
+			mkdir(DIR_LIBS);
+	}
+	else version (Windows)
+	{
+		// suporte parcial
+		// caracteres especiais podem ser imprimidos de forma incorreta
+		// preciso testar muitos casos ainda, além do sistema de arquivos que necessitará
+		// além disso, será preciso criar um instalador pro Windows
+		// ele irá baixar alguma release pelo github, extrair o binario apenas e setar o PATH corretamente
+		// não sei muito sobre instaladores do windows então se eu puder embutir o binario no instalador então assim farei
 		import core.sys.windows.windows;
 
 		writeln("AVISO: O windows possui suporte parcial.");
 		SetConsoleOutputCP(65_001);
 		SetConsoleCP(65_001);
+		// vou dar a saida precoce pois sei que o suporte é inexistente
+		exit(-69);
+	}
+	else
+	{
+		writeln("Não há suporte para o seu sistema operacional.");
+		exit(-1);
 	}
 
-	version (linux)
+	// valida se algumas variaveus importantes foram definidas
+	// deixei essa validação para suprir todos os casos de erros que podem vir a ocorrer
+	if (!exists(MAIN_DIR) || !exists(DIR_LIBS) || !exists(HOME))
 	{
-		// ...
+		writeln(
+			"Houve um erro ao definir algumas variaveis globais, crie um ISSUE no repositório.");
+		exit(-1);
 	}
 
 	DiagnosticError erro = new DiagnosticError; // classe que gera os erros de todo o sistema
@@ -230,9 +265,34 @@ void main(string[] argumentos)
 			exit(-1);
 		}
 
+		// carrega bibliotecas externas, incluindo bibliotecas padrão da VM
+		// bibliotecas do sistema ja estará pré carregadas
+		string[] bibliotecasExternas = [
+			criarLibSys("entrada_saida"), criarLibSys("matematica")
+		];
+
+		// carrega todas as bibliotecas dinamicas antes de tudo executar
+		// o overhead inicia aqui
+		// um custo de alguns µs (microsegundos)
+		void*[string] bibliotecas;
+		foreach (string path; bibliotecasExternas)
+		{
+			if (path !in bibliotecas)
+			{
+				void* handle = dlopen(path.toStringz, RTLD_LAZY | RTLD_NODELETE);
+				if (!handle)
+				{
+					writefln("Erro ao carregar %s:", path);
+					writeln(dlerror().fromStringz);
+					throw new Exception("Falha ao carregar biblioteca: " ~ path);
+				}
+				bibliotecas[path] = handle;
+			}
+		}
+
 		// se a extensão for .hvm então executaremos o bytecode diretamente
 		if (extension(arquivo) == ".hvm")
-			executarHvm(arquivo, mostrarTempo);
+			executarHvm(arquivo, mostrarTempo, bibliotecas);
 
 		// valida a extensão do arquivo
 		if (extension(arquivo) != ".rp")
@@ -240,9 +300,6 @@ void main(string[] argumentos)
 			writefln("O arquivo '%s' precisa ter a extensão '.rp' ou '.hvm'.", arquivo);
 			exit(-1);
 		}
-
-		// ignore
-		string[] bibliotecasExternas;
 
 		// vamos salvar métricas de tempo pra analisar a velocidade do sistema
 		auto tempoTotal = StopWatch(AutoStart.yes);
@@ -282,7 +339,8 @@ void main(string[] argumentos)
 		// quarto passe
 		HarpyVM motor = new HarpyVM();
 		auto tempoCG = StopWatch(AutoStart.yes);
-		Instruction[] instrucoes = new CodeGen(motor, erro, bibliotecasExternas).generate(programa);
+		CodeGen cg = new CodeGen(motor, erro, bibliotecas);
+		Instruction[] instrucoes = cg.generate(programa);
 		tempoCG.stop();
 
 		if (otimizar)
@@ -311,12 +369,18 @@ void main(string[] argumentos)
 
 		// verifica se o usuário deseja compilar o programa
 		if (compilar)
-			compilarPrograma(instrucoes, saida, Tempo(mostrarTempo, tempoLexer, tempoLexer, tempoParser, tempoSA, tempoCG));
+			compilarPrograma(instrucoes, saida, Tempo(mostrarTempo, tempoTotal, tempoLexer, tempoParser, tempoSA, tempoCG));
 
 		motor.code = instrucoes;
 
 		if (mostrarAsm)
+		{
 			HarpyDisassembler.run(instrucoes);
+			return;
+		}
+
+		motor.libs = bibliotecas;
+		motor.externalFunctions = cg.externalFunctions;
 
 		auto tempoMotor = StopWatch(AutoStart.yes);
 		// rodando tudo na vm (no motor)
@@ -348,7 +412,7 @@ void main(string[] argumentos)
 		// 	ajuda();
 		// 	return;
 		// }
-		// se for um erro do sistema ele irá fechar o programa, caso contrário irá motrar o e.msg
+		// se for um erro do sistema ele irá fechar o programa, caso contrário irá mostrar o e.msg
 		checkErrors(erro);
 		writeln("Erro critico: ", e.msg);
 		writeln("Arquivo: ", e.file);

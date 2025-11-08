@@ -84,10 +84,10 @@ enum OpCode : ubyte
     ARRS, // array set
     ARRL, // array length
 
-    // TODO: Structs
-    STCN, // struct new (cria uma nova struct)
-    STCG, // struct get (obtem o field de uma struct)
-    STCS, // struct set (seta um novo valor no field de uma struct)
+    // Structs
+    STRUCTN, // struct new (cria uma nova struct)
+    STRUCTG, // struct get (obtem o field de uma struct)
+    STRUCTS, // struct set (seta um novo valor no field de uma struct)
 
     // FFI
     FFIL, // FFI Load
@@ -110,33 +110,42 @@ enum Type
     Int,
     Float,
     Bool,
-    Array
+    Array,
+    Struct,
 }
 
 // para ffi {{
-union CValueFFI
+union FFIRawValue
 {
-    char* str; //     string
-    long i64; //      int
-    double f64; //    float
-    bool i1; //       bool
-    Value* array; //  array
+    char* str; //       string
+    long i64; //        int
+    double f64; //      float
+    bool i1; //         bool
+    Value* array; //    array
+    Value* struct_; //  struct
 }
 
-struct ValueC
+struct FFIValue
 {
     Type type;
-    CValueFFI value;
+    FFIRawValue value;
+}
+
+struct FFICallParams
+{
+    FFIValue* args;
+    ulong argc;
 }
 // }}
 
 union EValue
 {
-    string str; //    string
-    long i64; //      int
-    double f64; //    float
-    bool i1; //       bool
-    Value[] array; // array
+    string str; //      string
+    long i64; //        int
+    double f64; //      float
+    bool i1; //         bool
+    Value[] array; //   array
+    Value[] struct_; // struct
 }
 
 struct Value
@@ -157,7 +166,14 @@ struct StackFrame
     long returnAddr;
 }
 
-alias ffi_extern_function = ValueC function(ValueC*, ulong);
+struct StructDef
+{
+    string name;
+    string[] fieldNames;
+    Type[] fieldTypes;
+}
+
+alias ffi_extern_function = FFIValue function(FFICallParams*);
 
 class HarpyVM
 {
@@ -168,6 +184,7 @@ class HarpyVM
     long pc; // program counter
     void*[string] libs;
     ffi_extern_function[string] externalFunctions;
+    StructDef[string] structDefs; // definições de structs
 
     this()
     {
@@ -244,6 +261,14 @@ class HarpyVM
         return Value(Type.Array, ev);
     }
 
+    pragma(inline, true);
+    Value makeStruct(Value[] struct_)
+    {
+        EValue ev;
+        ev.struct_ = struct_;
+        return Value(Type.Struct, ev);
+    }
+
     void run()
     {
         pc = 0;
@@ -263,7 +288,13 @@ class HarpyVM
                 break;
 
             case OpCode.DUP:
-                push(peek());
+                Value v = peek();
+                if (v.type == Type.Array)
+                    push(makeArray(v.value.array.dup));
+                else if (v.type == Type.Struct)
+                    push(makeStruct(v.value.struct_.dup));
+                else
+                    push(v);
                 pc++;
                 break;
 
@@ -647,9 +678,9 @@ class HarpyVM
 
             case OpCode.ARRN: // array new
                 long size = pop().value.i64;
-                Value[] arr = new Value[size];
+                Value[] arr;
                 for (long i = size - 1; i >= 0; i--)
-                    arr[i] = pop();
+                    arr ~= pop();
                 push(this.makeArray(arr));
                 pc++;
                 break;
@@ -676,6 +707,33 @@ class HarpyVM
                 pc++;
                 break;
 
+            case OpCode.STRUCTN: // struct new
+                // long size = pop().value.i64;
+                long size = inst.val.value.i64;
+                Value[] struct_;
+                for (long i = size - 1; i >= 0; i--)
+                    struct_ ~= pop();
+                push(this.makeStruct(struct_));
+                pc++;
+                break;
+
+            case OpCode.STRUCTG: // struct get (field)
+                // long idx = pop().value.i64;
+                long idx = inst.val.value.i64;
+                Value[] strc = pop().value.struct_;
+                push(strc[idx]);
+                pc++;
+                break;
+
+            case OpCode.STRUCTS: // struct set -> struct.field = n
+                Value val = pop();
+                long idx = inst.val.value.i64;
+                Value[] strc = pop().value.struct_;
+                strc[idx] = val;
+                push(this.makeArray(strc));
+                pc++;
+                break;
+
             case OpCode.CALL:
                 StackFrame newFrame; // Cria novo stack frame
                 newFrame.returnAddr = pc + 1;
@@ -698,7 +756,11 @@ class HarpyVM
                 {
                     void* handle = dlopen(libpath.toStringz, RTLD_LAZY);
                     if (!handle)
-                        throw new Exception("Failed to load library: " ~ libpath);
+                    {
+                        writefln("Erro ao carregar %s:", libname);
+                        writeln(dlerror().fromStringz);
+                        throw new Exception("Falha ao carregar biblioteca: " ~ libname);
+                    }
                     libs[libname] = handle;
                 }
                 pc++;
@@ -715,7 +777,11 @@ class HarpyVM
 
                 void* handle = libs[libname];
                 if (!handle)
-                    throw new Exception("Library not loaded: " ~ libname);
+                {
+                    writefln("Erro ao carregar %s:", libname);
+                    writeln(dlerror().fromStringz);
+                    throw new Exception("Falha ao carregar biblioteca: " ~ libname);
+                }
 
                 ffi_extern_function funcPtr;
                 if (funcname !in externalFunctions)
@@ -724,14 +790,14 @@ class HarpyVM
                     funcPtr = externalFunctions[funcname];
 
                 if (!funcPtr)
-                    throw new Exception("Symbol not found: " ~ funcname);
+                    throw new Exception("Simbolo não encontrado: " ~ funcname);
 
                 // Converter argumentos para C
-                ValueC* args = cast(ValueC*) malloc(argc * ValueC.sizeof);
+                FFIValue* args = cast(FFIValue*) malloc(argc * FFIValue.sizeof);
                 for (long i; i < argc; i++)
                 {
                     Value v = pop();
-                    CValueFFI cffi;
+                    FFIRawValue cffi;
 
                     final switch (v.type)
                     {
@@ -751,14 +817,22 @@ class HarpyVM
                         cffi.array = cast(Value*) v.value.array.ptr;
                         cffi.i64 = v.value.array.length; // tamanho do array
                         break;
+                    case Type.Struct:
+                        cffi.struct_ = cast(Value*) v.value.struct_.ptr;
+                        break;
                     }
 
                     args[i].type = v.type;
-                    args[i].value = *cast(CValueFFI*)&cffi;
+                    args[i].value = *cast(FFIRawValue*)&cffi;
                 }
 
-                // Chamar função
-                ValueC result = funcPtr(args, argc);
+                // deve haver uma forma melhor de escrever isso
+                FFICallParams p = FFICallParams(args, argc);
+                FFICallParams* params = cast(FFICallParams*) malloc(p.sizeof);
+                *params = p;
+
+                // chama a função
+                FFIValue result = funcPtr(params);
 
                 // Converter resultado de volta
                 Value vmResult;
@@ -778,14 +852,19 @@ class HarpyVM
                 case Type.String:
                     vmResult.value.str = result.value.str.fromStringz.to!string;
                     break;
+                    // TODO:
                 case Type.Array:
                     // Reconstruir array D
                     // Precisaria saber o tamanho, assumindo que está em result.value.i64 ou similar
                     vmResult.value.array = [];
                     break;
+                case Type.Struct:
+                    vmResult.value.struct_ = [];
+                    break;
                 }
 
                 free(args);
+                free(params);
                 push(vmResult);
                 pc++;
                 break;
@@ -808,6 +887,9 @@ class HarpyVM
                     break;
                 case Type.Array:
                     printf("<Array>".toStringz());
+                    break;
+                case Type.Struct:
+                    printf("<Struct>".toStringz());
                     break;
                 }
                 pc++;
@@ -922,6 +1004,8 @@ class HarpyDisassembler
             return v.value.i1 ? "verdadeiro" : "falso";
         case Type.Array:
             return format("<Array[%d]>", v.value.array.length);
+        case Type.Struct:
+            return format("<Struct[%d]>", v.value.struct_.length);
         }
     }
 
@@ -1066,6 +1150,15 @@ class HarpyDisassembler
             case OpCode.ARRL:
                 writeln("ARRL");
                 break;
+            case OpCode.STRUCTN:
+                writefln("STRUCTN %d", inst.val.value.i64);
+                break;
+            case OpCode.STRUCTS:
+                writefln("STRUCTS %d", inst.val.value.i64);
+                break;
+            case OpCode.STRUCTG:
+                writefln("STRUCTG %d", inst.val.value.i64);
+                break;
             case OpCode.CALL:
                 writefln("CALL %d", inst.val.value.i64);
                 break;
@@ -1095,3 +1188,93 @@ class HarpyDisassembler
         writeln("\n=== Fim ===");
     }
 }
+
+// void main()
+// {
+//     HarpyVM motor = new HarpyVM;
+
+//     // cria uma struct com field nome e idade
+//     // estrutura Usuario { nome texto, idade inteiro }
+//     // cria uma variavel inicializando os campos e tudo mais, então nesse exemplo é como se fosse
+//     // alocar u Usuario = Usuario("Fernando", 69)
+//     // e depois
+//     // u.idade = 17
+//     // print(u.nome, " ")
+//     // print(u.idade, "\n")
+//     // Instruction[] code = [
+//     //     Instruction(OpCode.PUSH, motor.makeInt(69)),
+//     //     Instruction(OpCode.PUSH, motor.makeStr("Fernando")),
+//     //     Instruction(OpCode.STRUCTN, motor.makeInt(2)),
+//     //     Instruction(OpCode.STOREL, motor.makeStr("u")),
+
+//     //     // altera a idade
+//     //     Instruction(OpCode.LOADL, motor.makeStr("u")),
+//     //     Instruction(OpCode.PUSH, motor.makeInt(17)),
+//     //     Instruction(OpCode.STRUCTS, motor.makeInt(1)),
+
+//     //     // mostra o nome
+//     //     Instruction(OpCode.LOADL, motor.makeStr("u")),
+//     //     Instruction(OpCode.STRUCTG, motor.makeInt(0)),
+//     //     Instruction(OpCode.PRINT),
+
+//     //     Instruction(OpCode.PUSH, motor.makeStr(" ")),
+//     //     Instruction(OpCode.PRINT),
+
+//     //     // mostra a idade
+//     //     Instruction(OpCode.LOADL, motor.makeStr("u")),
+//     //     Instruction(OpCode.STRUCTG, motor.makeInt(1)),
+//     //     Instruction(OpCode.PRINT),
+
+//     //     Instruction(OpCode.PUSH, motor.makeStr("\n")),
+//     //     Instruction(OpCode.PRINT),
+
+//     //     // fim
+//     //     Instruction(OpCode.HALT)
+//     // ];
+//     // Principal
+//     Instruction[] code = [
+//         Instruction(OpCode.JMP, motor.makeInt(10)), // pula para principal
+
+//         // Função modificar (endereço 1-8)
+//         // duplica antes de salvar
+//         Instruction(OpCode.STOREL, motor.makeStr("u")), // salva parâmetro u
+//         Instruction(OpCode.LOADL, motor.makeStr("u")), // carrega u
+//         Instruction(OpCode.DUP),
+//         Instruction(OpCode.STOREL, motor.makeStr("copia")), // copia = u (MESMA REFERÊNCIA!)
+//         Instruction(OpCode.LOADL, motor.makeStr("copia")), // carrega copia
+//         Instruction(OpCode.PUSH, motor.makeInt(99)),
+//         Instruction(OpCode.STRUCTS, motor.makeInt(1)), // copia.idade = 99
+//         Instruction(OpCode.POP),
+//         Instruction(OpCode.RET),
+
+//         // Principal (endereço 9+)
+//         Instruction(OpCode.PUSH, motor.makeInt(17)),
+//         Instruction(OpCode.PUSH, motor.makeStr("Fernando")),
+//         Instruction(OpCode.STRUCTN, motor.makeInt(2)),
+//         Instruction(OpCode.STOREL, motor.makeStr("u")),
+
+//         // Imprime idade ANTES da chamada
+//         Instruction(OpCode.LOADL, motor.makeStr("u")),
+//         Instruction(OpCode.STRUCTG, motor.makeInt(1)),
+//         Instruction(OpCode.PRINT),
+//         Instruction(OpCode.PUSH, motor.makeStr(" -> ")),
+//         Instruction(OpCode.PRINT),
+
+//         // Chama modificar(u)
+//         Instruction(OpCode.LOADL, motor.makeStr("u")),
+//         Instruction(OpCode.CALL, motor.makeInt(1)),
+
+//         // Imprime idade DEPOIS da chamada
+//         Instruction(OpCode.LOADL, motor.makeStr("u")),
+//         Instruction(OpCode.STRUCTG, motor.makeInt(1)),
+//         Instruction(OpCode.PRINT),
+//         Instruction(OpCode.PUSH, motor.makeStr("\n")),
+//         Instruction(OpCode.PRINT),
+
+//         Instruction(OpCode.HALT)
+//     ];
+
+//     motor.code = code;
+//     motor.run();
+
+// }
