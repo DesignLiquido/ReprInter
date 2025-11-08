@@ -1,7 +1,7 @@
 .dub
 docs.json
 __dummy.html
-# docs/
+docs
 /harpy
 harpy.so
 harpy.dylib
@@ -12,6 +12,7 @@ harpy-test-*
 *.exe
 *.pdb
 *.o
+*.so
 *.obj
 *.lst
 *.hvm

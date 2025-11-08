@@ -11,6 +11,7 @@ module frontend.type;
 // sendo fácil implementar ponteiros e outros
 // por padrão, o Type(Types.Array, Void) (array de tipo base Void) será um array que suporta todos os tipos
 import std.algorithm : canFind;
+import middle.semantic_analyzer : Symbol;
 
 // tipo base
 enum BaseType : string
@@ -35,6 +36,7 @@ enum Types : string
     Undefined = "undefined", // tipo que deve ser resolvido pelo analisador semantico
     Void = "void", // é um tipo não literal
     Array = "array",
+    Struct = "struct",
 }
 
 struct Type
@@ -42,11 +44,15 @@ struct Type
     Types type;
     BaseType baseType;
     bool undefined = false;
+    string structName = "";
     ulong dimensions = 0; // dimensões de um array
 
-    bool isCompatibleWith(Type t)
+    bool isCompatibleWith(Type t, ref Symbol[string] structs)
     {
         if (baseType == BaseType.Any || t.baseType == BaseType.Any)
+            return true;
+
+        if (structName in structs)
             return true;
 
         // mapa de compatibilidade
@@ -65,6 +71,8 @@ struct Type
             return baseType == t.baseType;
         case Types.Array:
             return type == Types.Array && t.baseType == baseType;
+        case Types.Struct:
+            return type == Types.Struct && t.structName == structName;
         case Types.Undefined:
             return type == Types.Undefined;
         case Types.Void:
@@ -83,6 +91,8 @@ struct Type
     {
         if (type == Types.Array)
             return baseType ~ "[]";
+        if (type == Types.Struct)
+            return structName;
         if (type == Types.Literal)
             return baseType;
         if (type == Types.Void)

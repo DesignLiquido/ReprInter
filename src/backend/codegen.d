@@ -129,10 +129,10 @@ public:
     void*[string] libs;
     ffi_extern_function[string] externalFunctions;
 
-    this(HarpyVM engine, DiagnosticError error, ref string[] externLibs)
+    this(HarpyVM engine, DiagnosticError error, ref void*[string] libs)
     {
         this.engine = engine;
-        this.externLibs = externLibs;
+        this.libs = libs;
         this.cg = new HarpyCG(engine);
         this.error = error;
         pushScope();
@@ -195,6 +195,15 @@ public:
         case NodeKind.BoolLiteral:
             generateLiteral(node);
             break;
+        case NodeKind.StructDeclaration:
+            // ignora, tecnicamente esse Node só existe para validar a geração de structs com StructExpr
+            break;
+        case NodeKind.StructExpr:
+            generateStructExpr(cast(StructExpr) node);
+            break;
+        case NodeKind.Extern:
+            generateExtern(cast(Extern) node);
+            break;
         case NodeKind.EoP:
             halt = true;
             cg.emit(Instruction(OpCode.HALT));
@@ -203,6 +212,70 @@ public:
             deErro(format("Geração de código não implementada para: %s", node.kind), node.loc);
             break;
         }
+    }
+
+    version (linux)
+    {
+        void generateExtern(Extern node)
+        {
+            foreach (FunctionDeclaration funcDecl; node.funcs)
+            {
+                string name = funcDecl.name;
+
+                if (name in externFuncs)
+                    return;
+
+                void* foundHandle = null;
+                string foundLib = null;
+
+                foreach (string lib, void* handle; libs)
+                {
+                    auto funcPtr = cast(ffi_extern_function) dlsym(handle, name.toStringz);
+                    if (funcPtr !is null)
+                    {
+                        externalFunctions[name] = funcPtr;
+                        foundHandle = handle;
+                        foundLib = lib;
+                        break;
+                    }
+                }
+
+                if (foundLib is null)
+                    deErro(format("Simbolo '%s' não foi encontrado.", name), node.loc);
+
+                FunctionArg[] args;
+                foreach (arg; funcDecl.args)
+                    args ~= FunctionArg(arg.name, arg.defaultValue, arg.value);
+                functionArguments[name] = args;
+
+                externFuncs[name] = ExternFunc(name, foundLib, foundHandle);
+            }
+        }
+    }
+    else version (Windows)
+    {
+        // preciso implementar uma versão especifica pro windows ainda
+        void generateExtern(Extern node)
+        {
+            throw new Exception("O Windows não suporta o uso de 'externo' no momento.");
+        }
+    }
+    else
+    {
+        void generateExtern(Extern node)
+        {
+            throw new Exception(
+                "Seu sistema operacional não suporta o uso de 'externo' no momento.");
+        }
+    }
+
+    void generateStructExpr(StructExpr node)
+    {
+        // cria a struct e seta os valores em cada field
+        foreach_reverse (Node field; node.fields)
+            generateNode(field);
+        cg.emit(Instruction(OpCode.STRUCTN, engine.makeInt(node.fields.length)));
+        // sim, é só isso
     }
 
     void generateForStmt(ForStatement node)
@@ -357,11 +430,22 @@ public:
             addVar(arg.name, false);
         }
 
+        bool temRetorno = false;
+
         foreach (stmt; node.body)
+        {
+            if (stmt.kind == NodeKind.Return)
+                temRetorno = true;
             generateNode(stmt);
+        }
+
+        // verifica se a ultima instrução é um retorno pra ter isso como base pra retorno implicito
+        // só pra garantir
+        if (node.body[$ - 1].kind != NodeKind.Return)
+            temRetorno = false;
 
         // Return implícito se não houver
-        if (node.body.length == 0)
+        if (node.body.length == 0 || !temRetorno)
             cg.emit(Instruction(OpCode.RET));
 
         popScope();
@@ -374,6 +458,12 @@ public:
 
     void generateCallExpr(CallExpr node)
     {
+        if (node.id in externFuncs)
+        {
+            generateExternCall(node);
+            return;
+        }
+
         if (node.id == "__nucleo_harpy_escreva")
         {
             foreach (arg; node.args)
@@ -384,6 +474,48 @@ public:
             return;
         }
 
+        if (node.id == "__nucleo_harpy_duplicar")
+        {
+            generateNode(node.args[0]);
+            cg.emit(Instruction(OpCode.DUP));
+            return;
+        }
+
+        // precisamos validar se há argumentos a serem tratados
+        // se a nossa chamada soma(10) for feita, o numero de args da chamada é 1 enquanto se espera 2 pelo menos
+        // logo ele cairá nesse if
+        FunctionArg[] fA = functionArguments[node.id];
+        if (node.args.length < fA.length)
+        {
+            // precisamos preencher apenas os argumentos que FALTAM
+            // se passamos 1 argumento mas a função espera 2, preenchemos do índice 1 em diante
+            // loop REVERSO porque a pilha inverte a ordem!
+            for (long i = cast(long) fA.length - 1; i >= cast(long) node.args.length;
+                i--)
+                generateNode(fA[i].value);
+        }
+
+        // primeiro geramos os argumentos opcionais em ordem reversa para seguir o padrão
+        // pense na seguinte função:
+        /*
+        declarar saudar(nome texto = "Visitante", idade inteiro = 18) vazio {
+            escreva("Olá, ", nome, "! Idade: ", idade, "\n")
+        }
+
+        se chamar assim: saudar()
+        os argumentos serão completados na ordem: 18, Visitante
+        seguindo a ideia de pilha (stack) da vm
+
+        se chamar assim: saudar("Ana")
+        os argumentos serão completados na ordem: 18, Ana
+
+        e se chamar assim: saudar("Ana", 25)
+        os argumentos serão completados na ordem: 25, Ana
+
+        toda a ideia gira em torno da forma em que os argumentos são capturados pela vm
+        o primeiro da lista será sempre o ultimo a sair
+        */
+
         // vai gerar os argumentos
         // pense na seguinte função: declarar soma(x int, y int = 1) int;
         // ela tem um argumento padrão
@@ -392,21 +524,26 @@ public:
         foreach_reverse (arg; node.args)
             generateNode(arg);
 
-        // precisamos validar se há argumentos a serem tratados
-        // se a nossa chamada soma(10) for feita, o numero de args da chamada é 1 enquanto se espera 2 pelo menos
-        // logo ele cairá nesse if
-        FunctionArg[] fA = functionArguments[node.id];
-        if (node.args.length != fA.length)
-        {
-            // se fizer um for loop da pra gerar o resto que falta
-            // meu i se inicia em node.args.length que é onde o I deve ter parado
-            // se estivermos no nosso caso hipotetico de soma(10) o meu I começaria em 1, pulando o idx 0 que ja foi feito o push do valor
-            // vamos apenas completar o idx 1
-            for (long i = node.args.length; i < fA.length; i++)
-                generateNode(fA[i].value);
-        }
-
         cg.callLabel(node.id);
+    }
+
+    void generateExternCall(CallExpr node)
+    {
+        ExternFunc extFunc = externFuncs[node.id];
+        FunctionArg[] fA = functionArguments[node.id];
+
+        if (node.args.length < fA.length)
+            for (long i = cast(long) fA.length - 1; i >= cast(long) node.args.length;
+                i--)
+                generateNode(fA[i].value);
+
+        foreach_reverse (arg; node.args)
+            generateNode(arg);
+
+        cg.push(engine.makeInt(cast(long) node.args.length)); // argc
+        cg.push(engine.makeStr(extFunc.library)); // nome da biblioteca
+        cg.push(engine.makeStr(extFunc.name)); // nome da função
+        cg.emit(Instruction(OpCode.FFIC)); // chama FFI
     }
 
     void generateBinaryExpr(BinaryExpr node)

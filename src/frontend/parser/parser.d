@@ -74,6 +74,10 @@ private:
             return new BoolLiteral(true, token.loc);
         case TokenKind.Falso:
             return new BoolLiteral(false, token.loc);
+        case TokenKind.Estrutura:
+            return this.parseStructDecl();
+        case TokenKind.Externo:
+            return this.parseExtern();
         case TokenKind.Plus:
         case TokenKind.Minus:
         case TokenKind.PlusPlus:
@@ -88,6 +92,52 @@ private:
             error.addError(Diagnostic("Token desconhecido: " ~ to!string(token), token.loc));
             throw new Exception("Token desconhecido: " ~ to!string(token));
         }
+    }
+
+    Extern parseExtern()
+    {
+        Loc start = this.previous().loc;
+
+        this.consume(TokenKind.LBrace, "Esperado '{' após o externo.");
+        Node node = Node.init; // eu iniciaria como 'null' porém receio que pode dar problemas no futuro
+        FunctionDeclaration[] funcs;
+        while (!this.check(TokenKind.RBrace) && !this.isAtEnd())
+        {
+            node = this.parseExpression(Precedence.LOWEST);
+            if (node.kind != NodeKind.FuncDeclaration)
+                throw new Exception(
+                    "Não é permitido essa expressão dentro do corpo do externo: " ~ to!string(
+                        node.kind));
+            funcs ~= cast(FunctionDeclaration) node;
+        }
+        this.consume(TokenKind.RBrace, "Esperado '}' após o corpo do externo.");
+        return new Extern(funcs, start);
+    }
+
+    StructDeclaration parseStructDecl()
+    {
+        string name = this.consume(TokenKind.Identifier, "É esperado um nome para a estrutura.")
+            .value.get!string;
+        Loc start = this.previous().loc;
+        this.consume(TokenKind.LBrace, "Esperado '{' após o nome da estrutura.");
+        StructField[] fields;
+        while (!this.check(TokenKind.RBrace) && !this.isAtEnd())
+        {
+            // nome T
+            string fieldName = this.consume(TokenKind.Identifier, "É esperado um nome para o campo.")
+                .value.get!string;
+            Type ty = this.parseType();
+            Node value = null;
+            bool dF = false;
+            if (this.match([TokenKind.Equals]))
+            {
+                value = this.parseExpression(Precedence.LOWEST);
+                dF = true;
+            }
+            fields ~= StructField(fieldName, ty, dF, value);
+        }
+        this.consume(TokenKind.RBrace, "Esperado '}' após a estrutura.");
+        return new StructDeclaration(name, fields, start);
     }
 
     ForStatement parseForStmt()
@@ -260,7 +310,7 @@ private:
         case TokenKind.Vazio:
             return Type(Types.Void, BaseType.Void);
         default:
-            return Type(Types.Undefined, BaseType.Void);
+            return Type(Types.Struct, BaseType.Void, false, to!string(ty.value));
         }
     }
 

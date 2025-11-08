@@ -1,11 +1,12 @@
-// TODO
-
-externo "C" {
-    const PI decimal;
+externo {
     declarar escreva(...) vazio;
-    declarar soma(x i64|f64, y i64|f64) i64|f64;
 }
 
-declarar valor_padrao(x inteiro = 9, x inteiro = 60) inteiro {
+declarar valor_padrao(x inteiro = 9, y inteiro = 60) inteiro {
     retorne x + y
+}
+
+declarar principal vazio {
+    escreva(valor_padrao(), "\n")
+    fim
 }

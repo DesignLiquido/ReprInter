@@ -1,0 +1,19 @@
+estrutura Usuario {
+    nome texto
+    idade inteiro
+}
+
+// TODO
+//declarar modificarNome(u ref Usuario) vazio {
+//    u.nome = "Nando"
+//}
+
+declarar principal vazio {
+    // cria a struct com um construtor
+    alocar u Usuario = Usuario("Fernando", 17)
+    alocar copia Usuario = __nucleo_harpy_duplicar(u)
+    // TODO
+    // modificarNome(u)
+    // u.nome agora é "Nando"
+    fim
+}

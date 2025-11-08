@@ -12,6 +12,7 @@ enum NodeKind
     ElseStatement,
     ForStatement,
     Return,
+    Extern,
 
     // literais
     IntLiteral,
@@ -23,11 +24,13 @@ enum NodeKind
     FuncDeclaration,
     VarDeclaration,
     VarAssignmentDecl,
+    StructDeclaration,
 
     // expressões
     BinaryExpr,
     CallExpr,
     UnaryExpr,
+    StructExpr,
 
     EoP, // End of Program (fim do programa)
 }
@@ -50,7 +53,6 @@ class Program : Node
     {
         this.kind = NodeKind.Program;
         this.type = Type(Types.Literal, BaseType.Int);
-        this.value = null;
         this.body = body;
         this.loc = loc;
     }
@@ -89,7 +91,6 @@ class FunctionDeclaration : Node
     {
         this.kind = NodeKind.FuncDeclaration;
         this.type = type;
-        this.value = null;
         this.body = body;
         this.name = name;
         this.args = args;
@@ -292,7 +293,6 @@ class CallExpr : Node
     {
         this.kind = NodeKind.CallExpr;
         this.type = Type(Types.Undefined, BaseType.Void);
-        this.value = null;
         this.id = id;
         this.loc = loc;
         this.args = args;
@@ -371,7 +371,6 @@ class UnaryExpr : Node
         this.op = op;
         this.postFix = postFix;
         this.operand = operand;
-        this.value = null;
         this.type = Type(Types.Void, BaseType.Void);
         this.loc = loc;
     }
@@ -405,7 +404,6 @@ class IfStatement : Node
     {
         this.kind = NodeKind.IfStatement;
         this.type = type;
-        this.value = null;
         this.condition = condition;
         this.body = body;
         this.loc = loc;
@@ -451,7 +449,6 @@ class ElseStatement : Node
     {
         this.kind = NodeKind.ElseStatement;
         this.type = type;
-        this.value = null;
         this.loc = loc;
         this.body = body;
     }
@@ -509,7 +506,6 @@ class ForStatement : Node
     {
         this.kind = NodeKind.ForStatement;
         this.type = Type(Types.Void, BaseType.Void);
-        this.value = null;
         this.init_ = init_;
         this.condition = condition;
         this.increment = increment;
@@ -554,6 +550,70 @@ class ForStatement : Node
                 node.print(ident + continuation.length + 4, true);
             else
                 node.print(ident + continuation.length + 4, false);
+    }
+}
+
+struct StructField
+{
+    string name;
+    Type type;
+    bool defaultValue = false;
+    Node value = null;
+}
+
+class StructDeclaration : Node
+{
+    string name;
+    StructField[] fields;
+    this(string name, ref StructField[] fields, Loc loc)
+    {
+        this.kind = NodeKind.StructDeclaration;
+        this.fields = fields;
+        this.name = name;
+        this.loc = loc;
+        this.type = Type(Types.Struct, BaseType.Void);
+        this.type.structName = name;
+    }
+
+    override void print(ulong ident = 0, bool isLast = false)
+    {
+        // ...
+    }
+}
+
+class StructExpr : Node
+{
+    string name;
+    Node[] fields;
+    this(CallExpr node)
+    {
+        this.kind = NodeKind.StructExpr;
+        this.fields = node.args;
+        this.name = node.id;
+        this.loc = node.loc;
+        this.type = node.type;
+    }
+
+    override void print(ulong ident = 0, bool isLast = false)
+    {
+        // ...
+    }
+}
+
+class Extern : Node
+{
+    FunctionDeclaration[] funcs;
+    this(FunctionDeclaration[] funcs, Loc loc)
+    {
+        this.kind = NodeKind.Extern;
+        this.type = Type(Types.Void, BaseType.Void);
+        this.funcs = funcs;
+        this.loc = loc;
+    }
+
+    override void print(ulong ident = 0, bool isLast = false)
+    {
+        // ...
     }
 }
 

@@ -1,0 +1,11 @@
+externo {
+    declarar arredondar(n decimal = 0.0) decimal;
+    declarar escrevaln(...) vazio;
+    declarar escreva(...) vazio;
+}
+
+declarar principal vazio {
+    escrevaln(arredondar())
+    escrevaln(arredondar(3.51))
+    fim
+}

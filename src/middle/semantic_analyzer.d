@@ -1,16 +1,28 @@
 module middle.semantic_analyzer;
 
-import std.stdio, std.format, std.conv, std.algorithm;
+import std.stdio, std.format, std.conv, std.algorithm, std.array : array;
 import frontend.type, frontend.parser.ast, erro, frontend.lexer.token : Loc;
 
-private struct Symbol
+struct Symbol
 {
     Type type = Type.init;
     Node value = null; // para variáveis e valores padrão de argumentos
     bool isLet = true;
     bool isConst = false;
     bool isFunc = false;
+    bool isStruct = false;
     Symbol[] funcArgs = [];
+    StructField[] fields = []; // para estrutura
+}
+
+Symbol createFunction(Type type, Symbol[] args)
+{
+    return Symbol(type, null, false, true, true, false, args);
+}
+
+Symbol[] createFunctionArgs(Type[] types)
+{
+    return types.map!(x => Symbol(x)).array;
 }
 
 class SemanticAnalyzer
@@ -18,6 +30,7 @@ class SemanticAnalyzer
 private:
     Symbol[string][] scopes; // stack de escopos (cada escopo é um dicionário)
     Symbol[string] globalFuncs; // funções globais
+    Symbol[string] structs; // estruturas
     Type currentFuncReturnType; // tipo de retorno da função atual
     bool insideFunction = false; // flag para verificar se estamos dentro de uma função
     DiagnosticError error;
@@ -44,6 +57,9 @@ private:
         // busca em funções globais
         if (auto func = name in globalFuncs)
             return func;
+        // busca em estruturas
+        if (auto strct = name in structs)
+            return strct;
 
         return null;
     }
@@ -71,7 +87,7 @@ private:
 
     void checkType(Type left, Type right, ref Loc loc)
     {
-        if (!left.isCompatibleWith(right))
+        if (!left.isCompatibleWith(right, structs))
             deErro(format(
                     "Tipo inesperado: esperado '%s', recebido '%s'",
                     left.toStr(), right.toStr()
@@ -106,6 +122,10 @@ private:
             return analyzeElseStmt(cast(ElseStatement) node);
         case NodeKind.ForStatement:
             return analyzeForStmt(cast(ForStatement) node);
+        case NodeKind.StructDeclaration:
+            return analyzeStructDecl(cast(StructDeclaration) node);
+        case NodeKind.Extern:
+            return analyzeExtern(cast(Extern) node);
 
             // literais não precisam de análise especial
         case NodeKind.IntLiteral:
@@ -119,6 +139,31 @@ private:
             deErro("Nó não suportado: " ~ to!string(node.kind), node.loc);
             return node;
         }
+    }
+
+    Node analyzeExtern(Extern node)
+    {
+        foreach (FunctionDeclaration func; node.funcs)
+        {
+            if (func.name in globalFuncs)
+                deErro(format("A função '%s' já existe.", func.name), func.loc);
+            Symbol[] args = func.args.map!(x => Symbol(x.type, x.value)).array;
+            globalFuncs[func.name] = createFunction(func.type, args);
+        }
+        return node;
+    }
+
+    Node analyzeStructDecl(StructDeclaration node)
+    {
+        Symbol* sym = this.lookupSymbol(node.name);
+        if (sym !is null)
+            deErro(format("A estrutura ja existe '%s'.", node.name), node.loc);
+        Symbol symbol;
+        symbol.type = node.type;
+        symbol.fields = node.fields;
+        symbol.isStruct = true;
+        structs[node.name] = symbol;
+        return node;
     }
 
     Node analyzeForStmt(ForStatement node)
@@ -287,11 +332,42 @@ private:
         return node;
     }
 
+    Node analyzeStructExpr(CallExpr node, Symbol* symbol)
+    {
+        // recebe um callExpr e retorna uma structExpr
+        ulong expectedArgsMin = 0;
+
+        foreach (i, ref arg; symbol.fields)
+            if (arg.value is null)
+                expectedArgsMin++;
+
+        // Verifica número mínimo de argumentos
+        if (node.args.length < expectedArgsMin)
+            deErro(format(
+                    "A estrutura '%s' espera pelo menos %d campos, mas recebeu %d.",
+                    node.id, expectedArgsMin, node.args.length
+            ), node.loc);
+
+        foreach (i, ref arg; node.args)
+        {
+            arg = analyze(arg);
+            // verifica tipo do argumento correspondente
+            if (i < symbol.fields.length)
+                checkType(symbol.fields[i].type, arg.type, node.loc);
+        }
+
+        node.type = symbol.type;
+        return new StructExpr(node);
+    }
+
     Node analyzeCallExpr(CallExpr node)
     {
         Symbol* funcSym = lookupSymbol(node.id);
-        if (funcSym is null || !funcSym.isFunc)
+        if (funcSym is null || (!funcSym.isFunc && !funcSym.isStruct))
             deErro(format("A Função '%s' não existe.", node.id), node.loc);
+
+        if (funcSym.isStruct)
+            return analyzeStructExpr(node, funcSym);
 
         ulong expectedArgsMin = 0;
         bool hasVariadic = false;
@@ -409,9 +485,11 @@ public:
     void analyze(ref Program program)
     {
         pushScope();
-        globalFuncs["__nucleo_harpy_escreva"] = Symbol(Type(Types.Void, BaseType.Void), Node.init, false, true, true,
-            [Symbol(Type(Types.Undefined, BaseType.Void))]);
+        globalFuncs["__nucleo_harpy_escreva"] = createFunction(Type(Types.Void, BaseType.Void),
+            createFunctionArgs([Type(Types.Undefined, BaseType.Void)]));
 
+        globalFuncs["__nucleo_harpy_duplicar"] = createFunction(Type(Types.Literal, BaseType.Any),
+            createFunctionArgs([Type(Types.Literal, BaseType.Any)]));
         try
             foreach (ref stmt; program.body)
                 stmt = analyze(stmt);
