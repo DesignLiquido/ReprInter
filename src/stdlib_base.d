@@ -10,6 +10,12 @@ import core.stdc.stdio : printf, snprintf;
 // seria interessante todas as implementações sejam em Rust, C ou outro ter implementações semelhantes
 // para manter algo padronizado
 
+void deErro(char* fname, char* mensagem, int code = -1)
+{
+    printf("Erro na função '%s': %s\n", fname, mensagem);
+    exit(code);
+}
+
 // função auxiliar
 char* toStringz(string str)
 {
@@ -83,7 +89,6 @@ char* tipoParaString(Type[] t)
         char* temp = concatenarStrings(resultado, tipoAtual);
 
         free(resultado);
-        // free(tipoAtual);
         resultado = temp;
 
         if (resultado is null)
@@ -135,11 +140,20 @@ char* tipoParaString(Type t)
     return str;
 }
 
-void verificarNumeroDeArgumentos(uint esperado, uint recebido)
+void verificarNumeroDeArgumentos(char* fname, ulong esperado, ulong recebido)
 {
     if (esperado != recebido)
     {
-        printf("A função esperava %d argumentos e recebeu %d.", esperado, recebido);
+        printf("A função '%s' esperava %lld argumentos mas recebeu %lld.", fname, esperado, recebido);
+        exit(-1);
+    }
+}
+
+void verificarNumeroDeArgumentosMinimo(char* fname, ulong esperado, ulong recebido)
+{
+    if (esperado > recebido)
+    {
+        printf("A função '%s' esperava no minimo %lld argumentos mas recebeu %lld.", fname, esperado, recebido);
         exit(-1);
     }
 }
@@ -166,8 +180,8 @@ void verificarTipo(Type[] esperados, Type recebido)
         char* strRecebido = tipoParaString(recebido);
         printf("Tipo inesperado: esperado '%s', recebido '%s'",
             strEsperados, strRecebido);
-        // free(strEsperados);
-        // free(strRecebido);
+        free(strEsperados);
+        free(strRecebido);
         exit(-1);
     }
 }

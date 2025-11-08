@@ -65,7 +65,7 @@ private:
         keywords["senao"] = TokenKind.Senao;
         keywords["retorne"] = TokenKind.Retorne;
         keywords["verdadeiro"] = TokenKind.Verdadeiro;
-        keywords["false"] = TokenKind.Falso;
+        keywords["falso"] = TokenKind.Falso;
         keywords["para"] = TokenKind.Para;
         keywords["estrutura"] = TokenKind.Estrutura;
         keywords["externo"] = TokenKind.Externo;

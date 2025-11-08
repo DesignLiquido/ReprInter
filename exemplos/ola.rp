@@ -1,0 +1,8 @@
+externo {
+    declarar escrevaf(msg texto, ...) vazio;
+}
+
+declarar principal vazio {
+    escrevaf("Ola %s\n", "Fernando")
+    fim
+}
