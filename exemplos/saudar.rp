@@ -1,9 +1,9 @@
 externo {
-	declarar escreva(...) vazio;
+	declarar escrevaf(...) vazio;
 }
 
 declarar saudar(nome texto = "Visitante", idade inteiro = 18) vazio {
-    escreva("Olá, ", nome, "! Idade: ", idade, "\n")
+    escrevaf("Olá, %s! Idade: %d\n", nome, idade)
 }
 
 declarar principal vazio {
