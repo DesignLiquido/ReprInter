@@ -1,0 +1,12 @@
+externo {
+    declarar escrevaln(...) vazio;
+}
+
+declarar principal vazio {
+    alocar i int = 0
+    enquanto i < 10 {
+        escrevaln(i)
+        i++
+    }
+    fim
+}

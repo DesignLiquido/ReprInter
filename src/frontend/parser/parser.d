@@ -8,14 +8,16 @@ enum Precedence
     LOWEST = 1,
     ASSIGN = 2, // =, +=, -=, |=, &=, <<=, >>=
     EQUALS = 3, // ==, !=
-    BIT_OR = 4, // |
-    BIT_XOR = 5, // ^
-    BIT_AND = 6, // &
-    SUM = 7, // +, -
-    MUL = 8, // *, /
-    BIT_SHIFT = 9, // <<, >>
-    CALL = 10, // funções, index
-    HIGHEST = 11,
+    OR = 4, // ||
+    AND = 5, // &&
+    BIT_OR = 6, // |
+    BIT_XOR = 7, // ^
+    BIT_AND = 8, // &
+    SUM = 9, // +, -
+    MUL = 10, // *, /
+    BIT_SHIFT = 11, // <<, >>
+    CALL = 12, // funções, index
+    HIGHEST = 13,
 }
 
 class Parser
@@ -34,21 +36,20 @@ private:
         case TokenKind.Dolar:
             if (token.kind == TokenKind.Dolar)
                 token = this.advance();
-            if (this.peek()
-                .kind == TokenKind.LParen)
+            if (this.check(TokenKind.LParen))
                 return parseCallExpr(token.value.get!string, token.loc);
-            if (this.peek().kind == TokenKind.Equals)
+            if (this.match([TokenKind.Equals]))
             {
-                this.advance();
                 Node value = this.parseExpression(Precedence.LOWEST);
                 return new VarAssignmentDecl(token.value.get!string, value.type, value, token.loc);
             }
             Node operand = new Identifier(token.value.get!string, token.loc);
-            if (this.check(TokenKind.PlusPlus) || this.check(TokenKind.MinusMinus))
-            {
-                Token postOp = this.advance();
-                return new UnaryExpr(postOp.value.get!string, operand, token.loc, true);
-            }
+            if (this.match([TokenKind.PlusPlus, TokenKind.MinusMinus]))
+                return new UnaryExpr(this.previous().value.get!string, operand, token.loc, true);
+            if (this.match([TokenKind.Dot]))
+                return this.parseMemberCallExpr(operand);
+            if (this.match([TokenKind.LBracket]))
+                return this.parseIndexExpr(operand);
             return operand;
         case TokenKind.LParen:
             Node node = this.parseExpression(Precedence.LOWEST);
@@ -59,7 +60,10 @@ private:
         case TokenKind.F64:
             return new DoubleLiteral(to!double(token.value.get!string), token.loc);
         case TokenKind.Txt:
-            return new StringLiteral(token.value.get!string, token.loc);
+            Node operand = new StringLiteral(token.value.get!string, token.loc);
+            if (this.match([TokenKind.LBracket]))
+                return this.parseIndexExpr(operand);
+            return operand;
         case TokenKind.Alocar:
             return this.parseVarDecl();
         case TokenKind.Declarar:
@@ -78,6 +82,26 @@ private:
             return this.parseStructDecl();
         case TokenKind.Externo:
             return this.parseExtern();
+        case TokenKind.Enum:
+            return this.parseEnumDecl();
+        case TokenKind.Parar:
+            return new BreakOrContinueStmt(true, token.loc);
+        case TokenKind.Continuar:
+            return new BreakOrContinueStmt(false, token.loc);
+        case TokenKind.Enquanto:
+            return this.parseWhileStmt();
+        case TokenKind.LBracket:
+            Node[] values;
+            while (!this.check(TokenKind.RBracket) && !this.isAtEnd())
+            {
+                values ~= this.parseExpression(Precedence.LOWEST);
+                this.match([TokenKind.Comma]);
+            }
+            Loc end = this.consume(TokenKind.RBracket, "Esperado ']' após a declaração do vetor.")
+                .loc;
+            end.end++;
+            Type type = Type(Types.Array, BaseType.Any);
+            return new ArrayLiteral(values, type, this.getLoc(token.loc, end));
         case TokenKind.Plus:
         case TokenKind.Minus:
         case TokenKind.PlusPlus:
@@ -92,6 +116,91 @@ private:
             error.addError(Diagnostic("Token desconhecido: " ~ to!string(token), token.loc));
             throw new Exception("Token desconhecido: " ~ to!string(token));
         }
+    }
+
+    WhileStatement parseWhileStmt()
+    {
+        Loc start = this.previous().loc;
+        Node condition = this.parseExpression(Precedence.LOWEST);
+        Node[] body = this.parseBody(true);
+        return new WhileStatement(condition, body, start);
+    }
+
+    EnumDeclaration parseEnumDecl()
+    {
+        string name = this.consume(TokenKind.Identifier, "É esperado um nome para a enumeração.")
+            .value.get!string;
+        Loc start = this.previous().loc;
+        this.consume(TokenKind.LBrace, "Esperado '{' após o nome da enumeração.");
+        EnumField[] fields;
+        while (!this.check(TokenKind.RBrace) && !this.isAtEnd())
+        {
+            // nome = valor
+            // nome
+            string fieldName = this.consume(TokenKind.Identifier, "É esperado um nome para o campo.")
+                .value.get!string;
+            // int por padrão
+            Node value = new IntLiteral(fields.length, this.previous().loc); // loc do fieldName
+            bool dF = false;
+            if (this.match([TokenKind.Equals]))
+            {
+                value = this.parseExpression(Precedence.LOWEST);
+                dF = true;
+            }
+            // a validação só ocorrerá no analisador semantico
+            fields ~= EnumField(fieldName, value.type, dF, value);
+        }
+        this.consume(TokenKind.RBrace, "Esperado '}' após a enumeração.");
+        return new EnumDeclaration(name, fields, start);
+    }
+
+    IndexAssignmentDecl parseIndexAssignmentDecl(IndexExpr member)
+    {
+        Node value = this.parseExpression(Precedence.LOWEST);
+        return new IndexAssignmentDecl(member, value, member.loc);
+    }
+
+    Node parseIndexExpr(Node object)
+    {
+        // expr [ idx ] . || = || [
+        // obect = expr
+        Node idx = this.parseExpression(Precedence.LOWEST);
+        this.consume(TokenKind.RBracket, "Esperado ']' após a obtenção de elemento por indice no vetor.");
+        IndexExpr node = new IndexExpr(object, idx, object.loc);
+        if (this.match([TokenKind.Equals]))
+            return this.parseIndexAssignmentDecl(node);
+        // encadeamento
+        if (this.match([TokenKind.LBracket]))
+            return this.parseIndexExpr(node);
+        if (this.match([TokenKind.Dot]))
+            return this.parseMemberCallExpr(node);
+        return node;
+    }
+
+    MemberCallAssignmentDecl parseMemberCallAssignmentDecl(MemberCallExpr member)
+    {
+        Node value = this.parseExpression(Precedence.LOWEST);
+        return new MemberCallAssignmentDecl(member, value, member.loc);
+    }
+
+    Node parseMemberCallExpr(Node object)
+    {
+        Identifier member;
+        Token id = this.consume(TokenKind.Identifier, "O membro dessa expressão deve ser um identificador.");
+        member = new Identifier(id.value.get!string, id.loc);
+        Node[] args; // ainda não é suportado, talvez no futuro quando houver aliases para importações
+        MemberCallExpr node = new MemberCallExpr(object, member, args, false, object.loc);
+        // se houver o '=' então é um Node diferente
+        if (this.match([TokenKind.Equals]))
+            return this.parseMemberCallAssignmentDecl(node);
+        // encadeamento
+        if (this.match([TokenKind.Dot]))
+            return this.parseMemberCallExpr(node);
+        if (this.match([TokenKind.LBracket]))
+            return this.parseIndexExpr(node);
+        if (this.match([TokenKind.PlusPlus, TokenKind.MinusMinus]))
+            return new UnaryExpr(this.previous().value.get!string, node, node.loc, true);
+        return node;
     }
 
     Extern parseExtern()
@@ -148,7 +257,7 @@ private:
         Node condition = this.parseExpression(Precedence.LOWEST); // i < 1000
         this.consume(TokenKind.SemiColon, "Esperado ';' após a condição do 'para'.");
         Node increment = this.parseExpression(Precedence.LOWEST); // i++, ++i, --i, i--, i = i + 1, i += 1, ...
-        Node[] body = this.parseBody(); // { ... }
+        Node[] body = this.parseBody(true); // { ... }
         return new ForStatement(init, condition, increment, body, start);
     }
 
@@ -189,7 +298,7 @@ private:
         return new Return(n, true, n.loc);
     }
 
-    CallExpr parseCallExpr(string id, Loc start)
+    Node parseCallExpr(string id, Loc start)
     {
         this.match([TokenKind.LParen]);
         Node[] args;
@@ -199,7 +308,12 @@ private:
             this.match([TokenKind.Comma]);
         }
         this.consume(TokenKind.RParen, "Esperava-se ')' após a chamada.");
-        return new CallExpr(id, args, start);
+        CallExpr node = new CallExpr(id, args, start);
+        if (this.match([TokenKind.Dot]))
+            return this.parseMemberCallExpr(node);
+        if (this.match([TokenKind.LBracket]))
+            return this.parseIndexExpr(node);
+        return node;
     }
 
     VarDeclaration parseVarDecl()
@@ -244,12 +358,14 @@ private:
         {
             Node defaultValue = null;
             bool dV = false;
+            bool isRef = false;
             if (this.match([TokenKind.Variadic]))
             {
                 args ~= FunctionArgument("...", Type(Types.Undefined, BaseType.Void, true), defaultValue, dV);
                 break;
             }
             Token id = this.consume(TokenKind.Identifier, "Era esperado um nome para o argumento.");
+            isRef = this.match([TokenKind.Ref]);
             Type ty = this.parseType();
 
             if (this.match([TokenKind.Equals]))
@@ -258,7 +374,7 @@ private:
                 dV = true;
             }
 
-            args ~= FunctionArgument(id.value.get!string, ty, defaultValue, dV, id.loc);
+            args ~= FunctionArgument(id.value.get!string, ty, defaultValue, dV, isRef, id.loc);
             this.match([TokenKind.Comma]);
         }
         return args;
@@ -267,17 +383,15 @@ private:
     Node[] parseBody(bool uniqueStmt = false)
     {
         Node[] body_;
-
-        if (this.peek().kind != TokenKind.LBrace && !uniqueStmt)
+        if (!this.check(TokenKind.LBrace) && !uniqueStmt)
         {
             error.addError(Diagnostic("Esperava-se '{' para iniciar o corpo.", this.peek().loc));
             throw new Exception("Esperava-se '{' para iniciar o corpo.");
         }
-
-        if (this.peek().kind == TokenKind.LBrace)
+        if (this.check(TokenKind.LBrace))
         {
             this.consume(TokenKind.LBrace, "Esperava-se '{' para iniciar o corpo.");
-            while (this.peek().kind != TokenKind.RBrace && !this.isAtEnd())
+            while (!this.check(TokenKind.RBrace) && !this.isAtEnd())
                 body_ ~= this.parseExpression(Precedence.LOWEST);
             this.consume(TokenKind.RBrace, "Esperava-se '{' depois do corpo.");
         }
@@ -289,27 +403,55 @@ private:
 
     Type parseType()
     {
-        // TODO: suportar arrays
         Token ty = this.advance();
+        bool isArray = false;
+        long dimensions = -1;
+
+        if (this.match([TokenKind.LBracket]))
+        {
+            isArray = true;
+            if (!this.check(TokenKind.RBracket))
+            {
+                Token dim = this.consume(TokenKind.I64,
+                    "Para especificar as dimensões do vetor é necessario passar um numero inteiro.");
+                dimensions = dim.value.get!long;
+            }
+            this.consume(TokenKind.RBracket, "Esperado ']' durante a declaração do tipo de um vetor.");
+        }
+
         switch (ty.kind)
         {
         case TokenKind.Int:
         case TokenKind.I32:
         case TokenKind.I64:
+            if (isArray)
+                return Type(Types.Array, BaseType.Int, false, "", dimensions);
             return Type(Types.Literal, BaseType.Int);
         case TokenKind.Dec:
         case TokenKind.F64:
+            if (isArray)
+                return Type(Types.Array, BaseType.Double, false, "", dimensions);
             return Type(Types.Literal, BaseType.Double);
         case TokenKind.Txt:
+            if (isArray)
+                return Type(Types.Array, BaseType.String, false, "", dimensions);
             return Type(Types.Literal, BaseType.String);
         case TokenKind.Qualquer:
         case TokenKind.Qqr:
+            if (isArray)
+                return Type(Types.Array, BaseType.Any, false, "", dimensions);
             return Type(Types.Literal, BaseType.Any);
         case TokenKind.Logico:
+            if (isArray)
+                return Type(Types.Array, BaseType.Bool, false, "", dimensions);
             return Type(Types.Literal, BaseType.Bool);
         case TokenKind.Vazio:
+            if (isArray)
+                return Type(Types.Array, BaseType.Void, false, "", dimensions);
             return Type(Types.Void, BaseType.Void);
         default:
+            if (isArray)
+                return Type(Types.Array, BaseType.Void, false, to!string(ty.value), dimensions);
             return Type(Types.Struct, BaseType.Void, false, to!string(ty.value));
         }
     }
@@ -329,6 +471,9 @@ private:
         case TokenKind.Minus:
         case TokenKind.Star:
         case TokenKind.Slash:
+
+        case TokenKind.And:
+        case TokenKind.Or:
 
         case TokenKind.BitAnd:
         case TokenKind.BitOr:
@@ -355,6 +500,7 @@ private:
         case TokenKind.LessThanEquals:
         case TokenKind.LessThan:
         case TokenKind.NotEquals:
+        case TokenKind.TildeEquals:
             leftOld = parseBinaryExpr(leftOld);
             return;
         default:
@@ -437,7 +583,6 @@ private:
     {
         if (this.check(expected))
             return this.advance();
-        this.peek().print();
         error.addError(Diagnostic(format("Erro de parsing: %s", message), this.peek().loc));
         throw new Exception(format("Erro de parsing: %s", message));
     }
@@ -457,6 +602,9 @@ private:
         case TokenKind.BitXorEquals:
         case TokenKind.BitSHLEquals:
         case TokenKind.BitSHREquals:
+        case TokenKind.TildeEquals:
+        case TokenKind.Or:
+        case TokenKind.And:
             return Precedence.ASSIGN;
 
         case TokenKind.EqualsEquals:

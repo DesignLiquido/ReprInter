@@ -13,11 +13,13 @@ private:
     HarpyCG cg;
     string[] externLibs;
     bool halt = false;
+    LoopContext[] loopStack;
 
     struct FunctionArg
     {
         string name;
         bool defaultValue = false;
+        bool isRef = false;
         Node value = null;
     }
 
@@ -26,6 +28,14 @@ private:
         string name;
         string[] params;
         int localVarCount;
+    }
+
+    struct LoopContext
+    {
+        string continueLabel;
+        string breakLabel;
+        int[] breakPatches; // índices para patch
+        int[] continuePatches; // índices para patch
     }
 
     // toda função declara isso para controlar as chamadas de funções
@@ -201,8 +211,37 @@ public:
         case NodeKind.StructExpr:
             generateStructExpr(cast(StructExpr) node);
             break;
+        case NodeKind.MemberCallExpr:
+            generateMemberCallExpr(cast(MemberCallExpr) node);
+            break;
+        case NodeKind.MemberCallAssignmentDecl:
+            generateMemberCallAssignmentDecl(cast(MemberCallAssignmentDecl) node);
+            break;
         case NodeKind.Extern:
             generateExtern(cast(Extern) node);
+            break;
+        case NodeKind.ArrayLiteral:
+            generateArrayLiteral(cast(ArrayLiteral) node);
+            break;
+        case NodeKind.IndexExpr:
+            generateIndexExpr(cast(IndexExpr) node);
+            break;
+        case NodeKind.IndexAssignmentDecl:
+            generateIndexAssignmentDecl(cast(IndexAssignmentDecl) node);
+            break;
+        case NodeKind.EnumDeclaration:
+            EnumDeclaration e = cast(EnumDeclaration) node;
+            for (long i = cast(long) e.fields.length - 1; i >= 0; i--)
+                generateNode(e.fields[i].value);
+            cg.emit(Instruction(OpCode.ENUMN, engine.makeInt(e.fields.length)));
+            cg.emit(Instruction(OpCode.STOREG, engine.makeStr(e.name)));
+            this.addVar(e.name, true);
+            break;
+        case NodeKind.BreakOrContinueStmt:
+            generateBreakOrContinue(cast(BreakOrContinueStmt) node);
+            break;
+        case NodeKind.WhileStatement:
+            generateWhileStmt(cast(WhileStatement) node);
             break;
         case NodeKind.EoP:
             halt = true;
@@ -212,6 +251,101 @@ public:
             deErro(format("Geração de código não implementada para: %s", node.kind), node.loc);
             break;
         }
+    }
+
+    void generateWhileStmt(WhileStatement node)
+    {
+        pushScope();
+
+        string loopLabel = genLabel("loop");
+        string continueLabel = genLabel("continue");
+        string endLabel = genLabel("end_loop");
+
+        LoopContext loopCtx;
+        loopCtx.continueLabel = continueLabel;
+        loopCtx.breakLabel = endLabel;
+
+        loopStack ~= loopCtx;
+        scope (exit)
+            loopStack = loopStack[0 .. $ - 1];
+
+        cg.label(loopLabel);
+
+        generateNode(node.condition);
+        cg.emit(Instruction(OpCode.JZ, engine.makeInt(-1)));
+        int jzIdx = cast(int) cg.program.length - 1;
+
+        foreach (stmt; node.body)
+            generateNode(stmt);
+
+        cg.label(continueLabel);
+
+        foreach (patchIdx; loopStack[$ - 1].continuePatches)
+            cg.program[patchIdx].val = engine.makeInt(cast(long) cg.labels[continueLabel]);
+
+        cg.emit(Instruction(OpCode.JMP, engine.makeInt(cast(long) cg.labels[loopLabel])));
+        cg.label(endLabel);
+
+        cg.program[jzIdx].val = engine.makeInt(cast(long) cg.labels[endLabel]);
+
+        foreach (patchIdx; loopStack[$ - 1].breakPatches)
+            cg.program[patchIdx].val = engine.makeInt(cast(long) cg.labels[endLabel]);
+
+        popScope();
+    }
+
+    void generateIndexAssignmentDecl(IndexAssignmentDecl node)
+    {
+        generateNode(node.idxExpr.object); // faz o push do array
+        generateNode(node.idxExpr.idx); // push do idx
+        generateNode(node.value.get!Node); // push do valor
+        cg.emit(Instruction(OpCode.ARRS));
+    }
+
+    void generateIndexExpr(IndexExpr node)
+    {
+        generateNode(node.object); // faz o push do array
+        generateNode(node.idx); // push do idx
+        if (node.type.baseType == BaseType.String)
+            cg.emit(Instruction(OpCode.STRG));
+        else
+            cg.emit(Instruction(OpCode.ARRG));
+    }
+
+    void generateArrayLiteral(ArrayLiteral node)
+    {
+        Node[] elements = node.value.get!(Node[]);
+        foreach (elem; elements)
+            generateNode(elem);
+        // não é o tamanho que será alocado, é apenas a quantidade de valores que foram colocados na stack
+        cg.push(engine.makeInt(cast(long) elements.length));
+        cg.emit(Instruction(OpCode.ARRN));
+    }
+
+    void generateMemberCallAssignmentDecl(MemberCallAssignmentDecl node)
+    {
+        // gera o memberCallExpr
+        // sendo uma estrutura haverá um push dela para a stack
+        // como não queremos isso e só queremos a struct nós geramos o object dela apenas
+        generateNode(node.member.object);
+        // e agora só gerar o set
+        // faz o push do novo valor para a stack e altera com OpCode.STRUCTS
+        generateNode(node.value.get!Node);
+        cg.emit(Instruction(OpCode.STRUCTS, engine.makeInt(cast(long) node.member.fieldIdx)));
+        // sim é só isso
+    }
+
+    void generateMemberCallExpr(MemberCallExpr node)
+    {
+        // gera o object
+        // sendo uma estrutura haverá um push dela para a stack
+        generateNode(node.object);
+        // e agora só gerar o get que ele fará o push do valor diretamente para a stack
+        if (node.object.type.type == Types.Struct)
+            cg.emit(Instruction(OpCode.STRUCTG, engine.makeInt(cast(long) node.fieldIdx)));
+        else
+            cg.emit(Instruction(OpCode.ENUMG, engine.makeInt(cast(long) node.fieldIdx)));
+        // sim é só isso
     }
 
     version (linux)
@@ -245,7 +379,7 @@ public:
 
                 FunctionArg[] args;
                 foreach (arg; funcDecl.args)
-                    args ~= FunctionArg(arg.name, arg.defaultValue, arg.value);
+                    args ~= FunctionArg(arg.name, arg.defaultValue, arg.isRef, arg.value);
                 functionArguments[name] = args;
 
                 externFuncs[name] = ExternFunc(name, foundLib, foundHandle);
@@ -283,7 +417,16 @@ public:
         pushScope();
 
         string loopLabel = genLabel("loop");
+        string continueLabel = genLabel("continue");
         string endLabel = genLabel("end_loop");
+
+        LoopContext loopCtx;
+        loopCtx.continueLabel = continueLabel;
+        loopCtx.breakLabel = endLabel;
+
+        loopStack ~= loopCtx;
+        scope (exit)
+            loopStack = loopStack[0 .. $ - 1];
 
         if (node.init_ !is null)
             generateNode(node.init_);
@@ -299,26 +442,57 @@ public:
             foreach (stmt; node.body)
                 generateNode(stmt);
 
+            cg.label(continueLabel);
+
+            foreach (patchIdx; loopStack[$ - 1].continuePatches)
+                cg.program[patchIdx].val = engine.makeInt(cast(long) cg.labels[continueLabel]);
+
             if (node.increment !is null)
                 generateNode(node.increment);
 
             cg.emit(Instruction(OpCode.JMP, engine.makeInt(cast(long) cg.labels[loopLabel])));
             cg.label(endLabel);
-            cg.program[jzIdx].val = engine.makeInt(cast(long) cg.program.length);
+
+            cg.program[jzIdx].val = engine.makeInt(cast(long) cg.labels[endLabel]);
+
+            foreach (patchIdx; loopStack[$ - 1].breakPatches)
+                cg.program[patchIdx].val = engine.makeInt(cast(long) cg.labels[endLabel]);
         }
         else
         {
-            // Loop infinito
             foreach (stmt; node.body)
                 generateNode(stmt);
+
+            cg.label(continueLabel);
+            foreach (patchIdx; loopStack[$ - 1].continuePatches)
+                cg.program[patchIdx].val = engine.makeInt(cast(long) cg.labels[continueLabel]);
 
             if (node.increment !is null)
                 generateNode(node.increment);
 
             cg.emit(Instruction(OpCode.JMP, engine.makeInt(cast(long) cg.labels[loopLabel])));
+            cg.label(endLabel);
+
+            foreach (patchIdx; loopStack[$ - 1].breakPatches)
+                cg.program[patchIdx].val = engine.makeInt(cast(long) cg.labels[endLabel]);
         }
 
         popScope();
+    }
+
+    void generateBreakOrContinue(BreakOrContinueStmt node)
+    {
+        if (loopStack.length == 0)
+            deErro(format("'%s' deve ser usado dentro de um loop.",
+                    node.isBreak ? "parar" : "continuar"), node.loc);
+
+        cg.emit(Instruction(OpCode.JMP, engine.makeInt(-1)));
+        int jmpIdx = cast(int) cg.program.length - 1;
+
+        if (node.isBreak)
+            loopStack[$ - 1].breakPatches ~= jmpIdx;
+        else
+            loopStack[$ - 1].continuePatches ~= jmpIdx;
     }
 
     void generateReturn(Return node)
@@ -415,7 +589,7 @@ public:
         foreach (arg; node.args)
         {
             ctx.params ~= arg.name;
-            args ~= FunctionArg(arg.name, arg.defaultValue, arg.value);
+            args ~= FunctionArg(arg.name, arg.defaultValue, arg.isRef, arg.value);
         }
         functionArguments[node.name] = args;
         funcContextStack ~= ctx;
@@ -481,6 +655,22 @@ public:
             return;
         }
 
+        if (node.id == "__nucleo_harpy_tamanho_vetor")
+        {
+            generateNode(node.args[0]);
+            cg.emit(Instruction(OpCode.ARRL));
+            return;
+        }
+
+        if (node.id == "__nucleo_harpy_tamanho_texto")
+        {
+            // node.args[0].value.get!string.length
+            generateNode(node.args[0]);
+            cg.emit(Instruction(OpCode.STRL));
+            // cg.emit(Instruction(OpCode.PUSH, engine.makeInt()));
+            return;
+        }
+
         // precisamos validar se há argumentos a serem tratados
         // se a nossa chamada soma(10) for feita, o numero de args da chamada é 1 enquanto se espera 2 pelo menos
         // logo ele cairá nesse if
@@ -521,8 +711,19 @@ public:
         // ela tem um argumento padrão
         // se o node.args tiver apenas o x
         // ele será gerado tranquilamente
-        foreach_reverse (arg; node.args)
+
+        // verifica nos argumentos da função se o argumento é por referencia ou não
+        // só é valido para structs ou arrays
+        foreach_reverse (ulong i, arg; node.args)
+        {
             generateNode(arg);
+            if (arg.type.type == Types.Array || arg.type.type == Types.Struct)
+            {
+                // emite cópia profunda se não for por referencia
+                if (!fA[i].isRef)
+                    cg.emit(Instruction(OpCode.DUP));
+            }
+        }
 
         cg.callLabel(node.id);
     }
@@ -566,7 +767,7 @@ public:
                 deErro("Operadores bitwise não podem operar em números não inteiros.", loc);
         }
 
-        if (node.left.type.baseType == BaseType.String)
+        if (node.op == "+" && node.left.type.baseType == BaseType.String)
         {
             cg.emit(Instruction(OpCode.PUSH, engine.makeStr(
                     node.left.value.get!string ~ node.right.value.get!string)));
@@ -636,6 +837,7 @@ public:
             opcode = OpCode.SAR;
             break;
         case "+=":
+        case "~=":
         case "-=":
         case "/=":
         case "*=":
@@ -695,6 +897,13 @@ public:
                 erroBitWise(isFloat, node.loc);
                 cg.emit(Instruction(OpCode.SHR));
                 break;
+            case "~=":
+                if (node.left.type.type == Types.Literal && node.left.type.baseType == BaseType
+                    .String)
+                    cg.emit(Instruction(OpCode.STRP));
+                else
+                    cg.emit(Instruction(OpCode.ARRP));
+                break;
             }
 
             if (varInfo.isGlobal)
@@ -719,6 +928,12 @@ public:
             break;
         case "!=":
             opcode = OpCode.NE;
+            break;
+        case "&&":
+            opcode = OpCode.BBEQ;
+            break;
+        case "||":
+            opcode = OpCode.BBNE;
             break;
         default:
             deErro(format("Operador não suportado: %s", node.op), node.loc);

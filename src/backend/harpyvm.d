@@ -1,6 +1,7 @@
 module backend.harpyvm;
-import std.stdio, std.variant, std.conv, std.datetime.stopwatch, std.string;
-import core.stdc.stdio, core.stdc.stdlib, core.sys.posix.dlfcn;
+import std.stdio, std.variant, std.conv, std.datetime.stopwatch, std.string, std.algorithm;
+import core.stdc.stdio, core.stdc.string, core.stdc.stdlib, core.sys.posix.dlfcn, core
+    .stdc.string : strlen;
 
 enum OpCode : ubyte
 {
@@ -71,6 +72,8 @@ enum OpCode : ubyte
     GTE,
     EQ,
     NE,
+    BBEQ, // bool bool == = true && true
+    BBNE, // bool bool != = true || true
 
     // Load/Store stack and heap
     LOADL, // LOAD_LOCAL    = stack
@@ -83,11 +86,21 @@ enum OpCode : ubyte
     ARRG, // array get
     ARRS, // array set
     ARRL, // array length
+    ARRP, // array push
 
     // Structs
     STRUCTN, // struct new (cria uma nova struct)
     STRUCTG, // struct get (obtem o field de uma struct)
     STRUCTS, // struct set (seta um novo valor no field de uma struct)
+
+    // Enums
+    ENUMN, // enum new (cria uma nova enum)
+    ENUMG, // enum get (obtem o field de uma enum)
+
+    // Strings
+    STRL, // string length
+    STRG, // string get
+    STRP, // string push
 
     // FFI
     FFIL, // FFI Load
@@ -112,23 +125,26 @@ enum Type
     Bool,
     Array,
     Struct,
+    Enum,
 }
 
 // para ffi {{
 union FFIRawValue
 {
-    char* str; //       string
-    long i64; //        int
-    double f64; //      float
-    bool i1; //         bool
-    Value* array; //    array
-    Value* struct_; //  struct
+    char* str; //          string
+    long i64; //           int
+    double f64; //         float
+    bool i1; //            bool
+    FFIValue* array; //    array
+    FFIValue* struct_; //  struct
+    FFIValue* enum_; //    enum
 }
 
 struct FFIValue
 {
     Type type;
     FFIRawValue value;
+    long len;
 }
 
 struct FFICallParams
@@ -146,12 +162,14 @@ union EValue
     bool i1; //         bool
     Value[] array; //   array
     Value[] struct_; // struct
+    Value[] enum_; //   enum
 }
 
 struct Value
 {
     Type type;
     EValue value;
+    long len;
 }
 
 struct Instruction
@@ -216,6 +234,14 @@ class HarpyVM
         return valueStack[$ - 1];
     }
 
+    pragma(inline, true);
+    ref Value peekRef()
+    {
+        if (valueStack.length == 0)
+            throw new Exception("Harpy Virtual Machine Error - Stack underflow");
+        return valueStack[$ - 1];
+    }
+
     ref StackFrame currentFrame()
     {
         return frameStack[$ - 1];
@@ -258,7 +284,7 @@ class HarpyVM
     {
         EValue ev;
         ev.array = arr;
-        return Value(Type.Array, ev);
+        return Value(Type.Array, ev, arr.length);
     }
 
     pragma(inline, true);
@@ -266,7 +292,15 @@ class HarpyVM
     {
         EValue ev;
         ev.struct_ = struct_;
-        return Value(Type.Struct, ev);
+        return Value(Type.Struct, ev, struct_.length);
+    }
+
+    pragma(inline, true);
+    Value makeEnum(Value[] enm)
+    {
+        EValue ev;
+        ev.enum_ = enm;
+        return Value(Type.Enum, ev, enm.length);
     }
 
     void run()
@@ -575,34 +609,28 @@ class HarpyVM
             case OpCode.LT:
                 Value b = pop();
                 Value a = pop();
+                // writeln("LT: ", a, " < ", b);
                 if (a.type == Type.Int && b.type == Type.Int)
                     push(makeBool(a.value.i64 < b.value.i64 ? 1 : 0));
                 else if (a.type == Type.Float && b.type == Type.Float)
                     push(makeBool(a.value.f64 < b.value.f64 ? 1 : 0));
+                else if (a.type == Type.String && b.type == Type.String)
+                    push(makeBool(a.value.str < b.value.str ? 1 : 0));
                 else
                     push(makeBool(0)); // tipos incompatíveis
-                pc++;
-                break;
-
-            case OpCode.LE:
-                Value b = pop();
-                Value a = pop();
-                if (a.type == Type.Int && b.type == Type.Int)
-                    push(makeBool(a.value.i64 <= b.value.i64 ? 1 : 0));
-                else if (a.type == Type.Float && b.type == Type.Float)
-                    push(makeBool(a.value.f64 <= b.value.f64 ? 1 : 0));
-                else
-                    push(makeBool(0));
                 pc++;
                 break;
 
             case OpCode.LTE:
                 Value b = pop();
                 Value a = pop();
+                // writeln("LTE: ", a, " <= ", b);
                 if (a.type == Type.Int && b.type == Type.Int)
                     push(makeBool(a.value.i64 <= b.value.i64 ? 1 : 0));
                 else if (a.type == Type.Float && b.type == Type.Float)
                     push(makeBool(a.value.f64 <= b.value.f64 ? 1 : 0));
+                else if (a.type == Type.String && b.type == Type.String)
+                    push(makeBool(a.value.str <= b.value.str ? 1 : 0));
                 else
                     push(makeBool(0));
                 pc++;
@@ -611,22 +639,13 @@ class HarpyVM
             case OpCode.GT:
                 Value b = pop();
                 Value a = pop();
+                // writeln("GT: ", a, " > ", b);
                 if (a.type == Type.Int && b.type == Type.Int)
                     push(makeBool(a.value.i64 > b.value.i64 ? 1 : 0));
                 else if (a.type == Type.Float && b.type == Type.Float)
                     push(makeBool(a.value.f64 > b.value.f64 ? 1 : 0));
-                else
-                    push(makeBool(0));
-                pc++;
-                break;
-
-            case OpCode.GE:
-                Value b = pop();
-                Value a = pop();
-                if (a.type == Type.Int && b.type == Type.Int)
-                    push(makeBool(a.value.i64 >= b.value.i64 ? 1 : 0));
-                else if (a.type == Type.Float && b.type == Type.Float)
-                    push(makeBool(a.value.f64 >= b.value.f64 ? 1 : 0));
+                else if (a.type == Type.String && b.type == Type.String)
+                    push(makeBool(a.value.str > b.value.str ? 1 : 0));
                 else
                     push(makeBool(0));
                 pc++;
@@ -635,10 +654,13 @@ class HarpyVM
             case OpCode.GTE:
                 Value b = pop();
                 Value a = pop();
+                // writeln("GTE: ", a, " >= ", b);
                 if (a.type == Type.Int && b.type == Type.Int)
                     push(makeBool(a.value.i64 >= b.value.i64 ? 1 : 0));
                 else if (a.type == Type.Float && b.type == Type.Float)
                     push(makeBool(a.value.f64 >= b.value.f64 ? 1 : 0));
+                else if (a.type == Type.String && b.type == Type.String)
+                    push(makeBool(a.value.str >= b.value.str ? 1 : 0));
                 else
                     push(makeBool(0));
                 pc++;
@@ -647,6 +669,7 @@ class HarpyVM
             case OpCode.EQ:
                 Value b = pop();
                 Value a = pop();
+                // writefln("DEBUG EQ: LEFT = %d EQ RIGHT = %d\n", a.value.i1, b.value.i1);
                 if (a.type == Type.Int && b.type == Type.Int)
                     push(makeBool(a.value.i64 == b.value.i64 ? 1 : 0));
                 else if (a.type == Type.Float && b.type == Type.Float)
@@ -676,6 +699,22 @@ class HarpyVM
                 pc++;
                 break;
 
+            case OpCode.BBEQ: // Boolean Binary Equal = AND lógico
+                Value right = pop();
+                Value left = pop();
+                // writefln("DEBUG BBEQ: LEFT = %d AND RIGHT = %d\n", left.value.i1, right.value.i1);
+                push(makeBool(left.value.i1 && right.value.i1 ? 1 : 0));
+                pc++;
+                break;
+
+            case OpCode.BBNE: // Boolean Binary Not Equal = OR lógico
+                Value right = pop();
+                Value left = pop();
+                // writefln("DEBUG BBNE: LEFT = %d OR RIGHT = %d\n", left.value.i1, right.value.i1);
+                push(makeBool(left.value.i1 || right.value.i1 ? 1 : 0));
+                pc++;
+                break;
+
             case OpCode.ARRN: // array new
                 long size = pop().value.i64;
                 Value[] arr;
@@ -687,28 +726,46 @@ class HarpyVM
 
             case OpCode.ARRG: // array get (idx)
                 long idx = pop().value.i64;
+                // não faz pop pra garantir que não fique copiando os arrays
                 Value[] arr = pop().value.array;
+                if (idx >= arr.length)
+                    throw new Exception("O indice acessado é maior do que o tamanho do vetor.");
                 push(arr[idx]);
                 pc++;
                 break;
 
             case OpCode.ARRS: // array set -> arr[idx] = n
+                // pra ser mais otimizado
                 Value val = pop();
                 long idx = pop().value.i64;
+                // Value[] arr = pop().value.array;
+                // não faça pop, faça o peek e altere
                 Value[] arr = pop().value.array;
+                if (idx >= arr.length)
+                    throw new Exception("O indice acessado é maior do que o tamanho do vetor.");
                 arr[idx] = val;
-                push(this.makeArray(arr));
+                // nem precisa de push
+                // alterou diretamente na memoria
+                // push(arr);
                 pc++;
                 break;
 
             case OpCode.ARRL: // array length
+                // não precisa fazer pop, apenas visualize ele e retorne a informação
                 Value[] arr = pop().value.array;
                 push(this.makeInt(arr.length));
                 pc++;
                 break;
 
+            case OpCode.ARRP: // array push -> arr ~= n
+                Value val = pop();
+                Value[] arr = pop().value.array;
+                arr ~= val;
+                push(makeArray(arr));
+                pc++;
+                break;
+
             case OpCode.STRUCTN: // struct new
-                // long size = pop().value.i64;
                 long size = inst.val.value.i64;
                 Value[] struct_;
                 for (long i = size - 1; i >= 0; i--)
@@ -718,7 +775,6 @@ class HarpyVM
                 break;
 
             case OpCode.STRUCTG: // struct get (field)
-                // long idx = pop().value.i64;
                 long idx = inst.val.value.i64;
                 Value[] strc = pop().value.struct_;
                 push(strc[idx]);
@@ -730,7 +786,23 @@ class HarpyVM
                 long idx = inst.val.value.i64;
                 Value[] strc = pop().value.struct_;
                 strc[idx] = val;
-                push(this.makeArray(strc));
+                push(this.makeStruct(strc));
+                pc++;
+                break;
+
+            case OpCode.ENUMN: // enum new
+                long size = inst.val.value.i64;
+                Value[] enm;
+                for (long i = size - 1; i >= 0; i--)
+                    enm ~= pop();
+                push(this.makeEnum(enm));
+                pc++;
+                break;
+
+            case OpCode.ENUMG: // enum get (field)
+                long idx = inst.val.value.i64;
+                Value[] enm = pop().value.enum_;
+                push(enm[idx]);
                 pc++;
                 break;
 
@@ -747,6 +819,28 @@ class HarpyVM
                 long returnAddr = currentFrame().returnAddr;
                 frameStack.length--;
                 pc = returnAddr;
+                break;
+
+            case OpCode.STRL: // string length
+                string str = pop().value.str;
+                push(this.makeInt(str.length));
+                pc++;
+                break;
+
+            case OpCode.STRG: // ""[idx]
+                long idx = pop().value.i64;
+                string str = pop().value.str;
+                if (idx >= str.length)
+                    throw new Exception("O indice acessado é maior do que o tamanho do texto.");
+                push(this.makeStr(to!string(str[idx])));
+                pc++;
+                break;
+
+            case OpCode.STRP: // string push
+                string str_ = pop().value.str;
+                string str = pop().value.str;
+                push(this.makeStr(str ~ str_));
+                pc++;
                 break;
 
             case OpCode.FFIL: // FFI Load
@@ -796,75 +890,19 @@ class HarpyVM
                 FFIValue* args = cast(FFIValue*) malloc(argc * FFIValue.sizeof);
                 for (long i; i < argc; i++)
                 {
-                    Value v = pop();
-                    FFIRawValue cffi;
-
-                    final switch (v.type)
-                    {
-                    case Type.Bool:
-                        cffi.i1 = v.value.i1;
-                        break;
-                    case Type.Int:
-                        cffi.i64 = v.value.i64;
-                        break;
-                    case Type.Float:
-                        cffi.f64 = v.value.f64;
-                        break;
-                    case Type.String:
-                        cffi.str = cast(char*) v.value.str.toStringz();
-                        break;
-                    case Type.Array:
-                        cffi.array = cast(Value*) v.value.array.ptr;
-                        cffi.i64 = v.value.array.length; // tamanho do array
-                        break;
-                    case Type.Struct:
-                        cffi.struct_ = cast(Value*) v.value.struct_.ptr;
-                        break;
-                    }
-
-                    args[i].type = v.type;
+                    FFIValue ffi = valueToFFIValue(pop());
+                    FFIRawValue cffi = ffi.value;
+                    args[i].type = ffi.type;
                     args[i].value = *cast(FFIRawValue*)&cffi;
                 }
 
-                // deve haver uma forma melhor de escrever isso
                 FFICallParams p = FFICallParams(args, argc);
-                FFICallParams* params = cast(FFICallParams*) malloc(p.sizeof);
-                *params = p;
-
                 // chama a função
-                FFIValue result = funcPtr(params);
-
+                FFIValue result = funcPtr(&p); // passe o endereço diretamente
                 // Converter resultado de volta
-                Value vmResult;
-                vmResult.type = result.type;
-
-                final switch (result.type)
-                {
-                case Type.Bool:
-                    vmResult.value.i1 = result.value.i1;
-                    break;
-                case Type.Int:
-                    vmResult.value.i64 = result.value.i64;
-                    break;
-                case Type.Float:
-                    vmResult.value.f64 = result.value.f64;
-                    break;
-                case Type.String:
-                    vmResult.value.str = result.value.str.fromStringz.to!string;
-                    break;
-                    // TODO:
-                case Type.Array:
-                    // Reconstruir array D
-                    // Precisaria saber o tamanho, assumindo que está em result.value.i64 ou similar
-                    vmResult.value.array = [];
-                    break;
-                case Type.Struct:
-                    vmResult.value.struct_ = [];
-                    break;
-                }
+                Value vmResult = ffiValueToValue(result);
 
                 free(args);
-                free(params);
                 push(vmResult);
                 pc++;
                 break;
@@ -891,6 +929,9 @@ class HarpyVM
                 case Type.Struct:
                     printf("<Struct>".toStringz());
                     break;
+                case Type.Enum:
+                    printf("<Enum>".toStringz());
+                    break;
                 }
                 pc++;
                 break;
@@ -902,6 +943,163 @@ class HarpyVM
                     "Harpy Virtual Machine Error - OpCode inválido: " ~ to!string(inst.op));
             }
         }
+    }
+
+    FFIValue valueToFFIValue(Value value)
+    {
+        FFIValue ffi;
+        ffi.type = value.type;
+        ffi.len = value.len;
+
+        final switch (value.type)
+        {
+        case Type.Bool:
+            ffi.value.i1 = value.value.i1;
+            break;
+
+        case Type.Int:
+            ffi.value.i64 = value.value.i64;
+            break;
+
+        case Type.Float:
+            ffi.value.f64 = value.value.f64;
+            break;
+
+        case Type.String:
+            if (value.value.str.length > 0)
+                ffi.value.str = strdup(value.value.str.toStringz);
+            else
+                ffi.value.str = null;
+            break;
+
+        case Type.Array:
+            {
+                auto arr = value.value.array;
+                size_t len = arr.length;
+                ffi.len = cast(long) len;
+
+                if (len == 0)
+                {
+                    ffi.value.array = null;
+                    break;
+                }
+
+                FFIValue* farr = cast(FFIValue*) malloc(len * FFIValue.sizeof);
+                if (farr is null)
+                    throw new Exception("malloc fail in valueToFFIValue (array)");
+
+                for (size_t i = 0; i < len; ++i)
+                    farr[i] = valueToFFIValue(arr[i]);
+
+                ffi.value.array = farr;
+                break;
+            }
+
+        case Type.Struct:
+            {
+                auto s = value.value.struct_;
+                long len = cast(long) s.length;
+                ffi.len = len;
+
+                if (len == 0)
+                {
+                    ffi.value.struct_ = null;
+                    break;
+                }
+
+                FFIValue* fstruct = cast(FFIValue*) malloc(len * FFIValue.sizeof);
+                if (fstruct is null)
+                    throw new Exception("malloc fail in valueToFFIValue (struct)");
+
+                for (size_t i = 0; i < len; ++i)
+                    fstruct[i] = valueToFFIValue(s[i]);
+
+                ffi.value.struct_ = fstruct;
+                break;
+            }
+
+        case Type.Enum:
+            break;
+        }
+
+        return ffi;
+    }
+
+    Value ffiValueToValue(FFIValue ffi)
+    {
+        Value value;
+        value.type = ffi.type;
+        value.len = ffi.len;
+
+        final switch (ffi.type)
+        {
+        case Type.Bool:
+            value.value.i1 = ffi.value.i1;
+            break;
+
+        case Type.Int:
+            value.value.i64 = ffi.value.i64;
+            break;
+
+        case Type.Float:
+            value.value.f64 = ffi.value.f64;
+            break;
+
+        case Type.String:
+            if (ffi.value.str !is null)
+            {
+                // cria uma cópia gerenciada pelo GC do D
+                size_t len = strlen(ffi.value.str);
+                value.value.str = ffi.value.str[0 .. len].idup;
+            }
+            else
+                value.value.str = "";
+            break;
+
+        case Type.Array:
+            {
+                long n = ffi.len;
+                if (n <= 0 || ffi.value.array is null)
+                {
+                    value.value.array = [];
+                    break;
+                }
+
+                value.value.array = [];
+                value.value.array.reserve(n);
+
+                FFIValue* parr = ffi.value.array;
+                for (long i = 0; i < n; ++i)
+                    value.value.array ~= ffiValueToValue(parr[i]);
+
+                break;
+            }
+
+        case Type.Struct:
+            {
+                long len = ffi.len;
+
+                if (len <= 0 || ffi.value.struct_ is null)
+                {
+                    value.value.struct_ = [];
+                    break;
+                }
+
+                value.value.struct_ = [];
+                value.value.struct_.reserve(len);
+
+                FFIValue* pstruct = ffi.value.struct_;
+                for (long i = 0; i < len; ++i)
+                    value.value.struct_ ~= ffiValueToValue(pstruct[i]);
+
+                break;
+            }
+
+        case Type.Enum:
+            break;
+        }
+
+        return value;
     }
 }
 
@@ -1006,6 +1204,8 @@ class HarpyDisassembler
             return format("<Array[%d]>", v.value.array.length);
         case Type.Struct:
             return format("<Struct[%d]>", v.value.struct_.length);
+        case Type.Enum:
+            return format("<Enum[%d]>", v.value.enum_.length);
         }
     }
 

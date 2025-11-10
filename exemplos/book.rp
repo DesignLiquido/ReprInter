@@ -1,0 +1,323 @@
+externo {
+    declarar escrevaln(...) vazio;
+    declarar escreva(...) vazio;
+    declarar escrevaf(msg texto, ...) vazio;
+}
+
+// ============================================
+// DEFINIÇÃO DE ESTRUTURAS
+// ============================================
+
+estrutura Livro {
+    titulo texto
+    autor texto
+    ano inteiro
+    disponivel logico
+    emprestimos inteiro
+}
+
+estrutura Usuario {
+    nome texto
+    idade inteiro
+    livros_emprestados inteiro
+}
+
+estrutura Biblioteca {
+    nome texto
+    total_emprestimos inteiro
+    fundacao inteiro
+}
+
+estrutura Emprestimo {
+    usuario Usuario
+    livro Livro
+    dias inteiro
+}
+
+// ============================================
+// FUNÇÕES PARA LIVROS
+// ============================================
+
+// Cria um livro com valores padrão
+declarar criarLivro(
+    titulo texto = "Sem Título",
+    autor texto = "Desconhecido",
+    ano inteiro = 2024
+) Livro {
+    retorne Livro(titulo, autor, ano, verdadeiro, 0)
+}
+
+// Exibe informações de um livro (sem modificar - cópia automática)
+declarar exibirLivro(livro Livro) vazio {
+    escrevaf("  📖 %s por %s (%d) - ", livro.titulo, livro.autor, livro.ano)
+    
+    se livro.disponivel
+        escreva("✅ Disponível")
+    senao
+        escreva("❌ Emprestado")
+    
+    escrevaf(" | Total de empréstimos: %d\n", livro.emprestimos)
+}
+
+// Empresta um livro (modifica por referência!)
+declarar emprestarLivro(livro ref Livro) logico {
+    se livro.disponivel {
+        livro.disponivel = falso
+        livro.emprestimos = livro.emprestimos + 1
+        retorne verdadeiro
+    }
+    retorne falso
+}
+
+// Devolve um livro (modifica por referência!)
+declarar devolverLivro(livro ref Livro) vazio {
+    livro.disponivel = verdadeiro
+}
+
+// Tenta emprestar sem ref (não funciona - demonstração)
+declarar tentarEmprestarSemRef(livro Livro) vazio {
+    livro.disponivel = falso  // Só modifica a cópia local!
+    escrevaln("  ⚠️  Tentou emprestar sem 'ref' - não funcionou!")
+}
+
+// ============================================
+// FUNÇÕES PARA USUÁRIOS
+// ============================================
+
+// Cria usuário com idade padrão
+declarar criarUsuario(nome texto, idade inteiro = 18) Usuario {
+    retorne Usuario(nome, idade, 0)
+}
+
+// Exibe informações do usuário
+declarar exibirUsuario(user Usuario) vazio {
+    escrevaf("  👤 %s (%d anos) - Livros emprestados: %d\n", user.nome, user.idade, user.livros_emprestados)
+}
+
+// Registra empréstimo para usuário
+declarar registrarEmprestimo(user ref Usuario) vazio {
+    user.livros_emprestados = user.livros_emprestados + 1
+}
+
+// Registra devolução
+declarar registrarDevolucao(user ref Usuario) vazio {
+    se user.livros_emprestados > 0
+        user.livros_emprestados = user.livros_emprestados - 1
+}
+
+// ============================================
+// FUNÇÕES PARA BIBLIOTECA
+// ============================================
+
+// Cria biblioteca
+declarar criarBiblioteca(nome texto, ano_fundacao inteiro = 2024) Biblioteca {
+    retorne Biblioteca(nome, 0, ano_fundacao)
+}
+
+// Exibe informações da biblioteca
+declarar exibirBiblioteca(bib Biblioteca) vazio {
+    escrevaf("\n  🏛️  %s (fundada em %d)\n  Total de empréstimos realizados: %d\n", bib.nome, bib.fundacao, bib.total_emprestimos)
+}
+
+// Processa empréstimo completo
+declarar processarEmprestimo(
+    bib ref Biblioteca,
+    livro ref Livro,
+    user ref Usuario
+) logico {
+    se emprestarLivro(livro) {
+        registrarEmprestimo(user)
+        bib.total_emprestimos = bib.total_emprestimos + 1
+        escrevaln("  ✅ Empréstimo realizado com sucesso!")
+        retorne verdadeiro
+    } senao {
+        escrevaln("  ❌ Livro não disponível para empréstimo")
+        retorne falso
+    }
+}
+
+// Processa devolução completa
+declarar processarDevolucao(
+    bib ref Biblioteca,
+    livro ref Livro,
+    user ref Usuario
+) vazio {
+    devolverLivro(livro)
+    registrarDevolucao(user)
+    escrevaln("  ✅ Devolução realizada com sucesso!")
+}
+
+// ============================================
+// FUNÇÕES DE DEMONSTRAÇÃO
+// ============================================
+
+// Demonstra diferença entre cópia e referência
+declarar demonstrarCopiaVsRef() vazio {
+    escrevaln("\n🔬 ===== DEMO: CÓPIA vs REFERÊNCIA =====")
+    
+    alocar livro_original Livro = criarLivro("1984", "George Orwell", 1949)
+    
+    escrevaln("\n1️⃣ Estado inicial:")
+    exibirLivro(livro_original)
+    
+    // Tentar emprestar SEM ref (não funciona)
+    escrevaln("\n2️⃣ Tentando emprestar SEM 'ref':")
+    tentarEmprestarSemRef(livro_original)
+    exibirLivro(livro_original)
+    escrevaln("  ↳ Livro ainda está disponível! A função modificou apenas a cópia.")
+    
+    // Emprestar COM ref (funciona!)
+    escrevaln("\n3️⃣ Emprestando COM 'ref':")
+    emprestarLivro(livro_original)
+    exibirLivro(livro_original)
+    escrevaln("  ↳ Agora funcionou! O livro foi marcado como emprestado.")
+    
+    // Devolver
+    escrevaln("\n4️⃣ Devolvendo o livro:")
+    devolverLivro(livro_original)
+    exibirLivro(livro_original)
+}
+
+// Demonstra duplicação de structs
+declarar demonstrarDuplicacao() vazio {
+    escrevaln("\n📋 ===== DEMO: DUPLICAÇÃO DE STRUCTS =====")
+    
+    alocar user1 Usuario = criarUsuario("Ana Silva", 25)
+    
+    escrevaln("\n1️⃣ Usuário original:")
+    exibirUsuario(user1)
+    
+    // Cópia automática (shallow - compartilha referência)
+    escrevaln("\n2️⃣ Criando cópia automática:")
+    alocar user2 Usuario = user1
+    user2.nome = "Ana Santos"
+    user2.livros_emprestados = 5
+    
+    escrevaln("\n  Usuário 1 (original):")
+    exibirUsuario(user1)
+    escrevaln("  Usuário 2 (cópia):")
+    exibirUsuario(user2)
+    escrevaln("  ↳ Ambos foram alterados! Compartilham a mesma struct.")
+    
+    // Duplicação profunda (deep copy)
+    escrevaln("\n3️⃣ Criando cópia profunda com __nucleo_harpy_duplicar:")
+    alocar user3 Usuario = __nucleo_harpy_duplicar(user1)
+    user3.nome = "Ana Costa"
+    user3.livros_emprestados = 10
+    
+    escrevaln("\n  Usuário 1 (original):")
+    exibirUsuario(user1)
+    escrevaln("  Usuário 3 (duplicação profunda):")
+    exibirUsuario(user3)
+    escrevaln("  ↳ São independentes! Cada um tem sua própria struct.")
+}
+
+// Demonstra structs aninhadas
+declarar demonstrarStructsAninhadas() vazio {
+    escrevaln("\n🎭 ===== DEMO: STRUCTS ANINHADAS =====")
+    
+    alocar user Usuario = criarUsuario("Carlos Souza", 30)
+    alocar livro Livro = criarLivro("O Senhor dos Anéis", "J.R.R. Tolkien", 1954)
+    
+    escrevaln("\n1️⃣ Criando empréstimo (struct aninhada):")
+    alocar emp Emprestimo = Emprestimo(user, livro, 14)
+    
+    escrevaf("  📦 Empréstimo de %s pegou '%s' por %d dias\n", emp.usuario.nome, emp.livro.titulo, emp.dias)
+    
+    escrevaln("\n2️⃣ Modificando struct aninhada:")
+    emp.dias = 21
+    emp.usuario.idade = 31
+    
+    escrevaf("  📦 Empréstimo atualizado: %d dias, usuário tem %d anos\n", emp.dias, emp.usuario.idade)
+}
+
+// Demonstra tipo qualquer (qqr) com structs
+declarar demonstrarQualquerComStructs() vazio {
+    escrevaln("\n🌈 ===== DEMO: TIPO 'QUALQUER' COM STRUCTS =====")
+    
+    alocar livro Livro = criarLivro("Dom Casmurro", "Machado de Assis", 1899)
+    alocar user Usuario = criarUsuario("Beatriz", 22)
+    
+    escrevaln("\n1️⃣ Armazenando diferentes tipos em 'qualquer':")
+    alocar coisa1 qqr = livro
+    alocar coisa2 qqr = user
+    alocar coisa3 qqr = 42
+    alocar coisa4 qqr = "Texto qualquer"
+    
+    escrevaln("  ✓ Variável 'qqr' pode guardar struct Livro")
+    escrevaln("  ✓ Variável 'qqr' pode guardar struct Usuario")
+    escrevaln("  ✓ Variável 'qqr' pode guardar inteiro")
+    escrevaln("  ✓ Variável 'qqr' pode guardar texto")
+}
+
+// ============================================
+// FUNÇÃO PRINCIPAL
+// ============================================
+
+declarar principal vazio {
+    escrevaln("╔════════════════════════════════════════════╗")
+    escrevaln("║   SISTEMA DE BIBLIOTECA - HarpyVM Demo    ║")
+    escrevaln("║   Demonstrando: Structs, Ref, Defaults    ║")
+    escrevaln("╚════════════════════════════════════════════╝")
+    
+    // ===== CENÁRIO PRINCIPAL =====
+    escrevaln("\n📚 ===== CENÁRIO: DIA NA BIBLIOTECA =====")
+    
+    // Criar biblioteca
+    escrevaln("\n🏗️  Criando biblioteca...")
+    alocar bib Biblioteca = criarBiblioteca("Biblioteca Municipal", 1985)
+    exibirBiblioteca(bib)
+    
+    // Criar livros com diferentes formas
+    escrevaln("\n📚 Cadastrando livros...")
+    alocar livro1 Livro = criarLivro("Clean Code", "Robert Martin", 2008)
+    alocar livro2 Livro = criarLivro("The Pragmatic Programmer", "Hunt & Thomas", 1999)
+    alocar livro3 Livro = criarLivro()  // Usa defaults!
+    
+    exibirLivro(livro1)
+    exibirLivro(livro2)
+    exibirLivro(livro3)
+    
+    // Criar usuários
+    escrevaln("\n👥 Cadastrando usuários...")
+    alocar user1 Usuario = criarUsuario("Maria Santos", 28)
+    alocar user2 Usuario = criarUsuario("João Pedro")  // Usa idade padrão (18)
+    
+    exibirUsuario(user1)
+    exibirUsuario(user2)
+    
+    // Realizar empréstimos
+    escrevaln("\n📖 Realizando empréstimos...")
+    processarEmprestimo(bib, livro1, user1)
+    processarEmprestimo(bib, livro2, user2)
+    processarEmprestimo(bib, livro1, user2)  // Já emprestado!
+    
+    escrevaln("\n📊 Estado atual:")
+    exibirLivro(livro1)
+    exibirLivro(livro2)
+    exibirUsuario(user1)
+    exibirUsuario(user2)
+    exibirBiblioteca(bib)
+    
+    // Devoluções
+    escrevaln("\n📥 Realizando devoluções...")
+    processarDevolucao(bib, livro1, user1)
+    
+    escrevaln("\n📊 Estado final:")
+    exibirLivro(livro1)
+    exibirUsuario(user1)
+    exibirBiblioteca(bib)
+    
+    // ===== DEMONSTRAÇÕES EDUCACIONAIS =====
+    demonstrarCopiaVsRef()
+    demonstrarDuplicacao()
+    demonstrarStructsAninhadas()
+    demonstrarQualquerComStructs()
+    
+    // Finalização
+    escrevaln("\n╔════════════════════════════════════════════╗")
+    escrevaln("║         Demo concluída com sucesso!        ║")
+    escrevaln("╚════════════════════════════════════════════╝")
+    
+    fim
+}

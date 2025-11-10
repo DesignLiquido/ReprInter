@@ -18,6 +18,11 @@ enum TokenKind
     Para,
     Estrutura,
     Externo,
+    Ref,
+    Enum,
+    Parar,
+    Continuar,
+    Enquanto,
 
     // tipos
     I32,
@@ -94,6 +99,7 @@ enum TokenKind
     StarEquals, // *=
     SlashEquals, // /=
     ModuloEquals, // %=
+    TildeEquals, // ~=
 
     Eof // EndOfFile (FimDoArquivo)
 }

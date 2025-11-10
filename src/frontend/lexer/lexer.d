@@ -69,6 +69,12 @@ private:
         keywords["para"] = TokenKind.Para;
         keywords["estrutura"] = TokenKind.Estrutura;
         keywords["externo"] = TokenKind.Externo;
+        keywords["ref"] = TokenKind.Ref;
+        keywords["enumeracao"] = TokenKind.Enum;
+        keywords["enum"] = TokenKind.Enum;
+        keywords["continuar"] = TokenKind.Continuar;
+        keywords["parar"] = TokenKind.Parar;
+        keywords["enquanto"] = TokenKind.Enquanto;
 
         // tipos
         keywords["i32"] = TokenKind.I32;
@@ -136,6 +142,7 @@ private:
         symbols["&="] = TokenKind.BitAndEquals;
         symbols["|="] = TokenKind.BitOrEquals;
         symbols["^="] = TokenKind.BitXorEquals;
+        symbols["~="] = TokenKind.TildeEquals;
 
         symbols["<<"] = TokenKind.BitSHL;
         symbols[">>"] = TokenKind.BitSHR;

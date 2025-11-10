@@ -13,24 +13,32 @@ enum NodeKind
     ForStatement,
     Return,
     Extern,
+    BreakOrContinueStmt,
+    WhileStatement,
 
     // literais
     IntLiteral,
     StringLiteral,
     DoubleLiteral,
     BoolLiteral,
+    ArrayLiteral,
 
     // declarações
     FuncDeclaration,
     VarDeclaration,
     VarAssignmentDecl,
     StructDeclaration,
+    MemberCallAssignmentDecl,
+    IndexAssignmentDecl,
+    EnumDeclaration,
 
     // expressões
     BinaryExpr,
     CallExpr,
     UnaryExpr,
     StructExpr,
+    MemberCallExpr,
+    IndexExpr,
 
     EoP, // End of Program (fim do programa)
 }
@@ -79,6 +87,7 @@ struct FunctionArgument
     Type type;
     Node value;
     bool defaultValue;
+    bool isRef;
     Loc loc;
 }
 
@@ -608,6 +617,165 @@ class Extern : Node
         this.kind = NodeKind.Extern;
         this.type = Type(Types.Void, BaseType.Void);
         this.funcs = funcs;
+        this.loc = loc;
+    }
+
+    override void print(ulong ident = 0, bool isLast = false)
+    {
+        // ...
+    }
+}
+
+class MemberCallExpr : Node
+{
+    Node object; // A expressão à esquerda do ponto (Estrutura.campo) -> Estrutura
+    Identifier member; // O membro sendo chamado
+    ulong fieldIdx = 0; // posição do field (campo) em relação a struct
+    Node[] args; // Argumentos se for uma chamada de método
+    bool isMethodCall; // true se for x.method(), false se for x.property
+
+    this(Node object, Identifier member, Node[] args, bool isMethodCall, Loc loc)
+    {
+        this.kind = NodeKind.MemberCallExpr;
+        this.object = object;
+        this.member = member;
+        this.args = args;
+        this.isMethodCall = isMethodCall;
+        this.loc = loc;
+    }
+
+    override void print(ulong ident = 0, bool isLast = false)
+    {
+        // ...
+    }
+}
+
+class MemberCallAssignmentDecl : Node
+{
+    MemberCallExpr member; // A expressão à esquerda do ponto (Estrutura.campo) -> Estrutura
+
+    this(MemberCallExpr member, Node value, Loc loc)
+    {
+        this.kind = NodeKind.MemberCallAssignmentDecl;
+        this.member = member;
+        this.value = value;
+        this.loc = loc;
+    }
+
+    override void print(ulong ident = 0, bool isLast = false)
+    {
+        // ...
+    }
+}
+
+class ArrayLiteral : Node
+{
+    this(Node[] value, Type type, Loc loc)
+    {
+        this.kind = NodeKind.ArrayLiteral;
+        this.type = type;
+        this.value = value;
+        this.loc = loc;
+    }
+
+    override void print(ulong ident = 0, bool isLast = false)
+    {
+        string prefix = isLast ? "└── " : "├── ";
+        string continuation = isLast ? "    " : "│   ";
+
+        println(prefix ~ "ArrayLiteral: ", ident);
+        println(continuation ~ "└── Type: " ~ cast(string) type.baseType ~ "[]", ident);
+    }
+}
+
+class IndexExpr : Node
+{
+    Node idx, object;
+    this(Node object, Node idx, Loc loc)
+    {
+        this.kind = NodeKind.IndexExpr;
+        this.type = object.type;
+        this.object = object;
+        this.idx = idx;
+        this.loc = loc;
+    }
+
+    override void print(ulong ident = 0, bool isLast = false)
+    {
+    }
+}
+
+class IndexAssignmentDecl : Node
+{
+    IndexExpr idxExpr;
+    this(IndexExpr idxExpr, Node value, Loc loc)
+    {
+        this.kind = NodeKind.IndexAssignmentDecl;
+        this.idxExpr = idxExpr;
+        this.value = value;
+        this.loc = loc;
+    }
+
+    override void print(ulong ident = 0, bool isLast = false)
+    {
+    }
+}
+
+struct EnumField
+{
+    string name;
+    Type type; // tipo do valor, por padrão será um inteiro
+    bool defaultValue = false;
+    Node value = null;
+}
+
+class EnumDeclaration : Node
+{
+    string name;
+    EnumField[] fields;
+    this(string name, ref EnumField[] fields, Loc loc)
+    {
+        this.kind = NodeKind.EnumDeclaration;
+        this.fields = fields;
+        this.name = name;
+        this.loc = loc;
+        this.type = Type(Types.Enum, BaseType.Int);
+        this.type.enumName = name;
+    }
+
+    override void print(ulong ident = 0, bool isLast = false)
+    {
+        // ...
+    }
+}
+
+class BreakOrContinueStmt : Node
+{
+    bool isBreak = false;
+    this(bool isBreak, Loc loc)
+    {
+        this.kind = NodeKind.BreakOrContinueStmt;
+        this.type = Type(Types.Void, BaseType.Void);
+        this.isBreak = isBreak;
+        this.loc = loc;
+    }
+
+    override void print(ulong ident = 0, bool isLast = false)
+    {
+        // ...
+    }
+}
+
+class WhileStatement : Node
+{
+    Node condition;
+    Node[] body;
+    this(Node condition, Node[] body, Loc loc)
+    {
+        this.kind = NodeKind.WhileStatement;
+        this.condition = condition;
+        this.body = body;
+        this.type = Type(Types.Void, BaseType.Void);
         this.loc = loc;
     }
 
