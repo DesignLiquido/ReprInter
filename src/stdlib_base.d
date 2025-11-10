@@ -140,7 +140,7 @@ char* tipoParaString(Type t)
     return str;
 }
 
-void verificarNumeroDeArgumentos(char* fname, ulong esperado, ulong recebido)
+void verificarNumeroDeArgumentos(char* fname = cast(char*) "indefinido", ulong esperado, ulong recebido)
 {
     if (esperado != recebido)
     {
@@ -194,6 +194,7 @@ union RawValue
     bool i1;
     Value* array;
     Value* struct_;
+    Value* enum_;
 }
 
 enum Type
@@ -203,13 +204,15 @@ enum Type
     Float,
     Bool,
     Array,
-    Struct
+    Struct,
+    Enum
 }
 
 struct Value
 {
     Type type;
     RawValue value;
+    long len;
 }
 
 struct Params
@@ -230,7 +233,15 @@ pragma(inline, true)
 Value makeStr(string s)
 {
     RawValue ev;
-    ev.str = cast(char*) s.toStringz;
+    ev.str = cast(char*) s;
+    return Value(Type.String, ev);
+}
+
+pragma(inline, true)
+Value makeStr(char* s)
+{
+    RawValue ev;
+    ev.str = s;
     return Value(Type.String, ev);
 }
 
@@ -248,4 +259,20 @@ Value makeBool(bool b)
     RawValue ev;
     ev.i1 = b;
     return Value(Type.Bool, ev);
+}
+
+pragma(inline, true)
+Value makeStruct(Value* values, long tamanho)
+{
+    RawValue ev;
+    ev.struct_ = values;
+    return Value(Type.Struct, ev, tamanho);
+}
+
+pragma(inline, true)
+Value makeEnum(Value* values, long tamanho)
+{
+    RawValue ev;
+    ev.enum_ = values;
+    return Value(Type.Enum, ev, tamanho);
 }

@@ -268,7 +268,8 @@ void main(string[] argumentos)
 		// carrega bibliotecas externas, incluindo bibliotecas padrão da VM
 		// bibliotecas do sistema ja estará pré carregadas
 		string[] bibliotecasExternas = [
-			criarLibSys("entrada_saida"), criarLibSys("matematica")
+			criarLibSys("entrada_saida"), criarLibSys("matematica"),
+			criarLibSys("arquivo")
 		];
 
 		// carrega todas as bibliotecas dinamicas antes de tudo executar

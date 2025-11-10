@@ -37,6 +37,7 @@ enum Types : string
     Void = "void", // é um tipo não literal
     Array = "array",
     Struct = "struct",
+    Enum = "Enum",
 }
 
 struct Type
@@ -46,6 +47,7 @@ struct Type
     bool undefined = false;
     string structName = "";
     ulong dimensions = 0; // dimensões de um array
+    string enumName = "";
 
     bool isCompatibleWith(Type t, ref Symbol[string] structs)
     {
@@ -73,6 +75,8 @@ struct Type
             return type == Types.Array && t.baseType == baseType;
         case Types.Struct:
             return type == Types.Struct && t.structName == structName;
+        case Types.Enum:
+            return type == Types.Enum && t.enumName == enumName;
         case Types.Undefined:
             return type == Types.Undefined;
         case Types.Void:

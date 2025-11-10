@@ -11,13 +11,16 @@ struct Symbol
     bool isConst = false;
     bool isFunc = false;
     bool isStruct = false;
+    bool isRef = false;
+    bool isEnum = false;
     Symbol[] funcArgs = [];
     StructField[] fields = []; // para estrutura
+    EnumField[] eFields = []; // para enum
 }
 
 Symbol createFunction(Type type, Symbol[] args)
 {
-    return Symbol(type, null, false, true, true, false, args);
+    return Symbol(type, null, false, true, true, false, false, false, args);
 }
 
 Symbol[] createFunctionArgs(Type[] types)
@@ -31,8 +34,10 @@ private:
     Symbol[string][] scopes; // stack de escopos (cada escopo é um dicionário)
     Symbol[string] globalFuncs; // funções globais
     Symbol[string] structs; // estruturas
+    Symbol[string] enums; // enums
     Type currentFuncReturnType; // tipo de retorno da função atual
     bool insideFunction = false; // flag para verificar se estamos dentro de uma função
+    bool insideLoop = false; // flag para verificar se estamos dentro de um loop
     DiagnosticError error;
 
     void pushScope()
@@ -60,6 +65,9 @@ private:
         // busca em estruturas
         if (auto strct = name in structs)
             return strct;
+        // busca em enums
+        if (auto enm = name in enums)
+            return enm;
 
         return null;
     }
@@ -126,7 +134,25 @@ private:
             return analyzeStructDecl(cast(StructDeclaration) node);
         case NodeKind.Extern:
             return analyzeExtern(cast(Extern) node);
-
+        case NodeKind.MemberCallExpr:
+            return analyzeMemberCallExpr(cast(MemberCallExpr) node);
+        case NodeKind.MemberCallAssignmentDecl:
+            return analyzeMemberCallAssignmentDecl(cast(MemberCallAssignmentDecl) node);
+        case NodeKind.ArrayLiteral:
+            return analyzeArrayLiteral(cast(ArrayLiteral) node);
+        case NodeKind.IndexExpr:
+            return analyzeIndexExpr(cast(IndexExpr) node);
+        case NodeKind.IndexAssignmentDecl:
+            return analyzeIndexAssignmentDecl(cast(IndexAssignmentDecl) node);
+        case NodeKind.EnumDeclaration:
+            return analyzeEnumDecl(cast(EnumDeclaration) node);
+        case NodeKind.BreakOrContinueStmt:
+            if (!insideLoop)
+                deErro(
+                    "O 'parar' e o 'continuar' só podem ser usados dentro de loops.", node.loc);
+            return node;
+        case NodeKind.WhileStatement:
+            return analyzeWhileStmt(cast(WhileStatement) node);
             // literais não precisam de análise especial
         case NodeKind.IntLiteral:
         case NodeKind.DoubleLiteral:
@@ -139,6 +165,152 @@ private:
             deErro("Nó não suportado: " ~ to!string(node.kind), node.loc);
             return node;
         }
+    }
+
+    Node analyzeWhileStmt(WhileStatement node)
+    {
+        node.condition = this.analyze(node.condition);
+        this.insideLoop = true;
+        foreach (ref Node n; node.body)
+            n = this.analyze(n);
+        // this.insideLoop = false;
+        return node;
+    }
+
+    Node analyzeEnumDecl(EnumDeclaration node)
+    {
+        Symbol* sym = this.lookupSymbol(node.name);
+        if (sym !is null)
+            deErro(format("A enum ja existe '%s'.", node.name), node.loc);
+
+        // valida os fields seguindo a seguinte regra
+        // campo[0] define a regra de tipos
+        EnumField[] fields = node.fields;
+        if (fields.length > 0)
+            for (long i; i < fields.length; i++)
+                checkType(fields[0].type, fields[i].type, node.loc);
+
+        Symbol symbol;
+        symbol.type = node.type;
+        symbol.eFields = fields;
+        symbol.isEnum = true;
+        structs[node.name] = symbol;
+        return node;
+    }
+
+    Node analyzeIndexAssignmentDecl(IndexAssignmentDecl node)
+    {
+        node.idxExpr = cast(IndexExpr) this.analyzeIndexExpr(node.idxExpr);
+        node.value = this.analyze(node.value.get!Node);
+        node.type = node.value.get!Node.type;
+        return node;
+    }
+
+    Node analyzeIndexExpr(IndexExpr node)
+    {
+        node.idx = this.analyze(node.idx);
+        node.object = this.analyze(node.object);
+        node.type = node.object.type;
+        if (node.object.type.baseType != BaseType.String && node.object.type.type != Types.Array)
+            deErro(
+                "O acesso ao indice só pode ser feito em vetores e dados do tipo texto.", node.loc);
+        // se o meu object for uma estrutura o meu node terá esse tipo
+        if (node.object.type.structName != "")
+            node.type.type = Types.Struct;
+        return node;
+    }
+
+    Node analyzeArrayLiteral(ArrayLiteral node)
+    {
+        Node[] elements = node.value.get!(Node[]);
+        if (elements.length > 0)
+            foreach (ref elem; elements[0 .. $])
+            {
+                elem = analyze(elem);
+                checkType(node.type, elem.type, elem.loc);
+            }
+        return node;
+    }
+
+    Node analyzeMemberCallAssignmentDecl(MemberCallAssignmentDecl node)
+    {
+        node.member = cast(MemberCallExpr) this.analyze(node.member);
+        node.value = this.analyze(node.value.get!Node);
+        return node;
+    }
+
+    Node analyzeMemberCallExpr(MemberCallExpr node)
+    {
+        // analisa o objeto à esquerda do ponto
+        node.object = this.analyze(node.object);
+        Node object = node.object;
+        Node left = node.member;
+
+        // o membro deve ser um identificador obrigatoriamente
+        if (left.kind != NodeKind.Identifier)
+            deErro("O membro da expressão deve ser um identificador.", object.loc);
+
+        Identifier member = cast(Identifier) left;
+        string campo = member.value.get!string;
+
+        // tratamento para Enum
+        if (object.type.type == Types.Enum)
+        {
+            Symbol* enumSym = this.lookupSymbol(object.type.enumName);
+
+            if (enumSym is null)
+                deErro(format("A enum '%s' não existe.", object.type.enumName), object.loc);
+            if (!enumSym.isEnum)
+                deErro(format("'%s' não é uma enum.", object.type.enumName), object.loc);
+
+            EnumField[] enumFields = enumSym.eFields;
+            long idx = -1;
+
+            for (long i; i < enumFields.length; i++)
+                if (enumFields[i].name == campo)
+                {
+                    idx = i;
+                    break;
+                }
+
+            if (idx == -1)
+                deErro(format("O campo '%s' não foi encontrado na enum '%s'.",
+                        campo, object.type.enumName), member.loc);
+
+            node.fieldIdx = idx;
+            node.type = enumFields[idx].type;
+            return node;
+        }
+
+        // tratamento para Struct
+        if (object.type.type != Types.Struct)
+            deErro("O tipo da expressão deve ser uma estrutura ou enum.", object.loc);
+
+        Symbol* sym = this.lookupSymbol(object.type.structName);
+
+        string nExiste = format("A estrutura '%s' não existe.", object.type.structName);
+        if (sym is null)
+            deErro(nExiste, object.loc);
+        if (!sym.isStruct)
+            deErro(nExiste, object.loc);
+
+        StructField[] campos = sym.fields;
+        long idx = -1;
+
+        for (long i; i < campos.length; i++)
+            if (campos[i].name == campo)
+            {
+                idx = i;
+                break;
+            }
+
+        if (idx == -1)
+            deErro(format("O campo '%s' não foi encontrado na estrutura '%s'.",
+                    campo, object.type.structName), member.loc);
+
+        node.fieldIdx = idx;
+        node.type = campos[idx].type;
+        return node;
     }
 
     Node analyzeExtern(Extern node)
@@ -185,8 +357,10 @@ private:
         if (node.increment !is null)
             node.increment = analyze(node.increment);
 
+        this.insideLoop = true;
         foreach (ref stmt; node.body)
             stmt = analyze(stmt);
+        this.insideLoop = false;
 
         return node;
     }
@@ -252,7 +426,10 @@ private:
             valueNode = analyze(valueNode);
             checkType(node.type, valueNode.type, node.loc);
             node.value = valueNode;
-            node.type = valueNode.type;
+            // não atualiza o tipo para evitar erros
+            // se o checkType passou é porque ja é valido/compativel
+            // não precisa alterar isso
+            // node.type = valueNode.type;
         }
 
         Symbol sym;
@@ -305,6 +482,14 @@ private:
             paramSym.type = param.type;
             paramSym.isLet = true;
             paramSym.isConst = false;
+
+            if (param.isRef)
+            {
+                if (param.type.type != Types.Struct && param.type.type != Types.Array)
+                    deErro("Para receber um argumento com 'ref', o tipo deve ser uma estrutura ou vetor.", param
+                            .loc);
+                paramSym.isRef = param.isRef;
+            }
 
             if (param.defaultValue)
                 paramSym.value = param.value;
@@ -490,6 +675,17 @@ public:
 
         globalFuncs["__nucleo_harpy_duplicar"] = createFunction(Type(Types.Literal, BaseType.Any),
             createFunctionArgs([Type(Types.Literal, BaseType.Any)]));
+
+        globalFuncs["__nucleo_harpy_tamanho_vetor"] = createFunction(
+            Type(Types.Literal, BaseType.Int), createFunctionArgs([
+                Type(Types.Array, BaseType.Any)
+            ]));
+
+        globalFuncs["__nucleo_harpy_tamanho_texto"] = createFunction(
+            Type(Types.Literal, BaseType.Int), createFunctionArgs([
+                Type(Types.Literal, BaseType.String)
+            ]));
+
         try
             foreach (ref stmt; program.body)
                 stmt = analyze(stmt);

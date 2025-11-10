@@ -1,7 +1,7 @@
 module tests.testes_unitarios;
 
 // comando usado para compilar:
-// ldc2 tests/testes_unitarios.d
+// rdmd tests/testes_unitarios.d
 
 import std.stdio, std.process, std.file, std.path, std.array, std.string, std.conv, std.algorithm;
 import std.datetime.stopwatch : StopWatch, AutoStart;
@@ -294,7 +294,111 @@ void main(string[] args)
             "exemplos/fibo.rp",
             ["Fibonacci(10) = 55"],
             15
-        )
+        ),
+        CasoTeste(
+            "Argumento padrão",
+            "exemplos/argumento_padrao.rp",
+            ["69"]
+        ),
+        CasoTeste(
+            "Leitura de arquivo",
+            "exemplos/arquivo.rp",
+            [
+                "Arquivo de teste para verificar se a função \"lerArquivo\" está funcionando corretamente"
+            ]
+        ),
+        CasoTeste(
+            "Enquanto",
+            "exemplos/enquanto.rp",
+            [
+                "0",
+                "1",
+                "2",
+                "3",
+                "4",
+                "5",
+                "6",
+                "7",
+                "8",
+                "9",
+            ]
+        ),
+        CasoTeste(
+            "Enumeração",
+            "exemplos/enum.rp",
+            ["Sucesso ao validar"]
+        ),
+        CasoTeste(
+            "Estrutura",
+            "exemplos/estrutura.rp",
+            [
+                "Fernando",
+                "João",
+                "Fernando",
+                "Nando",
+                "Alterado",
+                "Alterado",
+                "Desconhecido"
+            ]
+        ),
+        CasoTeste(
+            "FFI",
+            "exemplos/ffi.rp",
+            ["69"]
+        ),
+        CasoTeste(
+            "Logs",
+            "exemplos/logs.rp",
+            [
+                "[INFO] Sistema iniciado",
+                "[ERROR] Erro crítico!",
+                "[DEBUG] Debug info"
+            ]
+        ),
+        CasoTeste(
+            "Matematica",
+            "exemplos/matematica.rp",
+            ["0", "4"]
+        ),
+        CasoTeste(
+            "Ola",
+            "exemplos/ola.rp",
+            ["Ola Fernando"]
+        ),
+        CasoTeste(
+            "Para",
+            "exemplos/para.rp",
+            ["0 1 2 3 4 5 6 7 8 9"]
+        ),
+        CasoTeste(
+            "Tipo qualquer",
+            "exemplos/qualquer.rp",
+            [
+                "69",
+                "69.00000002",
+                "69.00000000"
+            ]
+        ),
+        CasoTeste(
+            "Saudar",
+            "exemplos/saudar.rp",
+            [
+                "Olá, Visitante! Idade: 18",
+                "Olá, Ana! Idade: 18",
+                "Olá, João! Idade: 25"
+            ]
+        ),
+        CasoTeste(
+            "Vetor",
+            "exemplos/vetor.rp",
+            [
+                "Fernando",
+                "Marcelo Andrade",
+                "Fernando",
+                "Olá Fernando",
+                "Olá Jonas",
+            ]
+        ),
     ]);
 
     bool interpretado = args.length > 1 && args[1] == "interpretar";

@@ -124,6 +124,7 @@ void adicionarInstrucao(ref ubyte[] buffer, OpCode op, Value val)
         break;
     case Type.Array:
     case Type.Struct:
+    case Type.Enum:
         // Arrays são mais complexos, vamos simplificar por enquanto
         tamanhoInstrucao += 4; // apenas o count por enquanto
         break;
@@ -166,6 +167,7 @@ void adicionarInstrucao(ref ubyte[] buffer, OpCode op, Value val)
 
     case Type.Array:
     case Type.Struct:
+    case Type.Enum:
         uint arrLen = cast(uint) val.value.array.length;
         buffer ~= nativeToLittleEndian(arrLen);
         // TODO: serializar cada elemento do array
@@ -211,6 +213,7 @@ private uint calcularTamanhoInstrucao(ref Instruction inst)
         break;
     case Type.Array:
     case Type.Struct:
+    case Type.Enum:
         tam += 4;
         break; // simplificado
     }
@@ -275,6 +278,7 @@ Instruction lerInstrucao(ref File arquivo, uint tamanho)
 
     case Type.Array:
     case Type.Struct:
+    case Type.Enum:
         ubyte[4] lenBuf;
         arquivo.rawRead(lenBuf);
         uint arrLen = littleEndianToNative!uint(lenBuf);
