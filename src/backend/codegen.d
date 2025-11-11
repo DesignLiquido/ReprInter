@@ -344,11 +344,13 @@ public:
         // sim é só isso
     }
 
-    void generateMemberCallExpr(MemberCallExpr node)
+    void generateMemberCallExpr(MemberCallExpr node, bool multi = false)
     {
         // gera o object
         // sendo uma estrutura haverá um push dela para a stack
         generateNode(node.object);
+        if (multi)
+            generateNode(node.object);
         // e agora só gerar o get que ele fará o push do valor diretamente para a stack
         if (node.object.type.type == Types.Struct)
             cg.emit(Instruction(OpCode.STRUCTG, engine.makeInt(cast(long) node.fieldIdx)));
@@ -767,7 +769,12 @@ public:
 
     void generateBinaryExpr(BinaryExpr node)
     {
-        generateNode(node.left);
+        // o true determina que independente da operação ele deve gerar um push a mais
+        // acontece que a unica operação possivel com um vetor aqui e uma struct seria o '~='
+        if (node.left.kind == NodeKind.MemberCallExpr && node.op == "~=")
+            generateMemberCallExpr(cast(MemberCallExpr) node.left, true);
+        else
+            generateNode(node.left);
         generateNode(node.right);
 
         bool isFloat = node.left.type.baseType == BaseType.Float ||
