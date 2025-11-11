@@ -33,23 +33,24 @@ estrutura Tabela {
 }
 
 estrutura Simbolo {
-    nome txt        // nome da variavel
-    valor decimal   // valor da variavel
+    tipo Tipo
+    nome txt
+    valor qualquer // inteiro ou decimal
 }
 
-declarar set(tabela ref Tabela, nome txt, valor decimal = 0.0) int {
+declarar set(tabela ref Tabela, nome txt, tipo ref Tipo, valor qualquer = 0) int {
     alocar tamanho int = __nucleo_harpy_tamanho_vetor(tabela.tamanho)
     alocar idx int = -1
     para alocar i int = 0; i < tamanho; i++
         se tabela.simbolos[i].nome == nome {
             idx = i
-            parar
         }
     se idx == -1 {
-        tabela.simbolos ~= Simbolo(nome, valor)
+        tabela.simbolos ~= Simbolo(tipo, nome, valor)
         tabela.tamanho++
     } senao {
         tabela.simbolos[idx].valor = valor
+        tabela.simbolos[idx].tipo = tipo
     }
     retorne tabela.tamanho
 }
@@ -61,6 +62,197 @@ declarar get(tabela ref Tabela, nome txt) Simbolo {
             retorne tabela.simbolos[i]
     escrevaf("Variavel não encontrada: '%s'\n", nome)
     fim
+}
+
+enum OpCode {
+    Tirar = "Tirar"
+    Empurrar = "Empurrar"
+    Escreva = "Escreva"
+
+    Adicionar = "Adicionar"
+    Multiplicar = "Multiplicar"
+    Dividir = "Dividir"
+    Subtrair = "Subtrair"
+    
+    Armazenar = "Armazenar"
+    Carregar = "Carregar"
+    Fim = "Fim"
+}
+
+enum Tipo {
+    Inteiro = "Inteiro"
+    Decimal = "Decimal"
+    Texto = "Texto"
+}
+
+estrutura Valor {
+    tipo Tipo
+    valor qualquer // qualquer = any
+}
+
+estrutura Instrucao {
+    op OpCode
+    valor Valor
+}
+
+estrutura MaquinaVirtual {
+    pilha Valor[]
+    programa Instrucao[]
+}
+
+declarar criarInteiro(valor int = 0) Valor {
+    retorne Valor(Tipo.Inteiro, valor)
+}
+
+declarar criarDecimal(valor decimal = 0.0) Valor {
+    retorne Valor(Tipo.Decimal, valor)
+}
+
+declarar criarTexto(valor txt) Valor {
+    retorne Valor(Tipo.Texto, valor)
+}
+
+declarar pop(vm ref MaquinaVirtual) Valor {
+    alocar tam int = __nucleo_harpy_tamanho_vetor(vm.pilha)
+    se tam == 0 {
+        // pilha vazia, erro
+        escrevaln("Pilha vazia!")
+        fim
+    }
+    alocar ultimo Valor = vm.pilha[tam - 1]
+    vm.pilha = __nucleo_harpy_vetor_pop(vm.pilha)
+    retorne ultimo
+}
+
+declarar executar(vm ref MaquinaVirtual, tabela ref Tabela) vazio {
+    alocar instrucoes Instrucao[] = vm.programa
+    alocar tam int = __nucleo_harpy_tamanho_vetor(instrucoes)
+    // contador do programa (program counter)
+    alocar pc int = 0
+    enquanto pc < tam {
+        alocar instrucao Instrucao = instrucoes[pc]
+        se instrucao.op == OpCode.Empurrar {
+            // adiciona na pilha com push
+            vm.pilha ~= instrucao.valor
+            pc++
+            continuar
+        }
+        se instrucao.op == OpCode.Adicionar {
+            // adiciona na pilha com push
+            alocar b Valor = pop(vm)
+            alocar a Valor = pop(vm)
+            
+            // o valor será alterado, ele apenas foi inicializado
+            alocar resultado Valor = Valor(Tipo.Inteiro, 0)
+
+            se (b.tipo == Tipo.Decimal && a.tipo == Tipo.Decimal)
+                || (b.tipo == Tipo.Inteiro && a.tipo == Tipo.Decimal)
+                || (b.tipo == Tipo.Decimal && a.tipo == Tipo.Inteiro)
+                resultado = criarDecimal(a.valor + b.valor)
+            senao se b.tipo == Tipo.Inteiro && a.tipo == Tipo.Inteiro
+                resultado = criarInteiro(a.valor + b.valor)
+            senao {
+                escrevaln("Erro no operador Adicionar")
+                fim
+            }
+            vm.pilha ~= resultado
+            pc++
+            continuar
+        }
+        se instrucao.op == OpCode.Subtrair {
+            // adiciona na pilha com push
+            alocar b Valor = pop(vm)
+            alocar a Valor = pop(vm)
+            
+            // o valor será alterado, ele apenas foi inicializado
+            alocar resultado Valor = Valor(Tipo.Inteiro, 0)
+
+            se (b.tipo == Tipo.Decimal && a.tipo == Tipo.Decimal)
+                || (b.tipo == Tipo.Inteiro && a.tipo == Tipo.Decimal)
+                || (b.tipo == Tipo.Decimal && a.tipo == Tipo.Inteiro)
+                resultado = criarDecimal(a.valor - b.valor)
+            senao se b.tipo == Tipo.Inteiro && a.tipo == Tipo.Inteiro
+                resultado = criarInteiro(a.valor - b.valor)
+            senao {
+                escrevaln("Erro no operador Subtrair")
+                fim
+            }
+            vm.pilha ~= resultado
+            pc++
+            continuar
+        }
+        se instrucao.op == OpCode.Multiplicar {
+            // adiciona na pilha com push
+            alocar b Valor = pop(vm)
+            alocar a Valor = pop(vm)
+            
+            // o valor será alterado, ele apenas foi inicializado
+            alocar resultado Valor = Valor(Tipo.Inteiro, 0)
+
+            se (b.tipo == Tipo.Decimal && a.tipo == Tipo.Decimal)
+                || (b.tipo == Tipo.Inteiro && a.tipo == Tipo.Decimal)
+                || (b.tipo == Tipo.Decimal && a.tipo == Tipo.Inteiro)
+                resultado = criarDecimal(a.valor * b.valor)
+            senao se b.tipo == Tipo.Inteiro && a.tipo == Tipo.Inteiro
+                resultado = criarInteiro(a.valor * b.valor)
+            senao {
+                escrevaln("Erro no operador Multiplicar")
+                fim
+            }
+            vm.pilha ~= resultado
+            pc++
+            continuar
+        }
+        se instrucao.op == OpCode.Dividir {
+            // adiciona na pilha com push
+            alocar b Valor = pop(vm)
+            alocar a Valor = pop(vm)
+            
+            // o valor será alterado, ele apenas foi inicializado
+            alocar resultado Valor = Valor(Tipo.Inteiro, 0)
+
+            se b.valor == 0 || b.valor == 0.0 {
+                escrevaln("Divisão por zero encontrada!")
+                fim
+            }
+
+            se (b.tipo == Tipo.Decimal && a.tipo == Tipo.Decimal)
+                || (b.tipo == Tipo.Inteiro && a.tipo == Tipo.Decimal)
+                || (b.tipo == Tipo.Decimal && a.tipo == Tipo.Inteiro)
+                resultado = criarDecimal(a.valor / b.valor)
+            senao se b.tipo == Tipo.Inteiro && a.tipo == Tipo.Inteiro
+                resultado = criarInteiro(a.valor / b.valor)
+            senao {
+                escrevaln("Erro no operador Dividir")
+                fim
+            }
+            vm.pilha ~= resultado
+            pc++
+            continuar
+        }
+        se instrucao.op == OpCode.Armazenar {
+            alocar val Valor = pop(vm)
+            alocar var Valor = instrucao.valor
+            set(tabela, var.valor, val.tipo, val.valor)
+            pc++
+            continuar
+        }
+        se instrucao.op == OpCode.Carregar {
+            alocar var Valor = instrucao.valor
+            alocar sim Simbolo = get(tabela, var.valor)
+            vm.pilha ~= Valor(sim.tipo, sim.valor)
+            pc++
+            continuar
+        }
+        se instrucao.op == OpCode.Escreva {
+            escrevaln(pop(vm).valor)
+            pc++
+            continuar
+        }
+        se instrucao.op == OpCode.Fim
+            // para tudo
+            retorne;
+    }
 }
 
 estrutura Token {
@@ -250,43 +442,50 @@ declarar parseExpressao(p ref Parser) int {
     retorne idxEsq
 }
 
-declarar avaliar(tabela ref Tabela, nodes ref ASTNode[], tam int, raiz int) decimal {
-    // raiz é o índice do nó raiz da árvore (último retornado pelo parser)
-    retorne avaliarNo(tabela, nodes, raiz)
+declarar gerarBytecode(vm ref MaquinaVirtual, ast ref ASTNode[], raiz int) vazio {
+    gerarNo(vm, ast, raiz)
+    vm.programa ~= Instrucao(OpCode.Fim, criarInteiro())
 }
 
-declarar avaliarNo(tabela ref Tabela, nodes ref ASTNode[], idx int) decimal {
-    alocar node ASTNode = nodes[idx]
+declarar gerarNo(vm ref MaquinaVirtual, ast ref ASTNode[], idx int) vazio {
+    alocar node ASTNode = ast[idx]
     
-    // caso base: é um número
-    se node.tipo == NodeKind.Numero
-        retorne __nucleo_harpy_tpd(node.valor)
-    
-    // caso recursivo: é uma operação binária
-    se node.tipo == NodeKind.BinOp {
-        // esq e dir já são int, não precisa converter
-        alocar esq decimal = avaliarNo(tabela, nodes, node.esq)
-        alocar dir decimal = avaliarNo(tabela, nodes, node.dir)
-        
-        // aplica a operação
-        se node.op == "+" retorne esq + dir
-        se node.op == "-" retorne esq - dir
-        se node.op == "*" retorne esq * dir
-        se node.op == "/" retorne esq / dir
+    se node.tipo == NodeKind.Numero {
+        // Empurra número literal na pilha
+        alocar val decimal = __nucleo_harpy_tpd(node.valor)
+        vm.programa ~= Instrucao(OpCode.Empurrar, criarDecimal(val))
+        retorne;
     }
-
-    // seta a variavel
-    se node.tipo == NodeKind.VarDecl
-        set(tabela, node.valor, avaliarNo(tabela, nodes, node.dir))
-
-    // retorna o valor da variavel
-    se node.tipo == NodeKind.Identificador
-        retorne get(tabela, node.valor).valor
     
-    retorne 0.0
+    se node.tipo == NodeKind.BinOp {
+        // Gera código para subexpressões (recursivo)
+        gerarNo(vm, ast, node.esq)
+        gerarNo(vm, ast, node.dir)
+        
+        // Emite operador
+        se node.op == "+" vm.programa ~= Instrucao(OpCode.Adicionar, criarInteiro())
+        se node.op == "-" vm.programa ~= Instrucao(OpCode.Subtrair, criarInteiro())
+        se node.op == "*" vm.programa ~= Instrucao(OpCode.Multiplicar, criarInteiro())
+        se node.op == "/" vm.programa ~= Instrucao(OpCode.Dividir, criarInteiro())
+        retorne;
+    }
+    
+    se node.tipo == NodeKind.VarDecl {
+        // Gera expressão do valor
+        gerarNo(vm, ast, node.dir)
+        // Armazena na variável
+        vm.programa ~= Instrucao(OpCode.Armazenar, criarTexto(node.valor))
+        retorne;
+    }
+    
+    se node.tipo == NodeKind.Identificador {
+        // Carrega variável
+        vm.programa ~= Instrucao(OpCode.Carregar, criarTexto(node.valor))
+        retorne;
+    }
 }
 
-declarar interpretador(tabela ref Tabela, conteudo txt, tamanho int) decimal {
+declarar interpretador(tabela ref Tabela, conteudo txt, tamanho int) qualquer {
     alocar tokens Token[] = tokenize(conteudo, tamanho)
     alocar tokensTam int = __nucleo_harpy_tamanho_vetor(tokens)
 
@@ -305,6 +504,10 @@ declarar interpretador(tabela ref Tabela, conteudo txt, tamanho int) decimal {
     alocar raiz int = parseExpressao(parser)
     alocar ast ASTNode[] = parser.nos
     alocar nosTam int = __nucleo_harpy_tamanho_vetor(ast)
+
+    alocar vm MaquinaVirtual = MaquinaVirtual([], [])
+    gerarBytecode(vm, ast, raiz)
+    executar(vm, tabela)
     
     //escrevaln("\nNÓS:")
 
@@ -313,7 +516,9 @@ declarar interpretador(tabela ref Tabela, conteudo txt, tamanho int) decimal {
     //    escrevaf("Tipo: %s\nValor: %s %d %d\n-----------------\n", no.tipo, no.valor, no.esq, no.dir)
     //}
 
-    retorne avaliar(tabela, ast, nosTam, raiz)
+    se __nucleo_harpy_tamanho_vetor(vm.pilha) > 0
+        retorne pop(vm).valor
+    retorne 0.0
 }
 
 declarar principal vazio {

@@ -87,6 +87,7 @@ enum OpCode : ubyte
     ARRS, // array set
     ARRL, // array length
     ARRP, // array push
+    ARRPP, // array pop
 
     // Structs
     STRUCTN, // struct new (cria uma nova struct)
@@ -109,6 +110,7 @@ enum OpCode : ubyte
 
     // Casts (conversões)
     STOF, // string to float
+    ITOF, // int to float
 
     // Core
     PUSH,
@@ -312,6 +314,7 @@ class HarpyVM
         while (pc < code.length)
         {
             Instruction inst = code[pc];
+            // writeln("OPCODE: ", to!string(inst.op));
             switch (inst.op)
             {
             case OpCode.PUSH:
@@ -324,14 +327,20 @@ class HarpyVM
                 pc++;
                 break;
 
+                // case OpCode.DUP:
+                //     Value v = peek();
+                //     if (v.type == Type.Array)
+                //         push(makeArray(v.value.array.dup));
+                //     else if (v.type == Type.Struct)
+                //         push(makeStruct(v.value.struct_.dup));
+                //     else
+                //         push(v);
+                //     pc++;
+                //     break;
+
             case OpCode.DUP:
                 Value v = peek();
-                if (v.type == Type.Array)
-                    push(makeArray(v.value.array.dup));
-                else if (v.type == Type.Struct)
-                    push(makeStruct(v.value.struct_.dup));
-                else
-                    push(v);
+                push(deepCopy(v));
                 pc++;
                 break;
 
@@ -567,13 +576,16 @@ class HarpyVM
 
             case OpCode.LOADL:
                 string name = inst.val.value.str;
+                // writeln("LOADL: ", name, " : ", currentFrame().stack[name]);
                 push(currentFrame().stack[name]);
                 pc++;
                 break;
 
             case OpCode.STOREL:
                 string name = inst.val.value.str;
-                currentFrame().stack[name] = pop();
+                Value val = pop();
+                // writeln(name, " = ", val);
+                currentFrame().stack[name] = val;
                 pc++;
                 break;
 
@@ -729,27 +741,47 @@ class HarpyVM
 
             case OpCode.ARRG: // array get (idx)
                 long idx = pop().value.i64;
+                Value val = pop();
                 // não faz pop pra garantir que não fique copiando os arrays
-                Value[] arr = pop().value.array;
+                Value[] arr = val.value.array;
+                // writeln(val, " ", idx);
                 if (idx >= arr.length)
                     throw new Exception("O indice acessado é maior do que o tamanho do vetor.");
                 push(arr[idx]);
                 pc++;
                 break;
 
+                // case OpCode.ARRS: // array set -> arr[idx] = n
+                //     // pra ser mais otimizado
+                //     Value val = pop();
+                //     long idx = pop().value.i64;
+                //     // Value[] arr = pop().value.array;
+                //     // não faça pop, faça o peek e altere
+                //     Value[] arr = pop().value.array;
+                //     if (idx >= arr.length)
+                //         throw new Exception("O indice acessado é maior do que o tamanho do vetor.");
+                //     arr[idx] = val;
+                //     // nem precisa de push
+                //     // alterou diretamente na memoria
+                //     // push(arr);
+                //     pc++;
+                //     break;
             case OpCode.ARRS: // array set -> arr[idx] = n
-                // pra ser mais otimizado
                 Value val = pop();
                 long idx = pop().value.i64;
-                // Value[] arr = pop().value.array;
-                // não faça pop, faça o peek e altere
-                Value[] arr = pop().value.array;
-                if (idx >= arr.length)
+
+                if (valueStack.length == 0)
+                    throw new Exception("Stack underflow em ARRS");
+
+                if (valueStack[$ - 1].type != Type.Array)
+                    throw new Exception("ARRS requer um Array");
+
+                if (idx >= valueStack[$ - 1].value.array.length)
                     throw new Exception("O indice acessado é maior do que o tamanho do vetor.");
-                arr[idx] = val;
-                // nem precisa de push
-                // alterou diretamente na memoria
-                // push(arr);
+
+                // Modifica diretamente na stack
+                valueStack[$ - 1].value.array[idx] = val;
+                //pop(); // Remove o array da stack após modificação
                 pc++;
                 break;
 
@@ -768,6 +800,24 @@ class HarpyVM
                 pc++;
                 break;
 
+            case OpCode.ARRPP: // array pop -> remove último elemento e retorna o array modificado
+                if (valueStack.length == 0)
+                    throw new Exception("Stack underflow em ARRPP");
+
+                if (valueStack[$ - 1].type != Type.Array)
+                    throw new Exception("ARRPP só pode ser usado em vetores.");
+
+                if (valueStack[$ - 1].value.array.length == 0)
+                    throw new Exception("Não é possível fazer pop de um array vazio");
+
+                // Remove o último elemento do array
+                valueStack[$ - 1].value.array = valueStack[$ - 1].value.array[0 .. $ - 1];
+                valueStack[$ - 1].len = cast(long) valueStack[$ - 1].value.array.length;
+
+                // Não precisa de pop adicional - o array modificado já está no topo da stack
+                pc++;
+                break;
+
             case OpCode.STRUCTN: // struct new
                 long size = inst.val.value.i64;
                 Value[] struct_;
@@ -779,18 +829,40 @@ class HarpyVM
 
             case OpCode.STRUCTG: // struct get (field)
                 long idx = inst.val.value.i64;
-                Value[] strc = pop().value.struct_;
+                Value val = pop();
+                // writeln("STRUCTG: ", val);
+                // writeln("STRUCTG IDX: ", idx);
+                Value[] strc = val.value.struct_;
+                // writeln("STRUCTG VALUES: ", strc);
                 push(strc[idx]);
                 pc++;
                 break;
 
+                // case OpCode.STRUCTS: // struct set -> struct.field = n
+                //     Value val = pop();
+                //     Value val2 = pop();
+                //     Value[] strc = val2.value.struct_;
+                //     long idx = inst.val.value.i64;
+                //     strc[idx] = val;
+                //     push(this.makeStruct(strc));
+                //     pc++;
+                //     break;
+
             case OpCode.STRUCTS: // struct set -> struct.field = n
-                Value val = pop();
-                Value val2 = pop();
-                Value[] strc = val2.value.struct_;
+                Value val = pop(); // novo valor
                 long idx = inst.val.value.i64;
-                strc[idx] = val;
-                push(this.makeStruct(strc));
+
+                if (valueStack.length == 0)
+                    throw new Exception("Stack underflow em STRUCTS");
+
+                if (valueStack[$ - 1].type != Type.Struct)
+                    throw new Exception("STRUCTS requer um Struct no topo da stack");
+
+                if (idx >= valueStack[$ - 1].value.struct_.length)
+                    throw new Exception("Índice de field inválido");
+
+                // Modifica diretamente na stack
+                valueStack[$ - 1].value.struct_[idx] = val;
                 pc++;
                 break;
 
@@ -848,8 +920,12 @@ class HarpyVM
                 break;
 
             case OpCode.STOF:
-                string str = pop().value.str;
-                push(makeFloat(to!double(str)));
+                push(makeFloat(to!double(pop().value.str)));
+                pc++;
+                break;
+
+            case OpCode.ITOF:
+                push(makeFloat(to!double(pop().value.i64)));
                 pc++;
                 break;
 
@@ -1075,6 +1151,36 @@ class HarpyVM
         }
 
         return ffi;
+    }
+
+    Value deepCopy(Value v)
+    {
+        final switch (v.type)
+        {
+        case Type.Int:
+        case Type.Float:
+        case Type.Bool:
+        case Type.String:
+            return v; // Tipos simples podem ser copiados diretamente
+
+        case Type.Array:
+            Value[] newArr;
+            foreach (elem; v.value.array)
+                newArr ~= deepCopy(elem); // Recursivo
+            return makeArray(newArr);
+
+        case Type.Struct:
+            Value[] newStruct;
+            foreach (field; v.value.struct_)
+                newStruct ~= deepCopy(field); // Recursivo
+            return makeStruct(newStruct);
+
+        case Type.Enum:
+            Value[] newEnum;
+            foreach (field; v.value.enum_)
+                newEnum ~= deepCopy(field);
+            return makeEnum(newEnum);
+        }
     }
 
     Value ffiValueToValue(FFIValue ffi)

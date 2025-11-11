@@ -24,7 +24,7 @@ Value escreva(Params* params)
             printf("%lld", arg.value.i64);
             break;
         case Type.Float:
-            printf("%.8g", arg.value.f64);
+            printf("%.8f", arg.value.f64);
             break;
         case Type.Bool:
             printf("%s", arg.value.i1 ? cast(char*) "verdadeiro" : cast(char*) "falso");

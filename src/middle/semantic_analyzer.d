@@ -728,6 +728,16 @@ public:
                 Type(Types.Literal, BaseType.String)
             ]));
 
+        globalFuncs["__nucleo_harpy_vetor_pop"] = createFunction(
+            Type(Types.Literal, BaseType.Any), createFunctionArgs([
+                Type(Types.Array, BaseType.Any)
+            ]));
+
+        globalFuncs["__nucleo_harpy_ipd"] = createFunction(
+            Type(Types.Literal, BaseType.Double), createFunctionArgs([
+                Type(Types.Literal, BaseType.Int)
+            ]));
+
         try
         {
             // cria as funções, estruturas e enums primeiro

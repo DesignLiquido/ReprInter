@@ -303,12 +303,47 @@ public:
         popScope();
     }
 
+    // void generateIndexAssignmentDecl(IndexAssignmentDecl node)
+    // {
+    //     generateNode(node.idxExpr.object); // faz o push do array
+    //     generateNode(node.idxExpr.idx); // push do idx
+    //     generateNode(node.value.get!Node); // push do valor
+    //     cg.emit(Instruction(OpCode.ARRS));
+    // }
     void generateIndexAssignmentDecl(IndexAssignmentDecl node)
     {
-        generateNode(node.idxExpr.object); // faz o push do array
-        generateNode(node.idxExpr.idx); // push do idx
-        generateNode(node.value.get!Node); // push do valor
-        cg.emit(Instruction(OpCode.ARRS));
+        if (node.idxExpr.object.kind == NodeKind.Identifier)
+        {
+            Identifier id = cast(Identifier) node.idxExpr.object;
+            string varName = id.value.get!string;
+            VarInfo* varInfo = lookupVar(varName);
+
+            if (varInfo is null)
+                deErro(format("Variável não encontrada: %s", varName), node.loc);
+
+            // Carrega o array
+            if (varInfo.isGlobal)
+                cg.emit(Instruction(OpCode.LOADG, engine.makeStr(varName)));
+            else
+                cg.loadLocal(varName);
+
+            generateNode(node.idxExpr.idx); // push do índice
+            generateNode(node.value.get!Node); // push do valor
+            cg.emit(Instruction(OpCode.ARRS));
+
+            // Salva de volta
+            if (varInfo.isGlobal)
+                cg.emit(Instruction(OpCode.STOREG, engine.makeStr(varName)));
+            else
+                cg.storeLocal(varName);
+        }
+        else
+        {
+            generateNode(node.idxExpr.object);
+            generateNode(node.idxExpr.idx);
+            generateNode(node.value.get!Node);
+            cg.emit(Instruction(OpCode.ARRS));
+        }
     }
 
     void generateIndexExpr(IndexExpr node)
@@ -324,30 +359,70 @@ public:
     void generateArrayLiteral(ArrayLiteral node)
     {
         Node[] elements = node.value.get!(Node[]);
-        foreach (elem; elements)
+        foreach_reverse (elem; elements)
             generateNode(elem);
         // não é o tamanho que será alocado, é apenas a quantidade de valores que foram colocados na stack
         cg.push(engine.makeInt(cast(long) elements.length));
         cg.emit(Instruction(OpCode.ARRN));
     }
 
+    // void generateMemberCallAssignmentDecl(MemberCallAssignmentDecl node)
+    // {
+    //     // gera o memberCallExpr
+    //     // sendo uma estrutura haverá um push dela para a stack
+    //     // como não queremos isso e só queremos a struct nós geramos o object dela apenas
+    //     generateNode(node.member.object);
+    //     // e agora só gerar o set
+    //     // faz o push do novo valor para a stack e altera com OpCode.STRUCTS
+    //     generateNode(node.value.get!Node);
+    //     cg.emit(Instruction(OpCode.STRUCTS, engine.makeInt(cast(long) node.member.fieldIdx)));
+    //     // sim é só isso
+    // }
+
     void generateMemberCallAssignmentDecl(MemberCallAssignmentDecl node)
     {
-        // gera o memberCallExpr
-        // sendo uma estrutura haverá um push dela para a stack
-        // como não queremos isso e só queremos a struct nós geramos o object dela apenas
-        generateNode(node.member.object);
-        // e agora só gerar o set
-        // faz o push do novo valor para a stack e altera com OpCode.STRUCTS
-        generateNode(node.value.get!Node);
-        cg.emit(Instruction(OpCode.STRUCTS, engine.makeInt(cast(long) node.member.fieldIdx)));
-        // sim é só isso
+        // Se o object é um Identifier, precisamos recarregar e salvar
+        if (node.member.object.kind == NodeKind.Identifier)
+        {
+            Identifier id = cast(Identifier) node.member.object;
+            string varName = id.value.get!string;
+            VarInfo* varInfo = lookupVar(varName);
+
+            if (varInfo is null)
+                deErro(format("Variável não encontrada: %s", varName), node.loc);
+
+            // Carrega a struct
+            if (varInfo.isGlobal)
+                cg.emit(Instruction(OpCode.LOADG, engine.makeStr(varName)));
+            else
+                cg.loadLocal(varName);
+
+            // Push do novo valor
+            generateNode(node.value.get!Node);
+
+            // Modifica o field
+            cg.emit(Instruction(OpCode.STRUCTS, engine.makeInt(cast(long) node.member.fieldIdx)));
+
+            // Salva de volta
+            if (varInfo.isGlobal)
+                cg.emit(Instruction(OpCode.STOREG, engine.makeStr(varName)));
+            else
+                cg.storeLocal(varName);
+        }
+        else
+        {
+            // Para casos mais complexos (struct aninhada, etc)
+            generateNode(node.member.object);
+            generateNode(node.value.get!Node);
+            cg.emit(Instruction(OpCode.STRUCTS, engine.makeInt(cast(long) node.member.fieldIdx)));
+        }
     }
 
     void generateMemberCallExpr(MemberCallExpr node, bool multi = false)
     {
         // gera o object
         // sendo uma estrutura haverá um push dela para a stack
+        //node.object.print();
         generateNode(node.object);
         if (multi)
             generateNode(node.object);
@@ -686,6 +761,20 @@ public:
         {
             generateNode(node.args[0]);
             cg.emit(Instruction(OpCode.STOF));
+            return;
+        }
+
+        if (node.id == "__nucleo_harpy_ipd")
+        {
+            generateNode(node.args[0]);
+            cg.emit(Instruction(OpCode.ITOF));
+            return;
+        }
+
+        if (node.id == "__nucleo_harpy_vetor_pop")
+        {
+            generateNode(node.args[0]);
+            cg.emit(Instruction(OpCode.ARRPP));
             return;
         }
 
