@@ -14,14 +14,53 @@ estrutura ARQUIVO {
 }
 
 enum TokenTipo {
-    Numero = "Numero"           // 0..9 || 0..9.0..9
-    Mais = "Mais"               // +
-    Menos = "Menos"             // -
-    Vezes = "Vezes"             // *
-    Dividir = "Dividir"         // /
-    ParentesesE = "ParentesesE" // (
-    ParentesesD = "ParentesesD" // )
-    EoF = "FimDoArquivo"        // Fim do Arquivo (End of File)
+    Numero = "Numero"               // 0..9 || 0..9.0..9
+    Mais = "Mais"                   // +
+    Menos = "Menos"                 // -
+    Vezes = "Vezes"                 // *
+    Dividir = "Dividir"             // /
+    Igual = "Igual"                 // =
+    Identificador = "Identificador" // a-zA-Z
+    ParentesesE = "ParentesesE"     // (
+    ParentesesD = "ParentesesD"     // )
+    EoF = "FimDoArquivo"            // Fim do Arquivo (End of File)
+}
+
+// vai servir como um sistema de contextos simples (muito simples)
+estrutura Tabela {
+    simbolos Simbolo[]
+    tamanho int // tamanho do vetor de simbolos
+}
+
+estrutura Simbolo {
+    nome txt        // nome da variavel
+    valor decimal   // valor da variavel
+}
+
+declarar set(tabela ref Tabela, nome txt, valor decimal = 0.0) int {
+    alocar tamanho int = __nucleo_harpy_tamanho_vetor(tabela.tamanho)
+    alocar idx int = -1
+    para alocar i int = 0; i < tamanho; i++
+        se tabela.simbolos[i].nome == nome {
+            idx = i
+            parar
+        }
+    se idx == -1 {
+        tabela.simbolos ~= Simbolo(nome, valor)
+        tabela.tamanho++
+    } senao {
+        tabela.simbolos[idx].valor = valor
+    }
+    retorne tabela.tamanho
+}
+
+declarar get(tabela ref Tabela, nome txt) Simbolo {
+    alocar tamanho int = tabela.tamanho
+    para alocar i int = 0; i < tamanho; i++
+        se tabela.simbolos[i].nome == nome
+            retorne tabela.simbolos[i]
+    escrevaf("Variavel não encontrada: '%s'\n", nome)
+    fim
 }
 
 estrutura Token {
@@ -35,14 +74,17 @@ estrutura Lexer {
     tamanho int
 }
 
+declarar eTexto(ch txt) logico {
+    retorne (ch >= "a" && ch <= "z") || (ch >= "A" && ch <= "Z") || ch == "_"
+}
+
+
 declarar eNumero(ch txt) logico {
-    se ch >= "0" && ch <= "9" retorne verdadeiro
-    retorne falso
+    retorne ch >= "0" && ch <= "9"
 }
 
 declarar eEspaco(ch txt) logico {
-    se ch == " " || ch == "\t" || ch == "\n" retorne verdadeiro
-    retorne falso
+    retorne ch == " " || ch == "\t" || ch == "\n"
 }
 
 declarar tokenize(src txt, tamanho int) Token[] {
@@ -72,13 +114,34 @@ declarar tokenize(src txt, tamanho int) Token[] {
             tokens ~= Token(TokenTipo.Numero, numero)
             continuar
         }
+        se eTexto(ch) {
+            alocar id txt = ""
+            // adiciona o ch já lido
+            id ~= ch
+            // consome os outros caracteres
+            enquanto offset < tamanho && eTexto(src[offset]) {
+                id ~= src[offset++]
+            }
+            tokens ~= Token(TokenTipo.Identificador, id)
+            continuar
+        }
         // simbolos/sinais
         se ch == "+" { tokens ~= Token(TokenTipo.Mais, ch) continuar }
         se ch == "-" { tokens ~= Token(TokenTipo.Menos, ch) continuar }
         se ch == "*" { tokens ~= Token(TokenTipo.Vezes, ch) continuar }
-        se ch == "/" { tokens ~= Token(TokenTipo.Dividir, ch) continuar }
         se ch == "(" { tokens ~= Token(TokenTipo.ParentesesE, ch) continuar }
         se ch == ")" { tokens ~= Token(TokenTipo.ParentesesD, ch) continuar }
+        se ch == "=" { tokens ~= Token(TokenTipo.Igual, ch) continuar }
+        se ch == "/" { 
+            // comentario
+            se src[offset] == "/" {
+                enquanto offset < tamanho && src[offset] != "\n"
+                    offset++
+                continuar
+            }
+            tokens ~= Token(TokenTipo.Dividir, ch) 
+            continuar
+        }
 
         // erro, caractere desconhecido
         escrevaf("Caractere desconhecido: \"%s\"\n", ch)
@@ -92,6 +155,8 @@ declarar tokenize(src txt, tamanho int) Token[] {
 enum NodeKind {
     BinOp = "BinOp"
     Numero = "Numero"
+    VarDecl = "VarDecl"
+    Identificador = "Identificador"
 }
 
 estrutura ASTNode {
@@ -132,8 +197,7 @@ declarar parseFator(p ref Parser) int {  // retorna índice
 
     se tk.tipo == TokenTipo.Numero {
         p.pos++
-        alocar no ASTNode = ASTNode(NodeKind.Numero, "", -1, -1, tk.valor)
-        retorne adicionarNo(p, no)
+        retorne adicionarNo(p, ASTNode(NodeKind.Numero, "", -1, -1, tk.valor))
     }
     
     se tk.tipo == TokenTipo.ParentesesE {
@@ -142,8 +206,19 @@ declarar parseFator(p ref Parser) int {  // retorna índice
         p.pos++
         retorne idxExpr
     }
+
+    se tk.tipo == TokenTipo.Identificador {
+        p.pos++
+        se atual(p).tipo == TokenTipo.Igual {    
+            p.pos++
+            alocar idxExpr int = parseExpressao(p)
+            // vou salvar o id da expressao no ASTNode.dir
+            retorne adicionarNo(p, ASTNode(NodeKind.VarDecl, "", -1, idxExpr, tk.valor))
+        }
+        retorne adicionarNo(p, ASTNode(NodeKind.Identificador, "", -1, -1, tk.valor))
+    }
     
-    escrevaf("Erro de sintaxe!: \"%s\"")
+    escrevaf("Erro de sintaxe!: \"%s\"", tk.tipo)
     fim
 }
 
@@ -175,24 +250,23 @@ declarar parseExpressao(p ref Parser) int {
     retorne idxEsq
 }
 
-declarar avaliar(nodes ref ASTNode[], tam int, raiz int) decimal {
+declarar avaliar(tabela ref Tabela, nodes ref ASTNode[], tam int, raiz int) decimal {
     // raiz é o índice do nó raiz da árvore (último retornado pelo parser)
-    retorne avaliarNo(nodes, raiz)
+    retorne avaliarNo(tabela, nodes, raiz)
 }
 
-declarar avaliarNo(nodes ref ASTNode[], idx int) decimal {
+declarar avaliarNo(tabela ref Tabela, nodes ref ASTNode[], idx int) decimal {
     alocar node ASTNode = nodes[idx]
     
     // caso base: é um número
-    se node.tipo == NodeKind.Numero {
+    se node.tipo == NodeKind.Numero
         retorne __nucleo_harpy_tpd(node.valor)
-    }
     
     // caso recursivo: é uma operação binária
     se node.tipo == NodeKind.BinOp {
         // esq e dir já são int, não precisa converter
-        alocar esq decimal = avaliarNo(nodes, node.esq)
-        alocar dir decimal = avaliarNo(nodes, node.dir)
+        alocar esq decimal = avaliarNo(tabela, nodes, node.esq)
+        alocar dir decimal = avaliarNo(tabela, nodes, node.dir)
         
         // aplica a operação
         se node.op == "+" retorne esq + dir
@@ -200,13 +274,27 @@ declarar avaliarNo(nodes ref ASTNode[], idx int) decimal {
         se node.op == "*" retorne esq * dir
         se node.op == "/" retorne esq / dir
     }
+
+    // seta a variavel
+    se node.tipo == NodeKind.VarDecl
+        set(tabela, node.valor, avaliarNo(tabela, nodes, node.dir))
+
+    // retorna o valor da variavel
+    se node.tipo == NodeKind.Identificador
+        retorne get(tabela, node.valor).valor
     
     retorne 0.0
 }
 
-declarar interpretador(conteudo txt, tamanho int) decimal {
+declarar interpretador(tabela ref Tabela, conteudo txt, tamanho int) decimal {
     alocar tokens Token[] = tokenize(conteudo, tamanho)
     alocar tokensTam int = __nucleo_harpy_tamanho_vetor(tokens)
+
+    // se o tamanho do tokensTam for 1 então não há operações
+    // há apenas o EoF
+    // então retorna o 0.0 como padrão (fallback)
+    se tokensTam == 1
+        retorne 0.0
 
     //para alocar i int = 0; i < tokensTam; i++ {
     //    alocar tk Token = tokens[i]
@@ -225,12 +313,13 @@ declarar interpretador(conteudo txt, tamanho int) decimal {
     //    escrevaf("Tipo: %s\nValor: %s %d %d\n-----------------\n", no.tipo, no.valor, no.esq, no.dir)
     //}
 
-    retorne avaliar(ast, nosTam, raiz)
+    retorne avaliar(tabela, ast, nosTam, raiz)
 }
 
 declarar principal vazio {
     alocar conteudo txt = ""
     alocar tamanho int = 0
+    alocar tabela Tabela = Tabela([], 0)
 
     alocar modoRepl logico = falso
     alocar opt txt = entrada("Deseja o modo repl (s/n)? ")
@@ -249,7 +338,7 @@ declarar principal vazio {
             fim
         }
 
-        escrevaln(interpretador(conteudo, tamanho))
+        escrevaln(interpretador(tabela, conteudo, tamanho))
         fim
     }
 
@@ -268,7 +357,7 @@ declarar principal vazio {
         tamanho = __nucleo_harpy_tamanho_texto(opt)
         // para evitar erro
         opt ~= "\n" // adiciona a quebra de linha para simular a mesma quebra de linha dos arquivos
-        escrevaln(interpretador(opt, tamanho))
+        escrevaln(interpretador(tabela, opt, tamanho))
     }
 
     fim

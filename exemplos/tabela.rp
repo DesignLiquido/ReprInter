@@ -1,0 +1,48 @@
+externo {
+    declarar escrevaf(msg txt, ...) vazio;
+    declarar escrevaln(...) vazio;
+}
+
+estrutura Tabela {
+    simbolos Simbolo[]
+    tamanho int
+}
+
+estrutura Simbolo {
+    nome txt
+    valor int
+}
+
+declarar set(tabela ref Tabela, nome txt, valor int = 0) int {
+    alocar tamanho int = __nucleo_harpy_tamanho_vetor(tabela.tamanho)
+    alocar idx int = -1
+    para alocar i int = 0; i < tamanho; i++
+        se tabela.simbolos[i].nome == nome {
+            idx = i
+        }
+    se idx == -1 {
+        tabela.simbolos ~= Simbolo(nome, valor)
+        tabela.tamanho++
+    } senao {
+        tabela.simbolos[idx].valor = valor
+    }
+    retorne tabela.tamanho
+}
+
+declarar get(tabela ref Tabela, nome txt) Simbolo {
+    alocar tamanho int = tabela.tamanho
+    para alocar i int = 0; i < tamanho; i++
+        se tabela.simbolos[i].nome == nome {
+            retorne tabela.simbolos[i]
+        }
+    escrevaf("Nome não encontrado: '%s'\n", nome)
+    fim
+}
+
+declarar principal vazio {
+    alocar tabela Tabela = Tabela([], 0)
+    set(tabela, "Fernando", 69)
+    set(tabela, "Fernando", 10)
+    escrevaln(get(tabela, "Fernando").valor)
+    fim
+}
