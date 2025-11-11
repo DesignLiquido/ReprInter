@@ -107,6 +107,9 @@ enum OpCode : ubyte
     FFILI, // FFI Load Inteligente
     FFIC, // FFI Call
 
+    // Casts (conversões)
+    STOF, // string to float
+
     // Core
     PUSH,
     POP,
@@ -783,8 +786,9 @@ class HarpyVM
 
             case OpCode.STRUCTS: // struct set -> struct.field = n
                 Value val = pop();
+                Value val2 = pop();
+                Value[] strc = val2.value.struct_;
                 long idx = inst.val.value.i64;
-                Value[] strc = pop().value.struct_;
                 strc[idx] = val;
                 push(this.makeStruct(strc));
                 pc++;
@@ -843,6 +847,12 @@ class HarpyVM
                 pc++;
                 break;
 
+            case OpCode.STOF:
+                string str = pop().value.str;
+                push(makeFloat(to!double(str)));
+                pc++;
+                break;
+
             case OpCode.FFIL: // FFI Load
                 string libpath = pop().value.str;
                 string libname = inst.val.value.str;
@@ -886,7 +896,7 @@ class HarpyVM
                 if (!funcPtr)
                     throw new Exception("Simbolo não encontrado: " ~ funcname);
 
-                // Converter argumentos para C
+                // converter argumentos para C
                 FFIValue* args = cast(FFIValue*) malloc(argc * FFIValue.sizeof);
                 for (long i; i < argc; i++)
                 {
@@ -899,8 +909,14 @@ class HarpyVM
                 FFICallParams p = FFICallParams(args, argc);
                 // chama a função
                 FFIValue result = funcPtr(&p); // passe o endereço diretamente
-                // Converter resultado de volta
+                // converter resultado de volta
                 Value vmResult = ffiValueToValue(result);
+
+                // liberação de memoria aprimorada
+                freeFfiValue(result);
+
+                for (long i = 0; i < argc; i++)
+                    freeFfiValue(args[i]);
 
                 free(args);
                 push(vmResult);
@@ -942,6 +958,42 @@ class HarpyVM
                 throw new Exception(
                     "Harpy Virtual Machine Error - OpCode inválido: " ~ to!string(inst.op));
             }
+        }
+    }
+
+    void freeFfiValue(FFIValue ffi)
+    {
+        final switch (ffi.type)
+        {
+        case Type.String:
+            if (ffi.value.str !is null)
+                free(ffi.value.str);
+            break;
+
+        case Type.Array:
+            if (ffi.value.array !is null)
+            {
+                for (long i = 0; i < ffi.len; ++i)
+                    freeFfiValue(ffi.value.array[i]);
+                free(ffi.value.array);
+            }
+            break;
+
+        case Type.Struct:
+            if (ffi.value.struct_ !is null)
+            {
+                for (long i = 0; i < ffi.len; ++i)
+                    freeFfiValue(ffi.value.struct_[i]);
+                free(ffi.value.struct_);
+            }
+            break;
+
+        case Type.Bool:
+        case Type.Int:
+        case Type.Float:
+        case Type.Enum:
+            // Nada para liberar
+            break;
         }
     }
 
@@ -1320,14 +1372,8 @@ class HarpyDisassembler
             case OpCode.LE:
                 writeln("LE");
                 break;
-            case OpCode.LTE:
-                writeln("LTE");
-                break;
             case OpCode.GT:
                 writeln("GT");
-                break;
-            case OpCode.GE:
-                writeln("GE");
                 break;
             case OpCode.GTE:
                 writeln("GTE");

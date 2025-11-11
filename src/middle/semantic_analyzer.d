@@ -177,27 +177,6 @@ private:
         return node;
     }
 
-    Node analyzeEnumDecl(EnumDeclaration node)
-    {
-        Symbol* sym = this.lookupSymbol(node.name);
-        if (sym !is null)
-            deErro(format("A enum ja existe '%s'.", node.name), node.loc);
-
-        // valida os fields seguindo a seguinte regra
-        // campo[0] define a regra de tipos
-        EnumField[] fields = node.fields;
-        if (fields.length > 0)
-            for (long i; i < fields.length; i++)
-                checkType(fields[0].type, fields[i].type, node.loc);
-
-        Symbol symbol;
-        symbol.type = node.type;
-        symbol.eFields = fields;
-        symbol.isEnum = true;
-        structs[node.name] = symbol;
-        return node;
-    }
-
     Node analyzeIndexAssignmentDecl(IndexAssignmentDecl node)
     {
         node.idxExpr = cast(IndexExpr) this.analyzeIndexExpr(node.idxExpr);
@@ -325,16 +304,13 @@ private:
         return node;
     }
 
+    Node analyzeEnumDecl(EnumDeclaration node)
+    {
+        return node;
+    }
+
     Node analyzeStructDecl(StructDeclaration node)
     {
-        Symbol* sym = this.lookupSymbol(node.name);
-        if (sym !is null)
-            deErro(format("A estrutura ja existe '%s'.", node.name), node.loc);
-        Symbol symbol;
-        symbol.type = node.type;
-        symbol.fields = node.fields;
-        symbol.isStruct = true;
-        structs[node.name] = symbol;
         return node;
     }
 
@@ -465,13 +441,6 @@ private:
 
     Node analyzeFuncDecl(FunctionDeclaration node)
     {
-        if (node.name in globalFuncs)
-            deErro(format("A função '%s' já foi declarada.", node.name), node.loc);
-
-        Symbol funcSym;
-        funcSym.isFunc = true;
-        funcSym.type = node.type;
-
         pushScope();
         scope (exit)
             popScope();
@@ -495,7 +464,6 @@ private:
                 paramSym.value = param.value;
 
             addSymbol(param.name, paramSym);
-            funcSym.funcArgs ~= paramSym;
         }
 
         bool previousInsideFunction = insideFunction;
@@ -508,8 +476,6 @@ private:
             insideFunction = previousInsideFunction;
             currentFuncReturnType = previousReturnType;
         }
-
-        globalFuncs[node.name] = funcSym;
 
         foreach (ref stmt; node.body)
             stmt = analyze(stmt);
@@ -549,7 +515,7 @@ private:
     {
         Symbol* funcSym = lookupSymbol(node.id);
         if (funcSym is null || (!funcSym.isFunc && !funcSym.isStruct))
-            deErro(format("A Função '%s' não existe.", node.id), node.loc);
+            deErro(format("A função '%s' não existe.", node.id), node.loc);
 
         if (funcSym.isStruct)
             return analyzeStructExpr(node, funcSym);
@@ -661,6 +627,77 @@ private:
         return node;
     }
 
+    Node enumInitializer(EnumDeclaration node)
+    {
+        Symbol* sym = this.lookupSymbol(node.name);
+        if (sym !is null)
+            deErro(format("A enum ja existe '%s'.", node.name), node.loc);
+
+        // valida os fields seguindo a seguinte regra
+        // campo[0] define a regra de tipos
+        EnumField[] fields = node.fields;
+        if (fields.length > 0)
+            for (long i; i < fields.length; i++)
+                checkType(fields[0].type, fields[i].type, node.loc);
+
+        Symbol symbol;
+        symbol.type = node.type;
+        symbol.eFields = fields;
+        symbol.isEnum = true;
+        structs[node.name] = symbol;
+        return node;
+    }
+
+    Node structInitializer(StructDeclaration node)
+    {
+        Symbol* sym = this.lookupSymbol(node.name);
+        if (sym !is null)
+            deErro(format("A estrutura ja existe '%s'.", node.name), node.loc);
+        Symbol symbol;
+        symbol.type = node.type;
+        symbol.fields = node.fields;
+        symbol.isStruct = true;
+        structs[node.name] = symbol;
+        return node;
+    }
+
+    Node functionInitializer(FunctionDeclaration node)
+    {
+        if (node.name in globalFuncs)
+            deErro(format("A função '%s' já foi declarada.", node.name), node.loc);
+
+        Symbol funcSym;
+        funcSym.isFunc = true;
+        funcSym.type = node.type;
+
+        pushScope();
+        scope (exit)
+            popScope();
+
+        foreach (param; node.args)
+        {
+            Symbol paramSym;
+            paramSym.type = param.type;
+            paramSym.isLet = true;
+            paramSym.isConst = false;
+
+            if (param.isRef)
+            {
+                if (param.type.type != Types.Struct && param.type.type != Types.Array)
+                    deErro("Para receber um argumento com 'ref', o tipo deve ser uma estrutura ou vetor.", param
+                            .loc);
+                paramSym.isRef = param.isRef;
+            }
+
+            if (param.defaultValue)
+                paramSym.value = param.value;
+
+            funcSym.funcArgs ~= paramSym;
+        }
+        globalFuncs[node.name] = funcSym;
+        return node;
+    }
+
 public:
     this(DiagnosticError error)
     {
@@ -686,10 +723,45 @@ public:
                 Type(Types.Literal, BaseType.String)
             ]));
 
+        globalFuncs["__nucleo_harpy_tpd"] = createFunction(
+            Type(Types.Literal, BaseType.Int), createFunctionArgs([
+                Type(Types.Literal, BaseType.String)
+            ]));
+
         try
+        {
+            // cria as funções, estruturas e enums primeiro
+            FunctionDeclaration[] funcoes = program.body
+                .filter!(
+                    node => node.kind == NodeKind.FuncDeclaration)
+                .map!(node => cast(FunctionDeclaration) node)
+                .array;
+
+            StructDeclaration[] estruturas = program.body
+                .filter!(
+                    node => node.kind == NodeKind.StructDeclaration)
+                .map!(node => cast(StructDeclaration) node)
+                .array;
+
+            EnumDeclaration[] enums_ = program.body
+                .filter!(
+                    node => node.kind == NodeKind.EnumDeclaration)
+                .map!(node => cast(EnumDeclaration) node)
+                .array;
+
+            foreach (FunctionDeclaration func; funcoes)
+                functionInitializer(func);
+
+            foreach (StructDeclaration strc; estruturas)
+                structInitializer(strc);
+
+            foreach (EnumDeclaration enm; enums_)
+                enumInitializer(enm);
+
             foreach (ref stmt; program.body)
                 stmt = analyze(stmt);
-                finally
-                    popScope();
+        }
+        finally
+            popScope();
     }
 }

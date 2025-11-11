@@ -132,6 +132,9 @@ char* tipoParaString(Type t)
     case Type.Struct:
         str = cast(char*) "estrutura";
         break;
+    case Type.Enum:
+        str = cast(char*) "enumeracao";
+        break;
     default:
         str = cast(char*) "desconhecido";
         break;
@@ -183,6 +186,172 @@ void verificarTipo(Type[] esperados, Type recebido)
         free(strEsperados);
         free(strRecebido);
         exit(-1);
+    }
+}
+
+bool eStruct(Value v)
+{
+    return v.type == Type.Struct && v.value.struct_ !is null;
+}
+
+bool eEnum(Value v)
+{
+    return v.type == Type.Enum && v.value.enum_ !is null;
+}
+
+void verificarNumeroDeCamposStruct(char* fname, Value v, long esperado)
+{
+    if (!eStruct(v))
+        deErro(fname, cast(char*) "valor nao e uma estrutura");
+
+    if (v.len != esperado)
+    {
+        char[256] buffer;
+        snprintf(buffer.ptr, 256, "estrutura esperava %lld campos mas possui %lld", esperado, v.len);
+        deErro(fname, buffer.ptr);
+    }
+}
+
+Value obterCampoStruct(char* fname, Value v, long indice)
+{
+    if (!eStruct(v))
+        deErro(fname, cast(char*) "valor nao e uma estrutura");
+
+    if (indice < 0 || indice >= v.len)
+    {
+        char[256] buffer;
+        snprintf(buffer.ptr, 256, "indice %lld fora dos limites (0-%lld)", indice, v.len - 1);
+        deErro(fname, buffer.ptr);
+    }
+    return v.value.struct_[indice];
+}
+
+void verificarTipoCampoStruct(char* fname, Value v, long indice, Type esperado)
+{
+    Value campo = obterCampoStruct(fname, v, indice);
+
+    if (campo.type != esperado)
+    {
+        char[512] buffer;
+        char* strEsperado = tipoParaString(esperado);
+        char* strRecebido = tipoParaString(campo.type);
+        snprintf(buffer.ptr, 512, "campo %lld: esperado tipo '%s', recebido '%s'",
+            indice, strEsperado, strRecebido);
+        deErro(fname, buffer.ptr);
+    }
+}
+
+void verificarTiposCamposStruct(char* fname, Value v, Type[] tiposEsperados)
+{
+    verificarNumeroDeCamposStruct(fname, v, cast(long) tiposEsperados.length);
+
+    for (long i = 0; i < tiposEsperados.length; i++)
+        verificarTipoCampoStruct(fname, v, i, tiposEsperados[i]);
+}
+
+void modificarCampoStruct(char* fname, Value* v, long indice, Value novoValor)
+{
+    if (!eStruct(*v))
+        deErro(fname, cast(char*) "valor nao e uma estrutura");
+
+    if (indice < 0 || indice >= v.len)
+    {
+        char[256] buffer;
+        snprintf(buffer.ptr, 256, "indice %lld fora dos limites (0-%lld)", indice, v.len - 1);
+        deErro(fname, buffer.ptr);
+    }
+    v.value.struct_[indice] = novoValor;
+}
+
+Value copiarStruct(Value v)
+{
+    if (!eStruct(v))
+        return v;
+
+    Value* novosCampos = cast(Value*) malloc(Value.sizeof * v.len);
+    if (novosCampos is null)
+        deErro(cast(char*) "copiarStruct", cast(char*) "falha ao alocar memoria");
+
+    memcpy(novosCampos, v.value.struct_, Value.sizeof * v.len);
+    return makeStruct(novosCampos, v.len);
+}
+
+void verificarNumeroDeVariantesEnum(char* fname, Value v, long esperado)
+{
+    if (!eEnum(v))
+        deErro(fname, cast(char*) "valor nao e uma enumeracao");
+
+    if (v.len != esperado)
+    {
+        char[256] buffer;
+        snprintf(buffer.ptr, 256, "enumeracao esperava %lld variantes mas possui %lld", esperado, v
+                .len);
+        deErro(fname, buffer.ptr);
+    }
+}
+
+long obterVarianteAtiva(char* fname, Value v)
+{
+    if (!eEnum(v))
+        deErro(fname, cast(char*) "valor nao e uma enumeracao");
+
+    if (v.len < 1)
+        deErro(fname, cast(char*) "enumeracao invalida: sem campos");
+
+    Value tag = v.value.enum_[0];
+    if (tag.type != Type.Int)
+        deErro(fname, cast(char*) "enumeracao invalida: tag nao e inteiro");
+
+    return tag.value.i64;
+}
+
+Value obterDadosVariante(char* fname, Value v, long varianteEsperada)
+{
+    long varianteAtiva = obterVarianteAtiva(fname, v);
+
+    if (varianteAtiva != varianteEsperada)
+    {
+        char[256] buffer;
+        snprintf(buffer.ptr, 256, "variante incorreta: esperado %lld, ativo %lld",
+            varianteEsperada, varianteAtiva);
+        deErro(fname, buffer.ptr);
+    }
+
+    if (v.len < 2)
+        deErro(fname, cast(char*) "enumeracao sem dados");
+
+    return v.value.enum_[1];
+}
+
+bool eVariante(Value v, long variante)
+{
+    if (!eEnum(v) || v.len < 1)
+        return false;
+
+    Value tag = v.value.enum_[0];
+    if (tag.type != Type.Int)
+        return false;
+
+    return tag.value.i64 == variante;
+}
+
+void liberarStruct(Value* v)
+{
+    if (eStruct(*v) && v.value.struct_ !is null)
+    {
+        free(v.value.struct_);
+        v.value.struct_ = null;
+        v.len = 0;
+    }
+}
+
+void liberarEnum(Value* v)
+{
+    if (eEnum(*v) && v.value.enum_ !is null)
+    {
+        free(v.value.enum_);
+        v.value.enum_ = null;
+        v.len = 0;
     }
 }
 
@@ -241,7 +410,21 @@ pragma(inline, true)
 Value makeStr(char* s)
 {
     RawValue ev;
-    ev.str = s;
+
+    // duplica a string para ter controle total
+    // o ponteiro original será liberado logo após essa chamada
+    if (s !is null)
+    {
+        size_t len = strlen(s);
+        char* copia = cast(char*) malloc(len + 1);
+        if (copia is null)
+            deErro(cast(char*) "makeStr", cast(char*) "falha ao alocar memoria");
+        memcpy(copia, s, len + 1);
+        ev.str = copia;
+    }
+    else
+        ev.str = null;
+
     return Value(Type.String, ev);
 }
 
@@ -275,4 +458,17 @@ Value makeEnum(Value* values, long tamanho)
     RawValue ev;
     ev.enum_ = values;
     return Value(Type.Enum, ev, tamanho);
+}
+
+void liberarValue(Value* v)
+{
+    if (v.type == Type.String && v.value.str !is null)
+    {
+        free(v.value.str);
+        v.value.str = null;
+    }
+    else if (v.type == Type.Struct)
+        liberarStruct(v);
+    else if (v.type == Type.Enum)
+        liberarEnum(v);
 }

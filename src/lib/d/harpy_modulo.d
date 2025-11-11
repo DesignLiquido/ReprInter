@@ -1,13 +1,14 @@
 module lib.d.harpy_modulo;
 
 import std.stdio, std.conv, std.array, std.algorithm, std.format;
-import lib.d.harpy_funcao;
+import lib.d.harpy_funcao, lib.d.harpy_externo;
 
 class HarpyModulo
 {
 private:
     string nome;
     HarpyFuncao[] funcoes;
+    HarpyExterno externo = null;
 public:
     this(string nome = "main.rp")
     {
@@ -19,9 +20,15 @@ public:
         this.funcoes ~= func;
     }
 
+    void definirExterno(HarpyExterno externo)
+    {
+        this.externo = externo;
+    }
+
     string gerar()
     {
-        string codigo = funcoes.map!(f => f.gerar()).array.join("\n");
+        string codigo = externo is null ? "" : externo.gerar();
+        codigo ~= funcoes.map!(f => f.gerar()).array.join("\n");
         return codigo;
     }
 }

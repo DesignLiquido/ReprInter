@@ -18,9 +18,7 @@ Value lerArquivo(Params* params)
 
     Value* structValues = cast(Value*) malloc(3 * Value.sizeof);
     if (structValues is null)
-    {
         return makeStruct(null, 0);
-    }
 
     const char* path = fileName.value.str;
     FILE* file = fopen(path, "rb");
