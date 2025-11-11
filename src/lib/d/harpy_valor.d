@@ -6,9 +6,13 @@ alias Valor = HarpyValor;
 enum HarpyTipo : string
 {
     Inteiro = "inteiro",
-    Int = "int",
-    I64 = "i64",
+    Texto = "texto",
+    Logico = "logico",
+    Decimal = "decimal",
     Vazio = "vazio",
+    Estrutura = "estrutura",
+    Enum = "enum",
+    Variadic = "...",
 }
 
 struct HarpyValor

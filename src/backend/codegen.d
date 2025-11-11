@@ -1,6 +1,6 @@
 module backend.codegen;
 
-import std.stdio, std.format, std.conv, std.algorithm, std.string;
+import std.stdio, std.format, std.conv, std.algorithm, std.string, std.array : array;
 import core.sys.posix.dlfcn;
 import frontend.parser.ast, frontend.type, frontend.lexer.token : Loc;
 import backend.harpyvm, erro;
@@ -150,6 +150,15 @@ public:
 
     Instruction[] generate(Program program)
     {
+        FunctionDeclaration[] funcoes = program.body
+            .filter!(
+                node => node.kind == NodeKind.FuncDeclaration)
+            .map!(node => cast(FunctionDeclaration) node)
+            .array;
+
+        foreach (FunctionDeclaration func; funcoes)
+            functionInitializer(func);
+
         cg.label("main");
 
         foreach (stmt; program.body)
@@ -583,16 +592,16 @@ public:
 
         cg.label(node.name);
 
-        FunctionContext ctx;
-        ctx.name = node.name;
-        FunctionArg[] args;
-        foreach (arg; node.args)
-        {
-            ctx.params ~= arg.name;
-            args ~= FunctionArg(arg.name, arg.defaultValue, arg.isRef, arg.value);
-        }
-        functionArguments[node.name] = args;
-        funcContextStack ~= ctx;
+        // FunctionContext ctx;
+        // ctx.name = node.name;
+        // FunctionArg[] args;
+        // foreach (arg; node.args)
+        // {
+        //     ctx.params ~= arg.name;
+        //     args ~= FunctionArg(arg.name, arg.defaultValue, arg.isRef, arg.value);
+        // }
+        // functionArguments[node.name] = args;
+        // funcContextStack ~= ctx;
 
         pushScope();
 
@@ -671,9 +680,18 @@ public:
             return;
         }
 
+        if (node.id == "__nucleo_harpy_tpd")
+        {
+            generateNode(node.args[0]);
+            cg.emit(Instruction(OpCode.STOF));
+            return;
+        }
+
         // precisamos validar se há argumentos a serem tratados
         // se a nossa chamada soma(10) for feita, o numero de args da chamada é 1 enquanto se espera 2 pelo menos
         // logo ele cairá nesse if
+        // node.print();
+        // writeln(node.id, " ", functionArguments);
         FunctionArg[] fA = functionArguments[node.id];
         if (node.args.length < fA.length)
         {
@@ -847,19 +865,6 @@ public:
         case "^=":
         case "<<=":
         case ">>=":
-            if (node.left.kind != NodeKind.Identifier)
-                deErro(
-                    "Para realizar esta operação é necessário que a expressão a esquerda seja uma variavel.",
-                    node.left.loc
-                );
-
-            Identifier id = cast(Identifier) node.left;
-            string name = id.value.get!string;
-            VarInfo* varInfo = lookupVar(name);
-
-            if (varInfo is null)
-                deErro(format("Váriavel não encontrada: %s", name), node.loc);
-
             final switch (node.op)
             {
             case "+=":
@@ -906,10 +911,30 @@ public:
                 break;
             }
 
-            if (varInfo.isGlobal)
-                cg.emit(Instruction(OpCode.STOREG, engine.makeStr(name)));
+            if (node.left.kind == NodeKind.MemberCallExpr)
+            {
+                MemberCallExpr mbr = cast(MemberCallExpr) node.left;
+                cg.emit(Instruction(OpCode.STRUCTS, engine.makeInt(cast(long) mbr.fieldIdx))); // atualiza o valor
+            }
+            else if (node.left.kind == NodeKind.Identifier)
+            {
+                Identifier id = cast(Identifier) node.left;
+                string name = id.value.get!string;
+                VarInfo* varInfo = lookupVar(name);
+
+                if (varInfo is null)
+                    deErro(format("Váriavel não encontrada: %s", name), node.loc);
+
+                if (varInfo.isGlobal)
+                    cg.emit(Instruction(OpCode.STOREG, engine.makeStr(name)));
+                else
+                    cg.storeLocal(name);
+            }
             else
-                cg.storeLocal(name);
+                deErro(
+                    "Para realizar esta operação é necessário que a expressão a esquerda seja uma variavel.",
+                    node.left.loc
+                );
             return;
         case "<":
             opcode = OpCode.LT;
@@ -966,24 +991,37 @@ public:
             break;
         case "++":
         case "--":
-            if (node.operand.kind != NodeKind.Identifier)
+            if (node.operand.kind == NodeKind.Identifier)
+            {
+                // carrega o valor 10 na stack (por exemplo)
+                generateNode(node.operand);
+                cg.push(engine.makeInt(node.op == "++" ? 1 : -1));
+                // opera no ultimo valor adicionado na stack
+                cg.emit(Instruction(OpCode.ADDI));
+                // se não for postFix ele duplica o valor da stack
+                if (!node.postFix) // duplica o valor com DUP
+                    cg.emit(Instruction(OpCode.DUP));
+
+                Identifier id = cast(Identifier) node.operand;
+                VarInfo* varInfo = lookupVar(id.value.get!string);
+                if (varInfo.isGlobal)
+                    cg.emit(Instruction(OpCode.STOREG, engine.makeStr(id.value.get!string)));
+                else
+                    cg.storeLocal(id.value.get!string);
+            }
+            else if (node.operand.kind == NodeKind.MemberCallExpr)
+            {
+                MemberCallExpr mbr = cast(MemberCallExpr) node.operand;
+                generateNode(mbr.object); // faz um push da struct para a stack
+                generateNode(mbr.object); // faz um push da struct para a stack
+                cg.emit(Instruction(OpCode.STRUCTG, engine.makeInt(cast(long) mbr.fieldIdx))); // obtem o valor do campo
+                cg.push(engine.makeInt(node.op == "++" ? 1 : -1)); // push de 1
+                cg.emit(Instruction(OpCode.ADDI)); // soma e coloca o resultado na pilha
+                cg.emit(Instruction(OpCode.STRUCTS, engine.makeInt(cast(long) mbr.fieldIdx))); // atualiza o valor
+            }
+            else
                 deErro("A expressao unaria '++' e '--' espera que o operando seja uma variavel.", node
                         .operand.loc);
-            // carrega o valor 10 na stack (por exemplo)
-            generateNode(node.operand);
-            cg.push(engine.makeInt(node.op == "++" ? 1 : -1));
-            // opera no ultimo valor adicionado na stack
-            cg.emit(Instruction(OpCode.ADDI));
-            // se não for postFix ele duplica o valor da stack
-            if (!node.postFix) // duplica o valor com DUP
-                cg.emit(Instruction(OpCode.DUP));
-
-            Identifier id = cast(Identifier) node.operand;
-            VarInfo* varInfo = lookupVar(id.value.get!string);
-            if (varInfo.isGlobal)
-                cg.emit(Instruction(OpCode.STOREG, engine.makeStr(id.value.get!string)));
-            else
-                cg.storeLocal(id.value.get!string);
             break;
         default:
             deErro(format("Operador não suportado: %s", node.op), node.loc);
@@ -1009,5 +1047,19 @@ public:
     void generateLiteral(Node node)
     {
         cg.push(makeValue(node));
+    }
+
+    void functionInitializer(FunctionDeclaration node)
+    {
+        FunctionContext ctx;
+        ctx.name = node.name;
+        FunctionArg[] args;
+        foreach (arg; node.args)
+        {
+            ctx.params ~= arg.name;
+            args ~= FunctionArg(arg.name, arg.defaultValue, arg.isRef, arg.value);
+        }
+        functionArguments[node.name] = args;
+        funcContextStack ~= ctx;
     }
 }

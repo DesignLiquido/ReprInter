@@ -1,0 +1,275 @@
+// interpretador de calculos matematicos simples
+
+externo {
+    declarar lerArquivo(arquivo txt) ARQUIVO;
+    declarar entrada(msg txt = "") texto;
+    declarar escrevaf(msg txt, ...) vazio;
+    declarar escrevaln(...) vazio;
+}
+
+estrutura ARQUIVO {
+    conteudo texto
+    tamanho  inteiro
+    erro     inteiro
+}
+
+enum TokenTipo {
+    Numero = "Numero"           // 0..9 || 0..9.0..9
+    Mais = "Mais"               // +
+    Menos = "Menos"             // -
+    Vezes = "Vezes"             // *
+    Dividir = "Dividir"         // /
+    ParentesesE = "ParentesesE" // (
+    ParentesesD = "ParentesesD" // )
+    EoF = "FimDoArquivo"        // Fim do Arquivo (End of File)
+}
+
+estrutura Token {
+    tipo TokenTipo // numero e simbolo
+    valor txt // 1, 2, +, ...
+}
+
+estrutura Lexer {
+    source txt
+    offset int
+    tamanho int
+}
+
+declarar eNumero(ch txt) logico {
+    se ch >= "0" && ch <= "9" retorne verdadeiro
+    retorne falso
+}
+
+declarar eEspaco(ch txt) logico {
+    se ch == " " || ch == "\t" || ch == "\n" retorne verdadeiro
+    retorne falso
+}
+
+declarar tokenize(src txt, tamanho int) Token[] {
+    alocar tokens Token[] = []
+    alocar ch txt = ""
+    alocar offset int = 0
+
+    enquanto offset < tamanho {
+        ch = src[offset++]
+        se eEspaco(ch) continuar
+        se eNumero(ch) {
+            alocar numero txt = ""
+            // adiciona o dígito já lido
+            numero ~= ch
+            // consome dígitos seguintes com checagem de limite
+            enquanto offset < tamanho && eNumero(src[offset]) {
+                numero ~= src[offset++]
+            }
+            se src[offset] == "." {
+                // numero decimal
+                numero ~= "."
+                offset++ // pula o '.'
+                enquanto offset < tamanho && eNumero(src[offset]) {
+                    numero ~= src[offset++]
+                }
+            }
+            tokens ~= Token(TokenTipo.Numero, numero)
+            continuar
+        }
+        // simbolos/sinais
+        se ch == "+" { tokens ~= Token(TokenTipo.Mais, ch) continuar }
+        se ch == "-" { tokens ~= Token(TokenTipo.Menos, ch) continuar }
+        se ch == "*" { tokens ~= Token(TokenTipo.Vezes, ch) continuar }
+        se ch == "/" { tokens ~= Token(TokenTipo.Dividir, ch) continuar }
+        se ch == "(" { tokens ~= Token(TokenTipo.ParentesesE, ch) continuar }
+        se ch == ")" { tokens ~= Token(TokenTipo.ParentesesD, ch) continuar }
+
+        // erro, caractere desconhecido
+        escrevaf("Caractere desconhecido: \"%s\"\n", ch)
+        fim
+    }
+
+    tokens ~= Token(TokenTipo.EoF, "\0")
+    retorne tokens
+}
+
+enum NodeKind {
+    BinOp = "BinOp"
+    Numero = "Numero"
+}
+
+estrutura ASTNode {
+    tipo NodeKind  // "BinOp", "Numero", etc
+    op txt         // "+", "-", "*", "/"
+    esq int        // índice esquerdo
+    dir int        // índice direito
+    valor txt      // para números
+}
+
+estrutura Parser {
+    tokens Token[]
+    pos int
+    nos ASTNode[]  // lista de todos os nós
+}
+
+declarar novoParse(tokens Token[]) Parser {
+    retorne Parser(tokens, 0, [])
+}
+
+declarar atual(p ref Parser) Token {
+    se p.pos >= __nucleo_harpy_tamanho_vetor(p.tokens) {
+        escrevaln("ERROR")
+        fim
+    }
+    retorne p.tokens[p.pos]
+}
+
+declarar adicionarNo(p ref Parser, no ref ASTNode) int {
+    // adiciona o nó à lista e retorna seu índice
+    alocar idx int = __nucleo_harpy_tamanho_vetor(p.nos)
+    p.nos ~= no
+    retorne idx
+}
+
+declarar parseFator(p ref Parser) int {  // retorna índice
+    alocar tk Token = atual(p)
+
+    se tk.tipo == TokenTipo.Numero {
+        p.pos++
+        alocar no ASTNode = ASTNode(NodeKind.Numero, "", -1, -1, tk.valor)
+        retorne adicionarNo(p, no)
+    }
+    
+    se tk.tipo == TokenTipo.ParentesesE {
+        p.pos++
+        alocar idxExpr int = parseExpressao(p)
+        p.pos++
+        retorne idxExpr
+    }
+    
+    escrevaf("Erro de sintaxe!: \"%s\"")
+    fim
+}
+
+declarar parseTermo(p ref Parser) int {
+    alocar idxEsq int = parseFator(p)
+    
+    enquanto atual(p).tipo == TokenTipo.Vezes || atual(p).tipo == TokenTipo.Dividir {
+        alocar op txt = atual(p).valor
+        p.pos++
+        alocar idxDir int = parseFator(p)
+        alocar no ASTNode = ASTNode(NodeKind.BinOp, op, idxEsq, idxDir, "")
+        idxEsq = adicionarNo(p, no)
+    }
+    
+    retorne idxEsq
+}
+
+declarar parseExpressao(p ref Parser) int {
+    alocar idxEsq int = parseTermo(p)
+    
+    enquanto atual(p).tipo == TokenTipo.Mais || atual(p).tipo == TokenTipo.Menos {
+        alocar op txt = atual(p).valor
+        p.pos++
+        alocar idxDir int = parseTermo(p)
+        alocar no ASTNode = ASTNode(NodeKind.BinOp, op, idxEsq, idxDir, "")
+        idxEsq = adicionarNo(p, no)
+    }
+    
+    retorne idxEsq
+}
+
+declarar avaliar(nodes ref ASTNode[], tam int, raiz int) decimal {
+    // raiz é o índice do nó raiz da árvore (último retornado pelo parser)
+    retorne avaliarNo(nodes, raiz)
+}
+
+declarar avaliarNo(nodes ref ASTNode[], idx int) decimal {
+    alocar node ASTNode = nodes[idx]
+    
+    // caso base: é um número
+    se node.tipo == NodeKind.Numero {
+        retorne __nucleo_harpy_tpd(node.valor)
+    }
+    
+    // caso recursivo: é uma operação binária
+    se node.tipo == NodeKind.BinOp {
+        // esq e dir já são int, não precisa converter
+        alocar esq decimal = avaliarNo(nodes, node.esq)
+        alocar dir decimal = avaliarNo(nodes, node.dir)
+        
+        // aplica a operação
+        se node.op == "+" retorne esq + dir
+        se node.op == "-" retorne esq - dir
+        se node.op == "*" retorne esq * dir
+        se node.op == "/" retorne esq / dir
+    }
+    
+    retorne 0.0
+}
+
+declarar interpretador(conteudo txt, tamanho int) decimal {
+    alocar tokens Token[] = tokenize(conteudo, tamanho)
+    alocar tokensTam int = __nucleo_harpy_tamanho_vetor(tokens)
+
+    //para alocar i int = 0; i < tokensTam; i++ {
+    //    alocar tk Token = tokens[i]
+    //    escrevaf("Tipo do token: %s\nValor: %s\n-----------------\n", tk.tipo, tk.valor)
+    //}
+
+    alocar parser Parser = novoParse(tokens)
+    alocar raiz int = parseExpressao(parser)
+    alocar ast ASTNode[] = parser.nos
+    alocar nosTam int = __nucleo_harpy_tamanho_vetor(ast)
+    
+    //escrevaln("\nNÓS:")
+
+    //para alocar i int = 0; i < nosTam; i++ {
+    //    alocar no ASTNode = ast[i]
+    //    escrevaf("Tipo: %s\nValor: %s %d %d\n-----------------\n", no.tipo, no.valor, no.esq, no.dir)
+    //}
+
+    retorne avaliar(ast, nosTam, raiz)
+}
+
+declarar principal vazio {
+    alocar conteudo txt = ""
+    alocar tamanho int = 0
+
+    alocar modoRepl logico = falso
+    alocar opt txt = entrada("Deseja o modo repl (s/n)? ")
+
+    // suporte a modo REPL
+    se opt == "s" || opt == "sim" || opt == "S" || opt == "SIM"
+        modoRepl = verdadeiro
+
+    se !modoRepl {
+        alocar arquivo ARQUIVO = lerArquivo("tests/um_mais_um.rrp")
+        conteudo = arquivo.conteudo
+        tamanho  = __nucleo_harpy_tamanho_texto(conteudo)
+
+        se arquivo.erro > 0 {
+            escrevaf("Ocorreu um erro ao ler o arquivo: %s\n", conteudo)
+            fim
+        }
+
+        escrevaln(interpretador(conteudo, tamanho))
+        fim
+    }
+
+    alocar loop logico = verdadeiro
+
+    enquanto loop {
+        escrevaln("Modo interativo (para sair escreva 'q')")
+        opt = entrada(">>> ")
+
+        se opt == "q" || opt == "Q" || opt == "sair" || opt == "s" {
+            loop = falso
+            escrevaln("Até mais!")
+            continuar
+        }
+
+        tamanho = __nucleo_harpy_tamanho_texto(opt)
+        // para evitar erro
+        opt ~= "\n" // adiciona a quebra de linha para simular a mesma quebra de linha dos arquivos
+        escrevaln(interpretador(opt, tamanho))
+    }
+
+    fim
+}

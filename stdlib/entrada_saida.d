@@ -162,3 +162,57 @@ Value escrevaf(Params* params)
 
     return makeBool(true);
 }
+
+Value entrada(Params* params)
+{
+    Value* args = params.args;
+    ulong argc = params.argc;
+
+    if (argc >= 1)
+    {
+        verificarTipo(Type.String, args[0].type);
+        printf("%s", args[0].value.str);
+        fflush(stdout);
+    }
+
+    size_t bufferSize = 256;
+    char* buffer = cast(char*) malloc(bufferSize);
+
+    if (buffer is null)
+        deErro(cast(char*) "entrada", cast(char*) "falha ao alocar memoria");
+
+    size_t pos = 0;
+    int c;
+
+    while ((c = getchar()) != '\n' && c != EOF)
+    {
+        if (pos >= bufferSize - 1)
+        {
+            bufferSize *= 2;
+            char* newBuffer = cast(char*) realloc(buffer, bufferSize);
+
+            if (newBuffer is null)
+            {
+                free(buffer);
+                deErro(cast(char*) "entrada", cast(char*) "falha ao realocar memoria");
+            }
+
+            buffer = newBuffer;
+        }
+
+        buffer[pos++] = cast(char) c;
+    }
+
+    buffer[pos] = '\0';
+
+    if (pos + 1 < bufferSize)
+    {
+        char* finalBuffer = cast(char*) realloc(buffer, pos + 1);
+        if (finalBuffer !is null)
+            buffer = finalBuffer;
+    }
+
+    Value resultado = makeStr(buffer);
+    free(buffer);
+    return resultado;
+}

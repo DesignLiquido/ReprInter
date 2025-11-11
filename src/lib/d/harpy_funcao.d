@@ -20,7 +20,8 @@ public:
 
     Valor getArg(ulong indice = 0)
     {
-        // TODO: Validar
+        if (indice > (cast(ulong) params.length - 1))
+            throw new Exception("O indice é maior do que o permitido.");
         return params[indice];
     }
 
@@ -29,11 +30,16 @@ public:
         this.bloco = bloco;
     }
 
-    string gerar()
+    string gerar(bool isExtern = false)
     {
         string codigo = format("declarar %s (", nome);
         for (long i; i < params.length; i++)
         {
+            if (params[i].tipo == HarpyTipo.Variadic)
+            {
+                codigo ~= "...";
+                break;
+            }
             codigo ~= params[i].valor;
             codigo ~= " ";
             codigo ~= params[i].tipo;
@@ -42,7 +48,10 @@ public:
         }
         codigo ~= ") ";
         codigo ~= tipoDeRetorno;
-        codigo ~= bloco.gerar();
+        if (!isExtern)
+            codigo ~= bloco.gerar();
+        else
+            codigo ~= ";";
         return codigo;
     }
 }

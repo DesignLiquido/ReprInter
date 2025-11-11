@@ -52,10 +52,17 @@ public:
         return sargs;
     }
 
-    Valor call(string fn, Tipo tipo, Valor[] args)
+    Valor call(string fn, Tipo tipo, Valor[] args, bool comVar = true)
     {
         string sargs = sargs(args);
-        return varTmp(tipo, format("%s(%s)", fn, sargs));
+        string chamada = format("%s(%s)", fn, sargs);
+        if (comVar)
+            return varTmp(tipo, chamada);
+        else
+        {
+            emitir(chamada);
+            return Valor(chamada, tipo);
+        }
     }
 
     Valor call(string fn, Valor[] args, Valor target)
