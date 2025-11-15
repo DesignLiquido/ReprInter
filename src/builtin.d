@@ -47,6 +47,31 @@ private void escreva(CodeGen cg, HarpyCG hcg, CallExpr node, HarpyVM engine)
     }
 }
 
+private void escrevai(CodeGen cg, HarpyCG hcg, CallExpr node, HarpyVM engine)
+{
+    cg.generateNode(node.args[0]);
+    hcg.emit(Instruction(OpCode.PRINTI));
+}
+
+private void escrevad(CodeGen cg, HarpyCG hcg, CallExpr node, HarpyVM engine)
+{
+    cg.generateNode(node.args[0]); // %.<n>f
+    cg.generateNode(node.args[1]); // valor
+    hcg.emit(Instruction(OpCode.PRINTD));
+}
+
+private void escrevas(CodeGen cg, HarpyCG hcg, CallExpr node, HarpyVM engine)
+{
+    cg.generateNode(node.args[0]);
+    hcg.emit(Instruction(OpCode.PRINTS));
+}
+
+private void escrevab(CodeGen cg, HarpyCG hcg, CallExpr node, HarpyVM engine)
+{
+    cg.generateNode(node.args[0]);
+    hcg.emit(Instruction(OpCode.PRINTB));
+}
+
 private void duplicar(CodeGen cg, HarpyCG hcg, CallExpr node, HarpyVM engine)
 {
     cg.generateNode(node.args[0]);
@@ -77,6 +102,13 @@ private void ipd(CodeGen cg, HarpyCG hcg, CallExpr node, HarpyVM engine)
 {
     cg.generateNode(node.args[0]);
     hcg.emit(Instruction(OpCode.ITOF));
+}
+
+// texto para int
+private void tpi(CodeGen cg, HarpyCG hcg, CallExpr node, HarpyVM engine)
+{
+    cg.generateNode(node.args[0]);
+    hcg.emit(Instruction(OpCode.STOI));
 }
 
 private void tipoParaTexto(CodeGen cg, HarpyCG hcg, CallExpr node, HarpyVM engine)
@@ -113,6 +145,37 @@ private void registrarFuncoes(ref Builtin builtin)
         &escreva
     );
 
+    builtin.funcoes["@escrevai"] = BuiltinFunction(
+        "@escrevai",
+        Type(Types.Void, BaseType.Void),
+        [Type(Types.Literal, BaseType.Int)],
+        &escrevai
+    );
+
+    builtin.funcoes["@escrevad"] = BuiltinFunction(
+        "@escrevad",
+        Type(Types.Void, BaseType.Void),
+        [
+            Type(Types.Literal, BaseType.Double),
+            Type(Types.Literal, BaseType.Int)
+        ],
+        &escrevad
+    );
+
+    builtin.funcoes["@escrevas"] = BuiltinFunction(
+        "@escrevas",
+        Type(Types.Void, BaseType.Void),
+        [Type(Types.Literal, BaseType.String)],
+        &escrevas
+    );
+
+    builtin.funcoes["@escrevab"] = BuiltinFunction(
+        "@escrevab",
+        Type(Types.Void, BaseType.Void),
+        [Type(Types.Literal, BaseType.Bool)],
+        &escrevab
+    );
+
     builtin.funcoes["@entrada"] = BuiltinFunction(
         "@entrada",
         Type(Types.Literal, BaseType.String),
@@ -143,7 +206,7 @@ private void registrarFuncoes(ref Builtin builtin)
 
     builtin.funcoes["@tpd"] = BuiltinFunction(
         "@tpd",
-        Type(Types.Literal, BaseType.Int),
+        Type(Types.Literal, BaseType.Double),
         [Type(Types.Literal, BaseType.String)],
         &tpd
     );
@@ -153,6 +216,13 @@ private void registrarFuncoes(ref Builtin builtin)
         Type(Types.Literal, BaseType.Double),
         [Type(Types.Literal, BaseType.Int)],
         &ipd
+    );
+
+    builtin.funcoes["@tpi"] = BuiltinFunction(
+        "@tpi",
+        Type(Types.Literal, BaseType.Int),
+        [Type(Types.Literal, BaseType.String)],
+        &tpi
     );
 
     builtin.funcoes["@tipo"] = BuiltinFunction(

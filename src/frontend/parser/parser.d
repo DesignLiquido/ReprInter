@@ -194,6 +194,7 @@ private:
                 dF = true;
             }
             // a validação só ocorrerá no analisador semantico
+            value.type.enumName = name;
             fields ~= EnumField(fieldName, value.type, dF, value);
         }
         this.consume(TokenKind.RBrace, "Esperado '}' após a enumeração.");
@@ -528,8 +529,9 @@ private:
         default:
             if (isArray)
                 result = Type(Types.Array, BaseType.Void, false, to!string(ty.value), dimensions, "", next_);
-            else
-                result = Type(Types.Struct, BaseType.Void, false, to!string(ty.value), dimensions, "", next_);
+            else // pode ser struct ou enum
+                result = Type(Types.Undefined, BaseType.Void, false, to!string(ty.value), dimensions,
+                    to!string(ty.value), next_);
             break;
         }
 
