@@ -23,6 +23,7 @@ enum TokenKind
     Parar,
     Continuar,
     Enquanto,
+    Importar,
 
     // tipos
     I32,
@@ -70,6 +71,7 @@ enum TokenKind
     Modulo, // %
     Dolar, // $
     Arrow, // ->
+    Arroba, // @
 
     GreaterThan, // >
     GreaterThanEquals, // >=

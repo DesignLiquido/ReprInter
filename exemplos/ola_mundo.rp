@@ -1,4 +1,6 @@
+importar biblioteca.entrada_saida
+
 declarar principal vazio {
-    __nucleo_harpy_escreva("Olá Mundo!", "\n")
+    escrevaln("Olá Mundo!")
     fim
 }

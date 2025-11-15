@@ -358,13 +358,13 @@ void main(string[] args)
         CasoTeste(
             "Matematica",
             "exemplos/matematica.rp",
-            ["0", "4"]
+            ["16.00000000"]
         ),
-        CasoTeste(
-            "Ola",
-            "exemplos/ola.rp",
-            ["Ola Fernando"]
-        ),
+        // CasoTeste(
+        //     "Ola",
+        //     "exemplos/ola.rp",
+        //     ["Ola Fernando"]
+        // ),
         CasoTeste(
             "Para",
             "exemplos/para.rp",

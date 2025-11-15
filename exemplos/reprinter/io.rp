@@ -1,0 +1,3 @@
+declarar escreva*(...) vazio;
+declarar escrevaln*(...) vazio;
+declarar escrevaf*(msg texto, ...) vazio;

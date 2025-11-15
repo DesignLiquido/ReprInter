@@ -28,7 +28,7 @@ declarar principal vazio {
     modificarVetor(usuarios)
     escrevaln(usuarios[0].nome)
 
-    para alocar i int = 0; i < __nucleo_harpy_tamanho_vetor(usuarios); i++ {
+    para alocar i int = 0; i < @tamanho_vetor(usuarios); i++ {
         escrevaln("Olá ", usuarios[i].nome)
     }
 

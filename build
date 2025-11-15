@@ -87,6 +87,7 @@ validate_project_structure() {
     local missing=()
     
     [[ ! -d "./stdlib" ]] && missing+=("./stdlib")
+    [[ ! -d "./biblioteca" ]] && missing+=("./biblioteca")
     [[ ! -f "./dub.json" ]] && missing+=("./dub.json")
     [[ ! -f "./README.md" ]] && missing+=("./README.md")
     [[ ! -d "./src" ]] && missing+=("./src")
@@ -154,7 +155,10 @@ compile_system_libraries() {
             exit 1
         fi
     done
-    
+
+    # biblioteca padrão
+    cp -rf "biblioteca" "$MAIN_DIR"
+
     print_success "Bibliotecas compiladas: $compiled"
 }
 

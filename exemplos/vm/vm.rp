@@ -1,0 +1,232 @@
+// vm baseada em stack simples
+
+declarar escrevaf(msg txt, ...) vazio;
+declarar escrevaln(...) vazio;
+declarar escreva(...) vazio;
+
+estrutura Tabela* {
+    simbolos Simbolo[]
+    tamanho int
+}
+
+estrutura Simbolo {
+    tipo Tipo
+    nome txt
+    valor qualquer // inteiro ou decimal
+}
+
+declarar set(tabela ref Tabela, nome txt, tipo ref Tipo, valor qualquer = 0) int {
+    alocar tamanho int = @tamanho_vetor(tabela.tamanho)
+    alocar idx int = -1
+    para alocar i int = 0; i < tamanho; i++
+        se tabela.simbolos[i].nome == nome {
+            idx = i
+            parar
+        }
+    se idx == -1 {
+        tabela.simbolos ~= Simbolo(tipo, nome, valor)
+        tabela.tamanho++
+    } senao {
+        tabela.simbolos[idx].valor = valor
+        tabela.simbolos[idx].tipo = tipo
+    }
+    retorne tabela.tamanho
+}
+
+declarar get(tabela ref Tabela, nome txt) Simbolo {
+    alocar tamanho int = tabela.tamanho
+    para alocar i int = 0; i < tamanho; i++
+        se tabela.simbolos[i].nome == nome
+            retorne tabela.simbolos[i]
+    escrevaf("Variavel não encontrada: '%s'\n", nome)
+    fim
+}
+
+enum OpCode* {
+    Tirar = "Tirar"
+    Empurrar = "Empurrar"
+    Escreva = "Escreva"
+
+    Adicionar = "Adicionar"
+    Multiplicar = "Multiplicar"
+    Dividir = "Dividir"
+    Subtrair = "Subtrair"
+    
+    Armazenar = "Armazenar"
+    Carregar = "Carregar"
+    Fim = "Fim"
+}
+
+enum Tipo {
+    Inteiro = "Inteiro"
+    Decimal = "Decimal"
+    Texto = "Texto"
+}
+
+estrutura Valor {
+    tipo Tipo
+    valor qualquer // qualquer = any
+}
+
+estrutura Instrucao* {
+    op OpCode
+    valor Valor
+}
+
+estrutura MaquinaVirtual* {
+    pilha Valor[]
+}
+
+declarar criarInteiro*(valor int = 0) Valor {
+    retorne Valor(Tipo.Inteiro, valor)
+}
+
+declarar criarDecimal*(valor decimal = 0.0) Valor {
+    retorne Valor(Tipo.Decimal, valor)
+}
+
+declarar criarTexto*(valor txt) Valor {
+    retorne Valor(Tipo.Texto, valor)
+}
+
+declarar pop(vm ref MaquinaVirtual) Valor {
+    alocar tam int = @tamanho_vetor(vm.pilha)
+    se tam == 0 {
+        // pilha vazia, erro
+        escrevaln("Pilha vazia!")
+        fim
+    }
+    alocar ultimo Valor = vm.pilha[tam - 1]
+    vm.pilha = @vetor_pop(vm.pilha)
+    retorne ultimo
+}
+
+declarar executar*(vm ref MaquinaVirtual, tabela ref Tabela, instrucoes ref Instrucao[]) vazio {
+    alocar tam int = @tamanho_vetor(instrucoes)
+    // contador do programa (program counter)
+    alocar pc int = 0
+    enquanto pc < tam {
+        alocar instrucao Instrucao = instrucoes[pc]
+        se instrucao.op == OpCode.Empurrar {
+            // adiciona na pilha com push
+            vm.pilha ~= instrucao.valor
+            pc++
+            continuar
+        }
+        se instrucao.op == OpCode.Adicionar {
+            // adiciona na pilha com push
+            alocar b Valor = pop(vm)
+            alocar a Valor = pop(vm)
+            
+            // o valor será alterado, ele apenas foi inicializado
+            alocar resultado Valor = Valor(Tipo.Inteiro, 0)
+
+            se (b.tipo == Tipo.Decimal && a.tipo == Tipo.Decimal)
+                || (b.tipo == Tipo.Inteiro && a.tipo == Tipo.Decimal)
+                || (b.tipo == Tipo.Decimal && a.tipo == Tipo.Inteiro)
+                resultado = criarDecimal(a.valor + b.valor)
+            senao se b.tipo == Tipo.Inteiro && a.tipo == Tipo.Inteiro
+                resultado = criarInteiro(a.valor + b.valor)
+            senao {
+                escrevaln("Erro no operador Adicionar")
+                fim
+            }
+            vm.pilha ~= resultado
+            pc++
+            continuar
+        }
+        se instrucao.op == OpCode.Subtrair {
+            // adiciona na pilha com push
+            alocar b Valor = pop(vm)
+            alocar a Valor = pop(vm)
+            
+            // o valor será alterado, ele apenas foi inicializado
+            alocar resultado Valor = Valor(Tipo.Inteiro, 0)
+
+            se (b.tipo == Tipo.Decimal && a.tipo == Tipo.Decimal)
+                || (b.tipo == Tipo.Inteiro && a.tipo == Tipo.Decimal)
+                || (b.tipo == Tipo.Decimal && a.tipo == Tipo.Inteiro)
+                resultado = criarDecimal(a.valor - b.valor)
+            senao se b.tipo == Tipo.Inteiro && a.tipo == Tipo.Inteiro
+                resultado = criarInteiro(a.valor - b.valor)
+            senao {
+                escrevaln("Erro no operador Subtrair")
+                fim
+            }
+            vm.pilha ~= resultado
+            pc++
+            continuar
+        }
+        se instrucao.op == OpCode.Multiplicar {
+            // adiciona na pilha com push
+            alocar b Valor = pop(vm)
+            alocar a Valor = pop(vm)
+            
+            // o valor será alterado, ele apenas foi inicializado
+            alocar resultado Valor = Valor(Tipo.Inteiro, 0)
+
+            se (b.tipo == Tipo.Decimal && a.tipo == Tipo.Decimal)
+                || (b.tipo == Tipo.Inteiro && a.tipo == Tipo.Decimal)
+                || (b.tipo == Tipo.Decimal && a.tipo == Tipo.Inteiro)
+                resultado = criarDecimal(a.valor * b.valor)
+            senao se b.tipo == Tipo.Inteiro && a.tipo == Tipo.Inteiro
+                resultado = criarInteiro(a.valor * b.valor)
+            senao {
+                escrevaln("Erro no operador Multiplicar")
+                fim
+            }
+            vm.pilha ~= resultado
+            pc++
+            continuar
+        }
+        se instrucao.op == OpCode.Dividir {
+            // adiciona na pilha com push
+            alocar b Valor = pop(vm)
+            alocar a Valor = pop(vm)
+            
+            // o valor será alterado, ele apenas foi inicializado
+            alocar resultado Valor = Valor(Tipo.Inteiro, 0)
+
+            se b.valor == 0 || b.valor == 0.0 {
+                escrevaln("Divisão por zero encontrada!")
+                fim
+            }
+
+            se (b.tipo == Tipo.Decimal && a.tipo == Tipo.Decimal)
+                || (b.tipo == Tipo.Inteiro && a.tipo == Tipo.Decimal)
+                || (b.tipo == Tipo.Decimal && a.tipo == Tipo.Inteiro)
+                resultado = criarDecimal(a.valor / b.valor)
+            senao se b.tipo == Tipo.Inteiro && a.tipo == Tipo.Inteiro
+                resultado = criarInteiro(a.valor / b.valor)
+            senao {
+                escrevaln("Erro no operador Dividir")
+                fim
+            }
+            vm.pilha ~= resultado
+            pc++
+            continuar
+        }
+        se instrucao.op == OpCode.Armazenar {
+            alocar val Valor = pop(vm)
+            alocar var Valor = instrucao.valor
+            set(tabela, var.valor, val.tipo, val.valor)
+            pc++
+            continuar
+        }
+        se instrucao.op == OpCode.Carregar {
+            alocar var Valor = instrucao.valor
+            alocar sim Simbolo = get(tabela, var.valor)
+            vm.pilha ~= Valor(sim.tipo, sim.valor)
+            pc++
+            continuar
+        }
+        se instrucao.op == OpCode.Escreva {
+            escreva(pop(vm).valor)
+            pc++
+            continuar
+        }
+        se instrucao.op == OpCode.Fim
+            // para tudo
+            retorne;
+    }
+}

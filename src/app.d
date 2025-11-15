@@ -6,10 +6,9 @@ import middle.semantic_analyzer, middle.harpy_optimizer;
 import backend.codegen, backend.harpyvm, backend.compiler;
 import core.stdc.stdlib : exit;
 import core.sys.posix.dlfcn;
-import erro;
+import erro, builtin, env;
 
 const string VERSAO = "0.1.0";
-string HOME, MAIN_DIR, DIR_LIBS, DIR_BIN;
 
 // guarda informações de tempo para métricas, serve para passar todas as métricas para a função de compilação
 // é privada pois não deve ser usada fora deste arquivo (main.d)
@@ -164,50 +163,15 @@ string criarLibSys(string nome)
 	return DIR_LIBS ~ nome ~ ".so";
 }
 
+string extrairDir(string path)
+{
+	string dir = dirName(path);
+	return dir == "." || dir == "" ? "." : dir;
+}
+
 void main(string[] argumentos)
 {
-	version (linux)
-	{
-		HOME = environment.get("HOME");
-		MAIN_DIR = HOME ~ "/.harpy/";
-		DIR_LIBS = MAIN_DIR ~ "libs/";
-		// cria o diretório padrão em ~/.harpy/
-		if (!exists(MAIN_DIR))
-			mkdir(MAIN_DIR);
-		// cria o diretório padrão em ~/.harpy/libs/
-		if (!exists(DIR_LIBS))
-			mkdir(DIR_LIBS);
-	}
-	else version (Windows)
-	{
-		// suporte parcial
-		// caracteres especiais podem ser imprimidos de forma incorreta
-		// preciso testar muitos casos ainda, além do sistema de arquivos que necessitará
-		// além disso, será preciso criar um instalador pro Windows
-		// ele irá baixar alguma release pelo github, extrair o binario apenas e setar o PATH corretamente
-		// não sei muito sobre instaladores do windows então se eu puder embutir o binario no instalador então assim farei
-		import core.sys.windows.windows;
-
-		writeln("AVISO: O windows possui suporte parcial.");
-		SetConsoleOutputCP(65_001);
-		SetConsoleCP(65_001);
-		// vou dar a saida precoce pois sei que o suporte é inexistente
-		exit(-69);
-	}
-	else
-	{
-		writeln("Não há suporte para o seu sistema operacional.");
-		exit(-1);
-	}
-
-	// valida se algumas variaveus importantes foram definidas
-	// deixei essa validação para suprir todos os casos de erros que podem vir a ocorrer
-	if (!exists(MAIN_DIR) || !exists(DIR_LIBS) || !exists(HOME))
-	{
-		writeln(
-			"Houve um erro ao definir algumas variaveis globais, crie um ISSUE no repositório.");
-		exit(-1);
-	}
+	loadEnv();
 
 	DiagnosticError erro = new DiagnosticError; // classe que gera os erros de todo o sistema
 	bool mostrarVersao, mostrarAjuda, mostrarToken, mostrarAst, mostrarTempo, compilar, otimizar, verboso, mostrarAsm;
@@ -310,7 +274,7 @@ void main(string[] argumentos)
 
 		// primeiro passe
 		auto tempoLexer = StopWatch(AutoStart.yes);
-		Token[] tokens = new Lexer(arquivo, conteudo, ".", erro).tokenize();
+		Token[] tokens = new Lexer(arquivo, conteudo, extrairDir(arquivo), erro).tokenize();
 		// esssas chamadas são feitas para verificar se há erros ou avisos no passe anterior
 		// o passe é cada processo do sistema
 		checkErrors(erro);
@@ -331,16 +295,23 @@ void main(string[] argumentos)
 		if (mostrarAst)
 			programa.print();
 
+		// gera todo o builtin (embutido) do sistema
+		// será repassado para o analisador semantico e pro codegen
+		// eu registro neles e eles geram tudo automaticamente
+		Builtin embutido = registrarBuiltin();
+
 		// terceiro passe
 		auto tempoSA = StopWatch(AutoStart.yes);
-		new SemanticAnalyzer(erro).analyze(programa);
+		SemanticAnalyzer analisadorSemantico = new SemanticAnalyzer(erro, embutido);
+		analisadorSemantico.analyze(programa);
 		checkErrors(erro);
 		tempoSA.stop();
 
 		// quarto passe
 		HarpyVM motor = new HarpyVM();
 		auto tempoCG = StopWatch(AutoStart.yes);
-		CodeGen cg = new CodeGen(motor, erro, bibliotecas);
+		CodeGen cg = new CodeGen(motor, erro, bibliotecas, embutido, analisadorSemantico
+				.arquivosImportados);
 		Instruction[] instrucoes = cg.generate(programa);
 		tempoCG.stop();
 

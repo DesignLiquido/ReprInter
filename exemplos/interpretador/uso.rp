@@ -1,0 +1,11 @@
+// importar interpretador : { interpretador, Tabela, escrevaln }
+// importa apenas os simbolos publicos que são os acima deste comentario
+importar interpretador
+
+declarar principal vazio {
+    alocar tabela Tabela = Tabela([], 0)
+    alocar codigo texto = "1 + 1\n"
+    alocar tamanho inteiro = @tamanho_texto(codigo)
+    escrevaln(interpretador(tabela, codigo, tamanho))
+    fim
+}

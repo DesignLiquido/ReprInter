@@ -4,6 +4,6 @@ declarar fibonacci(n int) int {
 }
 
 declarar principal vazio {
-    __nucleo_harpy_escreva("Fibonacci(10) = ", fibonacci(10), "\n")
+    @escreva("Fibonacci(10) = ", fibonacci(10), "\n")
     fim
 }

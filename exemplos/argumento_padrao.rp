@@ -7,6 +7,6 @@ declarar soma(x int, y int = faca_algo()) qualquer {
 }
 
 declarar principal vazio {
-    __nucleo_harpy_escreva(soma(60), "\n")
+    @escreva(soma(60), "\n")
     fim
 }

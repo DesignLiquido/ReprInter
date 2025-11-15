@@ -2,6 +2,7 @@ module middle.semantic_analyzer;
 
 import std.stdio, std.format, std.conv, std.algorithm, std.array : array;
 import frontend.type, frontend.parser.ast, erro, frontend.lexer.token : Loc;
+import builtin;
 
 struct Symbol
 {
@@ -13,6 +14,8 @@ struct Symbol
     bool isStruct = false;
     bool isRef = false;
     bool isEnum = false;
+    bool isPublic = false;
+    string nameMangling = "main";
     Symbol[] funcArgs = [];
     StructField[] fields = []; // para estrutura
     EnumField[] eFields = []; // para enum
@@ -20,7 +23,7 @@ struct Symbol
 
 Symbol createFunction(Type type, Symbol[] args)
 {
-    return Symbol(type, null, false, true, true, false, false, false, args);
+    return Symbol(type, null, false, true, true, false, false, false, false, "main", args);
 }
 
 Symbol[] createFunctionArgs(Type[] types)
@@ -35,10 +38,13 @@ private:
     Symbol[string] globalFuncs; // funções globais
     Symbol[string] structs; // estruturas
     Symbol[string] enums; // enums
+    Symbol[string] consts; // consts
     Type currentFuncReturnType; // tipo de retorno da função atual
     bool insideFunction = false; // flag para verificar se estamos dentro de uma função
     bool insideLoop = false; // flag para verificar se estamos dentro de um loop
     DiagnosticError error;
+    Builtin builtin;
+    string nameMangling = "main";
 
     void pushScope()
     {
@@ -68,6 +74,9 @@ private:
         // busca em enums
         if (auto enm = name in enums)
             return enm;
+        // busca em consts
+        if (auto cnts = name in consts)
+            return cnts;
 
         return null;
     }
@@ -93,7 +102,7 @@ private:
         throw new Exception(message);
     }
 
-    void checkType(Type left, Type right, ref Loc loc)
+    void checkType(ref Type left, ref Type right, ref Loc loc)
     {
         if (!left.isCompatibleWith(right, structs))
             deErro(format(
@@ -153,18 +162,26 @@ private:
             return node;
         case NodeKind.WhileStatement:
             return analyzeWhileStmt(cast(WhileStatement) node);
+        case NodeKind.ConstDeclaration:
+            return analyzeConstDecl(cast(ConstDeclaration) node);
             // literais não precisam de análise especial
         case NodeKind.IntLiteral:
         case NodeKind.DoubleLiteral:
         case NodeKind.BoolLiteral:
         case NodeKind.StringLiteral:
         case NodeKind.EoP:
+        case NodeKind.ImportStatement:
             return node;
 
         default:
             deErro("Nó não suportado: " ~ to!string(node.kind), node.loc);
             return node;
         }
+    }
+
+    Node analyzeConstDecl(ConstDeclaration node)
+    {
+        return node;
     }
 
     Node analyzeWhileStmt(WhileStatement node)
@@ -196,6 +213,9 @@ private:
         // se o meu object for uma estrutura o meu node terá esse tipo
         if (node.object.type.structName != "")
             node.type.type = Types.Struct;
+        // TODO: melhorar isso
+        if (node.object.type.type == Types.Array && node.object.type.structName == "")
+            node.type.type = Types.Literal;
         return node;
     }
 
@@ -208,6 +228,7 @@ private:
                 elem = analyze(elem);
                 checkType(node.type, elem.type, elem.loc);
             }
+        node.nameMangling = this.nameMangling;
         return node;
     }
 
@@ -215,6 +236,7 @@ private:
     {
         node.member = cast(MemberCallExpr) this.analyze(node.member);
         node.value = this.analyze(node.value.get!Node);
+        node.nameMangling = this.nameMangling;
         return node;
     }
 
@@ -224,6 +246,7 @@ private:
         node.object = this.analyze(node.object);
         Node object = node.object;
         Node left = node.member;
+        node.nameMangling = this.nameMangling;
 
         // o membro deve ser um identificador obrigatoriamente
         if (left.kind != NodeKind.Identifier)
@@ -412,6 +435,8 @@ private:
         sym.type = node.type;
         sym.isLet = true;
         sym.isConst = false;
+        sym.nameMangling = this.nameMangling;
+        node.nameMangling = this.nameMangling;
         sym.value = node.value.get!Node;
 
         addSymbol(node.id, sym);
@@ -435,22 +460,32 @@ private:
             node.value = valueNode;
         }
 
+        node.nameMangling = sym.nameMangling;
         node.type = sym.type;
         return node;
     }
 
     Node analyzeFuncDecl(FunctionDeclaration node)
     {
+        // writeln("FN: ", node.name);
+        // writeln("NM: ", node.nameMangling);
+        // writeln("NMM: ", this.nameMangling);
         pushScope();
         scope (exit)
             popScope();
 
-        foreach (param; node.args)
+        bool variadic = false;
+
+        foreach (ref param; node.args)
         {
             Symbol paramSym;
             paramSym.type = param.type;
             paramSym.isLet = true;
             paramSym.isConst = false;
+
+            // variadic omg
+            if (param.type.undefined)
+                variadic = true;
 
             if (param.isRef)
             {
@@ -466,6 +501,11 @@ private:
             addSymbol(param.name, paramSym);
         }
 
+        if (variadic)
+        {
+            addSymbol("varargs", Symbol(Type(Types.Array, BaseType.Any)));
+            addSymbol("varargc", Symbol(Type(Types.Literal, BaseType.Int)));
+        }
         bool previousInsideFunction = insideFunction;
         Type previousReturnType = currentFuncReturnType;
         insideFunction = true;
@@ -526,7 +566,7 @@ private:
 
         foreach (i, ref arg; funcSym.funcArgs)
         {
-            if (arg.type.toStr() == "undefined")
+            if (arg.type.undefined)
             {
                 hasVariadic = true;
                 variadicIndex = i;
@@ -562,6 +602,7 @@ private:
         }
 
         node.type = funcSym.type;
+        node.nameMangling = funcSym.nameMangling; // atualiza o nameMangling pra chamar no codegen corretamente
         return node;
     }
 
@@ -624,6 +665,16 @@ private:
             deErro(format("Identificador '%s' não declarado.", node.value.get!string), node.loc);
 
         node.type = sym.type;
+
+        // writeln(node.value.get!string);
+        // writeln("NM: ", node.nameMangling);
+        // writeln("SYMNM: ", sym.nameMangling);
+        // writeln("THISNM: ", this.nameMangling, "\n");
+
+        if (sym.isStruct || sym.isEnum || sym.isConst)
+            node.nameMangling = sym.nameMangling;
+        else
+            node.nameMangling = this.nameMangling;
         return node;
     }
 
@@ -644,6 +695,8 @@ private:
         symbol.type = node.type;
         symbol.eFields = fields;
         symbol.isEnum = true;
+        symbol.isPublic = node.publico;
+        symbol.nameMangling = this.nameMangling;
         structs[node.name] = symbol;
         return node;
     }
@@ -657,29 +710,37 @@ private:
         symbol.type = node.type;
         symbol.fields = node.fields;
         symbol.isStruct = true;
+        symbol.isPublic = node.publico;
+        symbol.nameMangling = this.nameMangling;
         structs[node.name] = symbol;
         return node;
     }
 
     Node functionInitializer(FunctionDeclaration node)
     {
+        // writeln("FUNC: ", node.name);
+        // writeln("NM: ", node.nameMangling);
+        // writeln("NM>: ", nameMangling);
+
         if (node.name in globalFuncs)
             deErro(format("A função '%s' já foi declarada.", node.name), node.loc);
-
         Symbol funcSym;
         funcSym.isFunc = true;
         funcSym.type = node.type;
+        funcSym.isPublic = node.publico;
+        funcSym.nameMangling = this.nameMangling;
 
         pushScope();
         scope (exit)
             popScope();
 
-        foreach (param; node.args)
+        foreach (ref param; node.args)
         {
             Symbol paramSym;
             paramSym.type = param.type;
             paramSym.isLet = true;
             paramSym.isConst = false;
+            paramSym.nameMangling = this.nameMangling;
 
             if (param.isRef)
             {
@@ -698,39 +759,171 @@ private:
         return node;
     }
 
-public:
-    this(DiagnosticError error)
+    Node constInitializer(ConstDeclaration node)
     {
+        Symbol* sym_ = lookupSymbol(node.id);
+        if (sym_ !is null)
+            deErro(format("Constante já existe '%s'", node.id), node.loc);
+
+        if (node.value.convertsTo!Node)
+        {
+            Node valueNode = node.value.get!Node;
+            valueNode = analyze(valueNode);
+            checkType(node.type, valueNode.type, node.loc);
+            node.value = valueNode;
+        }
+
+        Symbol sym;
+        sym.type = node.type;
+        sym.isLet = false;
+        sym.isConst = true;
+        sym.isPublic = node.publico;
+        sym.value = node.value.get!Node;
+        sym.nameMangling = this.nameMangling;
+        consts[node.id] = sym;
+        return node;
+    }
+
+    string getFileNameFromImport(Node node)
+    {
+        if (node.kind == NodeKind.StringLiteral || node.kind == NodeKind.Identifier)
+            return node.value.get!string;
+
+        if (node.kind == NodeKind.MemberCallExpr)
+        {
+            MemberCallExpr mce = cast(MemberCallExpr) node;
+            return getFileNameFromImport(mce.object) ~ "/" ~ getFileNameFromImport(mce.member);
+        }
+
+        deErro("Expressão desconhecida.", node.loc);
+        return "";
+    }
+
+    Node importInitializer(ImportStatement node)
+    {
+        import std.path : buildPath;
+
+        string filename = getFileNameFromImport(node.value.get!Node);
+        if (filename.length >= 4)
+        {
+            if (filename[$ - 3 .. $] != ".rp")
+                filename ~= ".rp";
+        }
+        else
+            filename ~= ".rp";
+        string file = buildPath(node.loc.dir, filename);
+
+        if (file in arquivosImportados)
+            return node;
+        import frontend.lexer.lexer, frontend.lexer.token, frontend.parser.parser;
+        import std.file : readText, exists;
+        import std.format : format;
+        import std.algorithm : canFind;
+        import env;
+
+        // se não existir então vamos ver se é uma biblioteca padrão
+        bool found = false;
+
+        if (!exists(file))
+        {
+            // carrega as variaveis do ambiente
+            loadEnv();
+            // verifica pelo diretorio principal primeiro
+            if (exists(MAIN_DIR ~ filename))
+            {
+                file = MAIN_DIR ~ filename; // se for biblioteca/entrada_saida.rp ele vira /home/<USR>/.harpy/...
+                found = true;
+            }
+        }
+        else
+            found = true;
+
+        if (!found)
+            deErro(format("O arquivo não existe '%s'.", filename), node.loc);
+
+        string fileContent = readText(file);
+        Lexer lexer = new Lexer(file, fileContent, node.loc.dir, this.error);
+        Token[] tokens = lexer.tokenize();
+        Program program = new Parser(tokens, this.error).parse();
+        SemanticAnalyzer analisador = new SemanticAnalyzer(this.error, builtin, file);
+        analisador.analyze(program);
+
+        // o programa analisado está lindo dimaizi
+        // salva tudo em cache
+        arquivosImportados[file] = program;
+
+        // valida tudo e ja copia pro contexto atual
+        if (node.symbols.length > 0)
+            foreach (string name, bool val; node.symbols)
+            {
+                Symbol* sym = analisador.lookupSymbol(name);
+                if (sym is null)
+                    deErro(format("O simbolo '%s' não foi encontrado no arquivo '%'.", name, file), node
+                            .loc);
+
+                if (!sym.isPublic)
+                    deErro(format("O simbolo '%s' não é publico para a importação.", name), node
+                            .loc);
+
+                if (sym.isConst)
+                    consts[name] = *sym;
+                else if (sym.isEnum)
+                    enums[name] = *sym;
+                else if (sym.isStruct)
+                    structs[name] = *sym;
+                else if (sym.isFunc)
+                    globalFuncs[name] = *sym;
+            }
+        else
+        {
+            // adição manual de cada coisa
+            foreach (string name, ref Symbol sym; analisador.consts)
+                if (!sym.isPublic)
+                    continue;
+                else
+                    consts[name] = sym;
+
+            foreach (string name, ref Symbol sym; analisador.structs)
+                if (!sym.isPublic)
+                    continue;
+                else
+                    structs[name] = sym;
+
+            foreach (string name, ref Symbol sym; analisador.enums)
+                if (!sym.isPublic)
+                    continue;
+                else
+                    enums[name] = sym;
+
+            foreach (string name, ref Symbol sym; analisador.globalFuncs)
+                if (!sym.isPublic)
+                    continue;
+                else
+                    globalFuncs[name] = sym;
+        }
+
+        return node;
+    }
+
+public:
+    Program[string] arquivosImportados; // cache das ASTs
+
+    this(DiagnosticError error, ref Builtin embutido, string nameMangling = "main")
+    {
+        this.builtin = embutido;
         this.error = error;
+        this.nameMangling = nameMangling;
     }
 
     void analyze(ref Program program)
     {
         pushScope();
-        globalFuncs["__nucleo_harpy_escreva"] = createFunction(Type(Types.Void, BaseType.Void),
-            createFunctionArgs([Type(Types.Undefined, BaseType.Void)]));
-
-        globalFuncs["__nucleo_harpy_duplicar"] = createFunction(Type(Types.Literal, BaseType.Any),
-            createFunctionArgs([Type(Types.Literal, BaseType.Any)]));
-
-        globalFuncs["__nucleo_harpy_tamanho_vetor"] = createFunction(
-            Type(Types.Literal, BaseType.Int), createFunctionArgs([
-                Type(Types.Array, BaseType.Any)
-            ]));
-
-        globalFuncs["__nucleo_harpy_tamanho_texto"] = createFunction(
-            Type(Types.Literal, BaseType.Int), createFunctionArgs([
-                Type(Types.Literal, BaseType.String)
-            ]));
-
-        globalFuncs["__nucleo_harpy_tpd"] = createFunction(
-            Type(Types.Literal, BaseType.Int), createFunctionArgs([
-                Type(Types.Literal, BaseType.String)
-            ]));
+        foreach (ref BuiltinFunction func; builtin.funcoes)
+            globalFuncs[func.nome] = createFunction(func.retorno, createFunctionArgs(func.args));
 
         try
         {
-            // cria as funções, estruturas e enums primeiro
+            // cria as funções, estruturas, enums e constantes primeiro
             FunctionDeclaration[] funcoes = program.body
                 .filter!(
                     node => node.kind == NodeKind.FuncDeclaration)
@@ -749,6 +942,21 @@ public:
                 .map!(node => cast(EnumDeclaration) node)
                 .array;
 
+            ConstDeclaration[] consts_ = program.body
+                .filter!(
+                    node => node.kind == NodeKind.ConstDeclaration)
+                .map!(node => cast(ConstDeclaration) node)
+                .array;
+
+            ImportStatement[] imports = program.body
+                .filter!(
+                    node => node.kind == NodeKind.ImportStatement)
+                .map!(node => cast(ImportStatement) node)
+                .array;
+
+            foreach (ImportStatement imprt; imports)
+                importInitializer(imprt);
+
             foreach (FunctionDeclaration func; funcoes)
                 functionInitializer(func);
 
@@ -758,8 +966,14 @@ public:
             foreach (EnumDeclaration enm; enums_)
                 enumInitializer(enm);
 
+            foreach (ConstDeclaration const_; consts_)
+                constInitializer(const_);
+
             foreach (ref stmt; program.body)
+            {
+                stmt.nameMangling = this.nameMangling; // atualiza o name_mangling da ast pro codegen lidar melhor
                 stmt = analyze(stmt);
+            }
         }
         finally
             popScope();

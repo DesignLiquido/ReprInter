@@ -1,0 +1,78 @@
+// Maquina Virtual Harpy
+// Copyright (c) 2025 Fernando (FernandoTheDev)
+// Biblioteca padrão de matemática
+
+importar biblioteca.entrada_saida : { escrevaln }
+
+const PI* decimal = 3.141592653589793
+const E* decimal = 2.718281828459045
+const TAU* decimal = 6.283185307179586
+
+declarar absoluto*(n decimal) decimal {
+    se n < 0.0 retorne -n
+    retorne n
+}
+
+declarar minimo*(...decimal) decimal {
+    se varargc == 0 retorne 0.0
+    alocar menor decimal = varargs[0]
+    para alocar i int = 1; i < varargc; i++
+        se varargs[i] < menor
+            menor = varargs[i]
+    retorne menor
+}
+
+declarar maximo*(...decimal) decimal {
+    se varargc == 0 retorne 0.0
+    alocar maior decimal = varargs[0]
+    para alocar i int = 1; i < varargc; i++
+        se varargs[i] > maior
+            maior = varargs[i]
+    retorne maior
+}
+
+declarar media*(...decimal) decimal {
+    se varargc == 0 retorne 0.0
+    alocar soma decimal = 0.0
+    para alocar i int = 0; i < varargc; i++
+        soma += varargs[i]
+    retorne soma / @ipd(varargc)  // int to double
+}
+
+declarar raiz*(n decimal) decimal {
+    // Newton-Raphson
+    se n < 0.0 retorne 0.0
+    se n == 0.0 retorne 0.0
+    
+    alocar guess decimal = n / 2.0
+    alocar epsilon decimal = 0.000001
+    
+    enquanto absoluto(guess * guess - n) > epsilon
+        guess = (guess + n / guess) / 2.0
+    
+    retorne guess
+}
+
+declarar elevado*(base decimal|inteiro, exp inteiro) decimal {
+    se exp == 0 retorne 1.0
+    se exp < 0 retorne 1.0 / elevado(base, -exp)
+    
+    alocar resultado decimal = 1.0
+    para alocar i int = 0; i < exp; i++
+        resultado *= base
+    
+    retorne resultado
+}
+
+declarar principal vazio {
+    escrevaln("PI: ", PI)
+    escrevaln("E: ", E)
+    escrevaln("TAU: ", TAU)
+    escrevaln("absoluto(-10.0) = ", absoluto(-10.0))
+    escrevaln("minimo(10.0, PI) = ", minimo(10.0, PI))
+    escrevaln("maximo(10.0, PI) = ", maximo(10.0, PI))
+    escrevaln("media(1.0, 2.0, 3.0, 10.0) = ", media(1.0, 2.0, 3.0, 10.0))
+    escrevaln("raiz(625) = ", raiz(625))
+    escrevaln("elevado(10.0, 3.0) = ", elevado(2, 3))
+    fim
+}

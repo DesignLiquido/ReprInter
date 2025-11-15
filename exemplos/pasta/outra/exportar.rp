@@ -1,0 +1,31 @@
+// forma mais simples de escrever funções externas
+declarar escreva(...) vazio;
+declarar escrevaln*(...) vazio;
+
+declarar soma_publica*(x int, y int) int {
+    retorne x + y
+}
+
+const PI f64 = 3.141592
+
+enum Status* {
+    Pago
+    Pendente
+}
+
+estrutura Pagamento* {
+    status Status
+}
+
+declarar mostrar_pi* vazio {
+    escrevaln("PI: ", PI)
+}
+
+declarar soma_privada(x int, y int) int {
+    retorne x + y
+}
+
+declarar loop* vazio {
+    para alocar i int = 0; i < 10; i++
+        @escreva(i, "\n")
+}

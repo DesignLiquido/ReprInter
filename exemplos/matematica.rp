@@ -1,11 +1,8 @@
-externo {
-    declarar arredondar(n decimal = 0.0) decimal;
-    declarar escrevaln(...) vazio;
-    declarar escreva(...) vazio;
-}
+importar biblioteca.entrada_saida
+importar biblioteca.matematica
 
 declarar principal vazio {
-    escrevaln(arredondar())
-    escrevaln(arredondar(3.51))
+    alocar x inteiro = elevado(2, 4)
+    escrevaln(x)
     fim
 }

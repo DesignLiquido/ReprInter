@@ -8,8 +8,8 @@ declarar principal vazio {
     // soma de tipos diferentes
     alocar resultado3 decimal = 60 + 9.0 + resultado1 - resultado2 + (0.00000001 * 2)
 
-    __nucleo_harpy_escreva(resultado1, "\n")
-    __nucleo_harpy_escreva(resultado2, "\n")
-    __nucleo_harpy_escreva(resultado3, "\n")
+    @escreva(resultado1, "\n")
+    @escreva(resultado2, "\n")
+    @escreva(resultado3, "\n")
     fim
 }
