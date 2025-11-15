@@ -200,8 +200,8 @@ declarar demonstrarDuplicacao() vazio {
     escrevaln("  ↳ Ambos foram alterados! Compartilham a mesma struct.")
     
     // Duplicação profunda (deep copy)
-    escrevaln("\n3️⃣ Criando cópia profunda com __nucleo_harpy_duplicar:")
-    alocar user3 Usuario = __nucleo_harpy_duplicar(user1)
+    escrevaln("\n3️⃣ Criando cópia profunda com @duplicar:")
+    alocar user3 Usuario = @duplicar(user1)
     user3.nome = "Ana Costa"
     user3.livros_emprestados = 10
     

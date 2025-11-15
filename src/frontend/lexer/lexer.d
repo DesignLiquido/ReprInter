@@ -59,6 +59,7 @@ private:
         keywords["declarar"] = TokenKind.Declarar;
         keywords["alocar"] = TokenKind.Alocar;
         keywords["const"] = TokenKind.Const;
+        keywords["constante"] = TokenKind.Const;
         keywords["fim"] = TokenKind.Fim;
         keywords["vazio"] = TokenKind.Vazio;
         keywords["se"] = TokenKind.Se;
@@ -75,6 +76,7 @@ private:
         keywords["continuar"] = TokenKind.Continuar;
         keywords["parar"] = TokenKind.Parar;
         keywords["enquanto"] = TokenKind.Enquanto;
+        keywords["importar"] = TokenKind.Importar;
 
         // tipos
         keywords["i32"] = TokenKind.I32;
@@ -125,6 +127,7 @@ private:
         symbols["|"] = TokenKind.BitOr;
         symbols["^"] = TokenKind.BitXor;
         symbols["~"] = TokenKind.BitNot;
+        symbols["@"] = TokenKind.Arroba;
 
         // 2
         symbols["||"] = TokenKind.Or;

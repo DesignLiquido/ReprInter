@@ -2,8 +2,10 @@ module backend.codegen;
 
 import std.stdio, std.format, std.conv, std.algorithm, std.string, std.array : array;
 import core.sys.posix.dlfcn;
-import frontend.parser.ast, frontend.type, frontend.lexer.token : Loc;
-import backend.harpyvm, erro;
+import frontend.parser.ast, middle.semantic_analyzer : Symbol;
+import frontend.lexer.token : Loc;
+import frontend.type : FrontType = Type, BaseType, Types;
+import backend.harpyvm, erro, builtin;
 
 class CodeGen
 {
@@ -14,12 +16,17 @@ private:
     string[] externLibs;
     bool halt = false;
     LoopContext[] loopStack;
+    Symbol[string] structs;
+    Builtin builtin;
+    Program[string] imports;
 
     struct FunctionArg
     {
         string name;
         bool defaultValue = false;
         bool isRef = false;
+        bool isVar = false;
+        FrontType type = FrontType.init;
         Node value = null;
     }
 
@@ -111,23 +118,40 @@ private:
         error.addWarning(Diagnostic(message, loc, sugestoes));
     }
 
+    pragma(inline, true);
     void deErro(string message, Loc loc, Suggestion[] sugestoes = [])
     {
         error.addError(Diagnostic(message, loc, sugestoes));
         throw new Exception(message);
     }
 
+    pragma(inline, true);
+    void checkType(FrontType left, FrontType right, ref Loc loc)
+    {
+        if (!left.isCompatibleWith(right, structs))
+            deErro(format(
+                    "Tipo inesperado: esperado '%s', recebido '%s'",
+                    left.toStr(), right.toStr()
+            ), loc);
+    }
+
+    pragma(inline, true);
+    string makeNameMangling(string n, string m)
+    {
+        return n ~ m;
+    }
+
     Value makeValue(Node node)
     {
-        switch (node.kind)
+        switch (node.type.baseType)
         {
-        case NodeKind.IntLiteral:
+        case BaseType.Int:
             return engine.makeInt(node.value.get!long);
-        case NodeKind.DoubleLiteral:
+        case BaseType.Double:
             return engine.makeFloat(node.value.get!double);
-        case NodeKind.StringLiteral:
+        case BaseType.String:
             return engine.makeStr(node.value.get!string);
-        case NodeKind.BoolLiteral:
+        case BaseType.Bool:
             return engine.makeBool(node.value.get!bool);
         default:
             deErro(format("Literal desconhecido: %s", node.kind), node.loc);
@@ -139,17 +163,37 @@ public:
     void*[string] libs;
     ffi_extern_function[string] externalFunctions;
 
-    this(HarpyVM engine, DiagnosticError error, ref void*[string] libs)
+    this(HarpyVM engine, DiagnosticError error, ref void*[string] libs, ref Builtin embutido, Program[string] imports)
     {
+        this.builtin = embutido;
         this.engine = engine;
         this.libs = libs;
         this.cg = new HarpyCG(engine);
         this.error = error;
+        this.imports = imports;
         pushScope();
     }
 
     Instruction[] generate(Program program)
     {
+        foreach (string id, Program prog; imports)
+        {
+
+            // gera as funções primeiro
+            FunctionDeclaration[] funcs = prog.body
+                .filter!(
+                    node => node.kind == NodeKind.FuncDeclaration)
+                .map!(node => cast(FunctionDeclaration) node)
+                .array;
+
+            foreach (FunctionDeclaration func; funcs)
+                functionInitializer(func);
+
+            foreach (Node node; prog.body)
+                generateNode(node);
+        }
+
+        // gera as funções primeiro
         FunctionDeclaration[] funcoes = program.body
             .filter!(
                 node => node.kind == NodeKind.FuncDeclaration)
@@ -167,7 +211,7 @@ public:
         if (!halt)
             cg.emit(Instruction(OpCode.HALT));
         popScope();
-        cg.callLabel("principal");
+        cg.callLabel("mainprincipal");
         return cg.build();
     }
 
@@ -240,17 +284,23 @@ public:
             break;
         case NodeKind.EnumDeclaration:
             EnumDeclaration e = cast(EnumDeclaration) node;
+            string name = makeNameMangling(e.nameMangling, e.name);
             for (long i = cast(long) e.fields.length - 1; i >= 0; i--)
                 generateNode(e.fields[i].value);
             cg.emit(Instruction(OpCode.ENUMN, engine.makeInt(e.fields.length)));
-            cg.emit(Instruction(OpCode.STOREG, engine.makeStr(e.name)));
-            this.addVar(e.name, true);
+            cg.emit(Instruction(OpCode.STOREG, engine.makeStr(name)));
+            this.addVar(name, true);
             break;
         case NodeKind.BreakOrContinueStmt:
             generateBreakOrContinue(cast(BreakOrContinueStmt) node);
             break;
         case NodeKind.WhileStatement:
             generateWhileStmt(cast(WhileStatement) node);
+            break;
+        case NodeKind.ConstDeclaration:
+            generateConstDecl(cast(ConstDeclaration) node);
+            break;
+        case NodeKind.ImportStatement:
             break;
         case NodeKind.EoP:
             halt = true;
@@ -260,6 +310,15 @@ public:
             deErro(format("Geração de código não implementada para: %s", node.kind), node.loc);
             break;
         }
+    }
+
+    void generateConstDecl(ConstDeclaration node)
+    {
+        Node valueNode = node.value.get!Node;
+        string name = makeNameMangling(node.nameMangling, node.id);
+        generateNode(valueNode);
+        cg.emit(Instruction(OpCode.STOREG, engine.makeStr(name)));
+        addVar(name, true);
     }
 
     void generateWhileStmt(WhileStatement node)
@@ -316,6 +375,7 @@ public:
         {
             Identifier id = cast(Identifier) node.idxExpr.object;
             string varName = id.value.get!string;
+            varName = makeNameMangling(node.nameMangling, varName);
             VarInfo* varInfo = lookupVar(varName);
 
             if (varInfo is null)
@@ -386,6 +446,7 @@ public:
         {
             Identifier id = cast(Identifier) node.member.object;
             string varName = id.value.get!string;
+            varName = makeNameMangling(node.nameMangling, varName);
             VarInfo* varInfo = lookupVar(varName);
 
             if (varInfo is null)
@@ -439,37 +500,41 @@ public:
         void generateExtern(Extern node)
         {
             foreach (FunctionDeclaration funcDecl; node.funcs)
+                generateExtern(funcDecl);
+        }
+
+        void generateExtern(FunctionDeclaration funcDecl)
+        {
+            string name = funcDecl.name;
+
+            if (name in externFuncs)
+                return;
+
+            void* foundHandle = null;
+            string foundLib = null;
+
+            foreach (string lib, void* handle; libs)
             {
-                string name = funcDecl.name;
-
-                if (name in externFuncs)
-                    return;
-
-                void* foundHandle = null;
-                string foundLib = null;
-
-                foreach (string lib, void* handle; libs)
+                auto funcPtr = cast(ffi_extern_function) dlsym(handle, name.toStringz);
+                if (funcPtr !is null)
                 {
-                    auto funcPtr = cast(ffi_extern_function) dlsym(handle, name.toStringz);
-                    if (funcPtr !is null)
-                    {
-                        externalFunctions[name] = funcPtr;
-                        foundHandle = handle;
-                        foundLib = lib;
-                        break;
-                    }
+                    externalFunctions[name] = funcPtr;
+                    foundHandle = handle;
+                    foundLib = lib;
+                    break;
                 }
-
-                if (foundLib is null)
-                    deErro(format("Simbolo '%s' não foi encontrado.", name), node.loc);
-
-                FunctionArg[] args;
-                foreach (arg; funcDecl.args)
-                    args ~= FunctionArg(arg.name, arg.defaultValue, arg.isRef, arg.value);
-                functionArguments[name] = args;
-
-                externFuncs[name] = ExternFunc(name, foundLib, foundHandle);
             }
+
+            if (foundLib is null)
+                deErro(format("Simbolo '%s' não foi encontrado.", name), funcDecl.loc);
+
+            FunctionArg[] args;
+            foreach (arg; funcDecl.args)
+                args ~= FunctionArg(arg.name, arg.defaultValue, arg.isRef, arg.type.undefined, arg.type, arg
+                        .value);
+            functionArguments[name] = args;
+
+            externFuncs[name] = ExternFunc(name, foundLib, foundHandle);
         }
     }
     else version (Windows)
@@ -500,6 +565,10 @@ public:
 
     void generateForStmt(ForStatement node)
     {
+        import std.stdio;
+
+        // writeln("1Mangling: ", node.init_.nameMangling);
+        // writeln("2Mangling: ", node.increment.nameMangling);
         pushScope();
 
         string loopLabel = genLabel("loop");
@@ -641,33 +710,43 @@ public:
         bool isGlobal = isInGlobalScope();
         Node valueNode = node.value.get!Node;
         generateNode(valueNode);
+        string name = makeNameMangling(node.nameMangling, node.id);
 
         if (isGlobal)
-            cg.emit(Instruction(OpCode.STOREG, engine.makeStr(node.id)));
+            cg.emit(Instruction(OpCode.STOREG, engine.makeStr(name)));
         else
-            cg.storeLocal(node.id);
+            cg.storeLocal(name);
 
-        addVar(node.id, isGlobal);
+        addVar(name, isGlobal);
     }
 
     void generateVarAssignment(VarAssignmentDecl node)
     {
-        VarInfo* varInfo = lookupVar(node.id);
+        string name = makeNameMangling(node.nameMangling, node.id);
+        VarInfo* varInfo = lookupVar(name);
         if (varInfo is null)
-            deErro(format("Variable não existe: %s", node.id), node.loc);
+            deErro(format("Variable não existe: %s", name), node.loc);
 
         Node valueNode = node.value.get!Node;
         generateNode(valueNode);
-        cg.storeLocal(node.id);
+        cg.storeLocal(name);
     }
 
     void generateFuncDecl(FunctionDeclaration node)
     {
+        // valida por segurança se é uma função externa
+        if (node.externo)
+        {
+            generateExtern(node);
+            return;
+        }
+
         string skipLabel = genLabel("skip_func");
         cg.emit(Instruction(OpCode.JMP, engine.makeInt(-1)));
         int skipIdx = cast(int) cg.program.length - 1;
+        string name = makeNameMangling(node.nameMangling, node.name);
 
-        cg.label(node.name);
+        cg.label(name);
 
         // FunctionContext ctx;
         // ctx.name = node.name;
@@ -686,8 +765,17 @@ public:
         // Armazena argumentos como variáveis locais
         foreach (arg; node.args)
         {
-            cg.storeLocal(arg.name);
-            addVar(arg.name, false);
+            if (arg.type.undefined)
+            {
+                addVar(makeNameMangling(node.nameMangling, "varargc"), false);
+                addVar(makeNameMangling(node.nameMangling, "varargs"), false);
+                cg.storeLocal(makeNameMangling(node.nameMangling, "varargc"));
+                cg.storeLocal(makeNameMangling(node.nameMangling, "varargs"));
+                break;
+            }
+            string argname = makeNameMangling(node.nameMangling, arg.name);
+            cg.storeLocal(argname);
+            addVar(argname, false);
         }
 
         bool temRetorno = false;
@@ -701,8 +789,9 @@ public:
 
         // verifica se a ultima instrução é um retorno pra ter isso como base pra retorno implicito
         // só pra garantir
-        if (node.body[$ - 1].kind != NodeKind.Return)
-            temRetorno = false;
+        if (node.body.length > 0)
+            if (node.body[$ - 1].kind != NodeKind.Return)
+                temRetorno = false;
 
         // Return implícito se não houver
         if (node.body.length == 0 || !temRetorno)
@@ -718,72 +807,62 @@ public:
 
     void generateCallExpr(CallExpr node)
     {
+        // writeln("ID: ", node.id);
+        // writeln("NM: ", node.nameMangling);
+
         if (node.id in externFuncs)
         {
             generateExternCall(node);
             return;
         }
 
-        if (node.id == "__nucleo_harpy_escreva")
+        if (node.id in builtin.funcoes)
         {
-            foreach (arg; node.args)
+            builtin.funcoes[node.id].callback(this, this.cg, node, this.engine);
+            return;
+        }
+
+        string name = makeNameMangling(node.nameMangling, node.id);
+        FunctionArg[] fA = functionArguments[name];
+        bool var = false;
+        // processa argumentos variadicos primeiro
+        for (long i = 0; i < node.args.length; i++)
+        {
+            if (i < fA.length && fA[i].isVar)
             {
-                generateNode(arg);
-                cg.emit(Instruction(OpCode.PRINT));
+                var = true;
+                // Conta quantos argumentos variádicos restam
+                long argCount = node.args.length - i;
+
+                // Gera os argumentos variádicos em ordem direta
+                for (long j = cast(long) node.args.length - 1; j >= i; j--)
+                {
+                    checkType(fA[i].type, node.args[j].type, node.args[j].loc);
+                    generateNode(node.args[j]);
+                }
+
+                // Cria um array com os argumentos variádicos
+                cg.emit(Instruction(OpCode.PUSH, engine.makeInt(argCount)));
+                cg.emit(Instruction(OpCode.ARRN));
+                cg.emit(Instruction(OpCode.PUSH, engine.makeInt(argCount))); // push do varargc
+                break;
             }
-            return;
         }
 
-        if (node.id == "__nucleo_harpy_duplicar")
+        if (!var)
         {
-            generateNode(node.args[0]);
-            cg.emit(Instruction(OpCode.DUP));
-            return;
-        }
-
-        if (node.id == "__nucleo_harpy_tamanho_vetor")
-        {
-            generateNode(node.args[0]);
-            cg.emit(Instruction(OpCode.ARRL));
-            return;
-        }
-
-        if (node.id == "__nucleo_harpy_tamanho_texto")
-        {
-            // node.args[0].value.get!string.length
-            generateNode(node.args[0]);
-            cg.emit(Instruction(OpCode.STRL));
-            // cg.emit(Instruction(OpCode.PUSH, engine.makeInt()));
-            return;
-        }
-
-        if (node.id == "__nucleo_harpy_tpd")
-        {
-            generateNode(node.args[0]);
-            cg.emit(Instruction(OpCode.STOF));
-            return;
-        }
-
-        if (node.id == "__nucleo_harpy_ipd")
-        {
-            generateNode(node.args[0]);
-            cg.emit(Instruction(OpCode.ITOF));
-            return;
-        }
-
-        if (node.id == "__nucleo_harpy_vetor_pop")
-        {
-            generateNode(node.args[0]);
-            cg.emit(Instruction(OpCode.ARRPP));
-            return;
+            // produz valores padrões pra evitar erro
+            // não produz
+            // cg.emit(Instruction(OpCode.PUSH, engine.makeInt(0)));
+            // cg.emit(Instruction(OpCode.ARRN));
+            // cg.emit(Instruction(OpCode.PUSH, engine.makeInt(0)));
         }
 
         // precisamos validar se há argumentos a serem tratados
-        // se a nossa chamada soma(10) for feita, o numero de args da chamada é 1 enquanto se espera 2 pelo menos
+        // se a nossa chamada soma(10) for feita, o número de args da chamada é 1 enquanto se espera 2 pelo menos
         // logo ele cairá nesse if
         // node.print();
         // writeln(node.id, " ", functionArguments);
-        FunctionArg[] fA = functionArguments[node.id];
         if (node.args.length < fA.length)
         {
             // precisamos preencher apenas os argumentos que FALTAM
@@ -821,20 +900,24 @@ public:
         // se o node.args tiver apenas o x
         // ele será gerado tranquilamente
 
-        // verifica nos argumentos da função se o argumento é por referencia ou não
-        // só é valido para structs ou arrays
-        foreach_reverse (ulong i, arg; node.args)
+        // Verifica nos argumentos da função se o argumento é por referência ou não
+        // Aplica-se apenas a structs ou arrays
+        // Processa argumentos não variádicos
+        for (long i = cast(long) node.args.length - 1; i >= 0; i--)
         {
-            generateNode(arg);
-            if (arg.type.type == Types.Array || arg.type.type == Types.Struct)
+            Node arg = node.args[i];
+            // verifica se ainda existem parâmetros formais correspondentes
+            if (i < fA.length && !fA[i].isVar)
             {
-                // emite cópia profunda se não for por referencia
-                if (!fA[i].isRef)
-                    cg.emit(Instruction(OpCode.DUP));
+                generateNode(arg);
+                // para tipos compostos, verifica se precisa fazer cópia
+                if (arg.type.type == Types.Array || arg.type.type == Types.Struct)
+                    if (!fA[i].isRef)
+                        cg.emit(Instruction(OpCode.DUP));
             }
         }
 
-        cg.callLabel(node.id);
+        cg.callLabel(name);
     }
 
     void generateExternCall(CallExpr node)
@@ -1016,6 +1099,7 @@ public:
             {
                 Identifier id = cast(Identifier) node.left;
                 string name = id.value.get!string;
+                name = makeNameMangling(node.left.nameMangling, name);
                 VarInfo* varInfo = lookupVar(name);
 
                 if (varInfo is null)
@@ -1099,11 +1183,12 @@ public:
                     cg.emit(Instruction(OpCode.DUP));
 
                 Identifier id = cast(Identifier) node.operand;
-                VarInfo* varInfo = lookupVar(id.value.get!string);
+                string name = makeNameMangling(node.operand.nameMangling, id.value.get!string);
+                VarInfo* varInfo = lookupVar(name);
                 if (varInfo.isGlobal)
-                    cg.emit(Instruction(OpCode.STOREG, engine.makeStr(id.value.get!string)));
+                    cg.emit(Instruction(OpCode.STOREG, engine.makeStr(name)));
                 else
-                    cg.storeLocal(id.value.get!string);
+                    cg.storeLocal(name);
             }
             else if (node.operand.kind == NodeKind.MemberCallExpr)
             {
@@ -1128,10 +1213,11 @@ public:
     void generateIdentifier(Identifier node)
     {
         string name = node.value.get!string;
+        name = makeNameMangling(node.nameMangling, name);
         VarInfo* varInfo = lookupVar(name);
 
         if (varInfo is null)
-            deErro(format("Váriavel não encontrada: %s", name), node.loc);
+            deErro(format("Simbolo não encontrado: %s", name), node.loc);
 
         if (varInfo.isGlobal)
             cg.emit(Instruction(OpCode.LOADG, engine.makeStr(name)));
@@ -1148,14 +1234,16 @@ public:
     void functionInitializer(FunctionDeclaration node)
     {
         FunctionContext ctx;
-        ctx.name = node.name;
+        string name = makeNameMangling(node.nameMangling, node.name);
+        ctx.name = name;
         FunctionArg[] args;
         foreach (arg; node.args)
         {
             ctx.params ~= arg.name;
-            args ~= FunctionArg(arg.name, arg.defaultValue, arg.isRef, arg.value);
+            args ~= FunctionArg(arg.name, arg.defaultValue, arg.isRef, arg.type.undefined, arg.type, arg
+                    .value);
         }
-        functionArguments[node.name] = args;
+        functionArguments[name] = args;
         funcContextStack ~= ctx;
     }
 }

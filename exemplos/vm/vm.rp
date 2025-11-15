@@ -1,11 +1,10 @@
 // vm baseada em stack simples
 
-externo {
-    declarar escrevaf(msg txt, ...) vazio;
-    declarar escrevaln(...) vazio;
-}
+declarar escrevaf(msg txt, ...) vazio;
+declarar escrevaln(...) vazio;
+declarar escreva(...) vazio;
 
-estrutura Tabela {
+estrutura Tabela* {
     simbolos Simbolo[]
     tamanho int
 }
@@ -17,11 +16,12 @@ estrutura Simbolo {
 }
 
 declarar set(tabela ref Tabela, nome txt, tipo ref Tipo, valor qualquer = 0) int {
-    alocar tamanho int = __nucleo_harpy_tamanho_vetor(tabela.tamanho)
+    alocar tamanho int = @tamanho_vetor(tabela.tamanho)
     alocar idx int = -1
     para alocar i int = 0; i < tamanho; i++
         se tabela.simbolos[i].nome == nome {
             idx = i
+            parar
         }
     se idx == -1 {
         tabela.simbolos ~= Simbolo(tipo, nome, valor)
@@ -42,7 +42,7 @@ declarar get(tabela ref Tabela, nome txt) Simbolo {
     fim
 }
 
-enum OpCode {
+enum OpCode* {
     Tirar = "Tirar"
     Empurrar = "Empurrar"
     Escreva = "Escreva"
@@ -68,41 +68,41 @@ estrutura Valor {
     valor qualquer // qualquer = any
 }
 
-estrutura Instrucao {
+estrutura Instrucao* {
     op OpCode
     valor Valor
 }
 
-estrutura MaquinaVirtual {
+estrutura MaquinaVirtual* {
     pilha Valor[]
 }
 
-declarar criarInteiro(valor int = 0) Valor {
+declarar criarInteiro*(valor int = 0) Valor {
     retorne Valor(Tipo.Inteiro, valor)
 }
 
-declarar criarDecimal(valor decimal = 0.0) Valor {
+declarar criarDecimal*(valor decimal = 0.0) Valor {
     retorne Valor(Tipo.Decimal, valor)
 }
 
-declarar criarTexto(valor txt) Valor {
+declarar criarTexto*(valor txt) Valor {
     retorne Valor(Tipo.Texto, valor)
 }
 
 declarar pop(vm ref MaquinaVirtual) Valor {
-    alocar tam int = __nucleo_harpy_tamanho_vetor(vm.pilha)
+    alocar tam int = @tamanho_vetor(vm.pilha)
     se tam == 0 {
         // pilha vazia, erro
         escrevaln("Pilha vazia!")
         fim
     }
     alocar ultimo Valor = vm.pilha[tam - 1]
-    vm.pilha = __nucleo_harpy_vetor_pop(vm.pilha)
+    vm.pilha = @vetor_pop(vm.pilha)
     retorne ultimo
 }
 
-declarar executar(vm ref MaquinaVirtual, tabela ref Tabela, instrucoes ref Instrucao[]) vazio {
-    alocar tam int = __nucleo_harpy_tamanho_vetor(instrucoes)
+declarar executar*(vm ref MaquinaVirtual, tabela ref Tabela, instrucoes ref Instrucao[]) vazio {
+    alocar tam int = @tamanho_vetor(instrucoes)
     // contador do programa (program counter)
     alocar pc int = 0
     enquanto pc < tam {
@@ -221,7 +221,7 @@ declarar executar(vm ref MaquinaVirtual, tabela ref Tabela, instrucoes ref Instr
             continuar
         }
         se instrucao.op == OpCode.Escreva {
-            escrevaln(pop(vm).valor)
+            escreva(pop(vm).valor)
             pc++
             continuar
         }
@@ -229,48 +229,4 @@ declarar executar(vm ref MaquinaVirtual, tabela ref Tabela, instrucoes ref Instr
             // para tudo
             retorne;
     }
-}
-
-declarar principal vazio {
-    alocar vm MaquinaVirtual = MaquinaVirtual([])
-    alocar tabela Tabela = Tabela([], 0)
-
-    alocar programa Instrucao[] = [
-        // 60 na pilha
-        Instrucao(OpCode.Empurrar, criarInteiro(20)),
-        Instrucao(OpCode.Empurrar, criarInteiro(3)),
-        Instrucao(OpCode.Multiplicar, criarInteiro()),
-
-        // 9 na pilha
-        Instrucao(OpCode.Empurrar, criarInteiro(81)),
-        Instrucao(OpCode.Empurrar, criarInteiro(9)),
-        Instrucao(OpCode.Dividir, criarInteiro()),
-
-        // 69 na pilha
-        Instrucao(OpCode.Adicionar, criarInteiro()),
-        
-        // cria uma variavel com esse valor
-        // x = 69
-        Instrucao(OpCode.Armazenar, criarTexto("x")),
-
-        // 4.0 na pilha
-        // y = 4.0
-        Instrucao(OpCode.Empurrar, criarDecimal(3.141592)),
-        Instrucao(OpCode.Empurrar, criarDecimal(0.858408)),
-        Instrucao(OpCode.Adicionar, criarDecimal()),
-        Instrucao(OpCode.Armazenar, criarTexto("y")),
-
-        // x + y = 73.0
-        // operação com Inteiro e Decimal
-        Instrucao(OpCode.Carregar, criarTexto("x")),
-        Instrucao(OpCode.Carregar, criarTexto("y")),
-        Instrucao(OpCode.Adicionar, criarInteiro()),
-
-        Instrucao(OpCode.Escreva, criarInteiro()),
-        Instrucao(OpCode.Fim, criarInteiro()),
-    ]
-
-    executar(vm, tabela, programa)
-
-    fim
 }

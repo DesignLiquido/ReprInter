@@ -15,6 +15,7 @@ enum NodeKind
     Extern,
     BreakOrContinueStmt,
     WhileStatement,
+    ImportStatement,
 
     // literais
     IntLiteral,
@@ -31,6 +32,7 @@ enum NodeKind
     MemberCallAssignmentDecl,
     IndexAssignmentDecl,
     EnumDeclaration,
+    ConstDeclaration,
 
     // expressões
     BinaryExpr,
@@ -50,6 +52,8 @@ abstract class Node
     Variant value;
     Type type;
     Loc loc;
+    bool publico = false;
+    string nameMangling = "main";
 
     void print(ulong ident = 0, bool isLast = false);
 }
@@ -96,13 +100,16 @@ class FunctionDeclaration : Node
     string name;
     Node[] body;
     FunctionArgument[] args;
-    this(string name, ref FunctionArgument[] args, Node[] body, Type type, Loc loc)
+    bool externo = false;
+    this(string name, ref FunctionArgument[] args, Node[] body, Type type, Loc loc, bool externo, bool publico = false)
     {
         this.kind = NodeKind.FuncDeclaration;
         this.type = type;
         this.body = body;
         this.name = name;
         this.args = args;
+        this.externo = externo;
+        this.publico = publico;
         this.loc = loc;
     }
 
@@ -574,8 +581,9 @@ class StructDeclaration : Node
 {
     string name;
     StructField[] fields;
-    this(string name, ref StructField[] fields, Loc loc)
+    this(string name, ref StructField[] fields, Loc loc, bool publico = false)
     {
+        this.publico = publico;
         this.kind = NodeKind.StructDeclaration;
         this.fields = fields;
         this.name = name;
@@ -733,8 +741,9 @@ class EnumDeclaration : Node
 {
     string name;
     EnumField[] fields;
-    this(string name, ref EnumField[] fields, Loc loc)
+    this(string name, ref EnumField[] fields, Loc loc, bool publico = false)
     {
+        this.publico = publico;
         this.kind = NodeKind.EnumDeclaration;
         this.fields = fields;
         this.name = name;
@@ -782,6 +791,54 @@ class WhileStatement : Node
     override void print(ulong ident = 0, bool isLast = false)
     {
         // ...
+    }
+}
+
+class ConstDeclaration : Node
+{
+    string id;
+    this(string id, Type type, Node value, Loc loc, bool publico = false)
+    {
+        this.publico = publico;
+        this.kind = NodeKind.ConstDeclaration;
+        this.id = id;
+        this.type = type;
+        this.value = value;
+        this.loc = loc;
+    }
+
+    override void print(ulong ident = 0, bool isLast = false)
+    {
+        string prefix = isLast ? "└── " : "├── ";
+        string continuation = isLast ? "    " : "│   ";
+
+        println(prefix ~ "ConstDeclaration: " ~ id, ident);
+        println(continuation ~ "├── Tipo: " ~ cast(string) type.baseType, ident);
+        println(continuation ~ "└── Valor:", ident);
+        value.get!Node.print(ident + continuation.length + 4, true);
+    }
+}
+
+class ImportStatement : Node
+{
+    bool[string] symbols;
+    this(Node file, Loc loc, bool[string] symbols)
+    {
+        this.kind = NodeKind.ImportStatement;
+        this.type = Type(Types.Void, BaseType.Void);
+        this.value = file;
+        this.loc = loc;
+        this.symbols = symbols;
+    }
+
+    override void print(ulong ident = 0, bool isLast = false)
+    {
+        string prefix = isLast ? "└── " : "├── ";
+        string continuation = isLast ? "    " : "│   ";
+
+        println(prefix ~ "ImportStatement", ident);
+        println(continuation ~ "├── Tipo: " ~ cast(string) type.baseType, ident);
+        println(continuation ~ "├── Valor: " ~ value.get!string, ident);
     }
 }
 

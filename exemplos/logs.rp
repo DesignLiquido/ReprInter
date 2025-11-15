@@ -5,7 +5,7 @@ externo {
 declarar log(
     mensagem texto,
     nivel texto = "INFO",
-    timestamp inteiro = 0
+    timestamp inteiro = 69
 ) vazio {
     escrevaf("[%s] %s\n", nivel, mensagem, "\n")
 }

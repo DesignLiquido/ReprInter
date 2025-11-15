@@ -1,0 +1,54 @@
+importar vm
+
+declarar principal vazio {
+    alocar vm MaquinaVirtual = MaquinaVirtual([])
+    alocar tabela Tabela = Tabela([], 0)
+
+    alocar programa Instrucao[] = [
+        // 60 na pilha
+        Instrucao(OpCode.Empurrar, criarInteiro(20)),
+        Instrucao(OpCode.Empurrar, criarInteiro(3)),
+        Instrucao(OpCode.Multiplicar, criarInteiro()),
+
+        // 9 na pilha
+        Instrucao(OpCode.Empurrar, criarInteiro(81)),
+        Instrucao(OpCode.Empurrar, criarInteiro(9)),
+        Instrucao(OpCode.Dividir, criarInteiro()),
+
+        // 69 na pilha
+        Instrucao(OpCode.Adicionar, criarInteiro()),
+        
+        // cria uma variavel com esse valor
+        // x = 69
+        Instrucao(OpCode.Armazenar, criarTexto("x")),
+
+        // 4.0 na pilha
+        // y = 4.0
+        Instrucao(OpCode.Empurrar, criarDecimal(3.141592)),
+        Instrucao(OpCode.Empurrar, criarDecimal(0.858408)),
+        Instrucao(OpCode.Adicionar, criarDecimal()),
+        Instrucao(OpCode.Armazenar, criarTexto("y")),
+
+        // x + y = 73.0
+        // operação com Inteiro e Decimal
+        Instrucao(OpCode.Carregar, criarTexto("x")),
+        Instrucao(OpCode.Carregar, criarTexto("y")),
+        Instrucao(OpCode.Adicionar, criarInteiro()),
+
+        Instrucao(OpCode.Empurrar, criarTexto("Resultado: ")),
+        Instrucao(OpCode.Escreva, criarInteiro()),
+
+        // mostra o resultado
+        Instrucao(OpCode.Escreva, criarInteiro()),
+
+        // adiciona quebra de linha
+        Instrucao(OpCode.Empurrar, criarTexto("\n")),
+        Instrucao(OpCode.Escreva, criarInteiro()),
+
+        Instrucao(OpCode.Fim, criarInteiro()),
+    ]
+
+    executar(vm, tabela, programa)
+
+    fim
+}

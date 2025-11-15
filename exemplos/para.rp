@@ -1,6 +1,7 @@
 declarar principal vazio {
-    para alocar i int = 0; i < 10; ++i {
-        __nucleo_harpy_escreva(i, " ")
+    alocar tam int = 10
+    para alocar i int = 0; i < tam; ++i {
+        @escreva(i, " ")
     }
     fim
 }

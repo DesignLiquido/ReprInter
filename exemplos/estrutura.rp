@@ -23,7 +23,7 @@ declarar modificarNomePorRef(u ref Usuario) vazio {
 
 declarar principal vazio {
     alocar u Usuario = Usuario("Fernando", 17)
-    alocar copia Usuario = __nucleo_harpy_duplicar(u)
+    alocar copia Usuario = @duplicar(u)
     copia.nome = "João"
 
     escrevaln(u.nome)

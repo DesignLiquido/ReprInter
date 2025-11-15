@@ -7,6 +7,7 @@ enum OpCode : ubyte
 {
     // Builtin
     PRINT,
+    INPUT,
 
     // Math operations {{
     // long
@@ -117,7 +118,8 @@ enum OpCode : ubyte
     POP,
     CALL,
     DUP,
-    // TAILCALL,
+    TRAW, // type raw (retorna uma string com o nome do tipo)
+    EXIT,
     RET,
     HALT
 }
@@ -326,17 +328,6 @@ class HarpyVM
                 pop();
                 pc++;
                 break;
-
-                // case OpCode.DUP:
-                //     Value v = peek();
-                //     if (v.type == Type.Array)
-                //         push(makeArray(v.value.array.dup));
-                //     else if (v.type == Type.Struct)
-                //         push(makeStruct(v.value.struct_.dup));
-                //     else
-                //         push(v);
-                //     pc++;
-                //     break;
 
             case OpCode.DUP:
                 Value v = peek();
@@ -576,7 +567,7 @@ class HarpyVM
 
             case OpCode.LOADL:
                 string name = inst.val.value.str;
-                // writeln("LOADL: ", name, " : ", currentFrame().stack[name]);
+                // writeln("LOADL: ", name);
                 push(currentFrame().stack[name]);
                 pc++;
                 break;
@@ -929,6 +920,37 @@ class HarpyVM
                 pc++;
                 break;
 
+            case OpCode.TRAW:
+                string type = "";
+                Type ty = pop().type;
+                final switch (ty)
+                {
+                case Type.Int:
+                    type = "inteiro";
+                    break;
+                case Type.Float:
+                    type = "inteiro";
+                    break;
+                case Type.String:
+                    type = "texto";
+                    break;
+                case Type.Struct:
+                    type = "estrutura";
+                    break;
+                case Type.Enum:
+                    type = "enum";
+                    break;
+                case Type.Array:
+                    type = "vetor";
+                    break;
+                case Type.Bool:
+                    type = "logico";
+                    break;
+                }
+                push(this.makeStr(type));
+                pc++;
+                break;
+
             case OpCode.FFIL: // FFI Load
                 string libpath = pop().value.str;
                 string libname = inst.val.value.str;
@@ -1028,6 +1050,15 @@ class HarpyVM
                 pc++;
                 break;
 
+            case OpCode.INPUT:
+                string str = readln().strip();
+                push(makeStr(str));
+                pc++;
+                break;
+
+            case OpCode.EXIT:
+                exit(to!int(pop().value.i64));
+                return;
             case OpCode.HALT:
                 return;
             default:

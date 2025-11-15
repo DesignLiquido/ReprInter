@@ -34,16 +34,23 @@ private:
         {
         case TokenKind.Identifier:
         case TokenKind.Dolar:
-            if (token.kind == TokenKind.Dolar)
+        case TokenKind.Arroba:
+            bool isArrba = false;
+            if (token.kind == TokenKind.Dolar || token.kind == TokenKind.Arroba)
+            {
+                if (token.kind == TokenKind.Arroba)
+                    isArrba = true;
                 token = this.advance();
+            }
+            string id = isArrba ? "@" ~ token.value.get!string : token.value.get!string;
             if (this.check(TokenKind.LParen))
-                return parseCallExpr(token.value.get!string, token.loc);
+                return parseCallExpr(id, token.loc);
             if (this.match([TokenKind.Equals]))
             {
                 Node value = this.parseExpression(Precedence.LOWEST);
-                return new VarAssignmentDecl(token.value.get!string, value.type, value, token.loc);
+                return new VarAssignmentDecl(id, value.type, value, token.loc);
             }
-            Node operand = new Identifier(token.value.get!string, token.loc);
+            Node operand = new Identifier(id, token.loc);
             if (this.match([TokenKind.PlusPlus, TokenKind.MinusMinus]))
                 return new UnaryExpr(this.previous().value.get!string, operand, token.loc, true);
             if (this.match([TokenKind.Dot]))
@@ -66,6 +73,8 @@ private:
             return operand;
         case TokenKind.Alocar:
             return this.parseVarDecl();
+        case TokenKind.Const:
+            return this.parseConstDecl();
         case TokenKind.Declarar:
             return this.parseFuncDecl();
         case TokenKind.Retorne:
@@ -90,6 +99,8 @@ private:
             return new BreakOrContinueStmt(false, token.loc);
         case TokenKind.Enquanto:
             return this.parseWhileStmt();
+        case TokenKind.Importar:
+            return this.parseImportStmt();
         case TokenKind.LBracket:
             Node[] values;
             while (!this.check(TokenKind.RBracket) && !this.isAtEnd())
@@ -113,9 +124,43 @@ private:
         case TokenKind.Fim:
             return new EoP(token.loc);
         default:
-            error.addError(Diagnostic("Token desconhecido: " ~ to!string(token), token.loc));
-            throw new Exception("Token desconhecido: " ~ to!string(token));
+            error.addError(Diagnostic("Token desconhecido: " ~ to!string(token.value), token.loc));
+            throw new Exception("Token desconhecido: " ~ to!string(token.value));
         }
+    }
+
+    ImportStatement parseImportStmt()
+    {
+        bool[string] symbols = null;
+        // Token file = this.consume(TokenKind.Txt, "Esperado o nome do arquivo.");
+        Node file = this.parseExpression(Precedence.LOWEST);
+        if (this.match([TokenKind.Colon]))
+        {
+            this.consume(TokenKind.LBrace, "Esperado '{' após ':'.");
+            while (!this.check(TokenKind.RBrace) && !this.isAtEnd())
+            {
+                symbols[this.consume(TokenKind.Identifier, "Esperado um identificador dentro da importação seletiva.")
+                    .value.get!string] = true;
+                this.match([TokenKind.Comma]);
+            }
+            this.consume(TokenKind.RBrace, "Esperado '}' após a importação seletiva.");
+        }
+        return new ImportStatement(file, file.loc, symbols);
+    }
+
+    ConstDeclaration parseConstDecl()
+    {
+        Node id = this.parseExpression(Precedence.HIGHEST);
+        bool publico = this.match([TokenKind.Star]);
+        if (id.kind != NodeKind.Identifier)
+        {
+            error.addError(Diagnostic("Era esperado um nome para a constante.", id.loc));
+            throw new Exception("Era esperado um nome para a constante.");
+        }
+        Type ty = this.parseType();
+        this.consume(TokenKind.Equals, "Esperado '=' após o tipo da constante.");
+        Node value = this.parseExpression(Precedence.LOWEST);
+        return new ConstDeclaration(id.value.get!string, ty, value, id.loc, publico);
     }
 
     WhileStatement parseWhileStmt()
@@ -130,6 +175,7 @@ private:
     {
         string name = this.consume(TokenKind.Identifier, "É esperado um nome para a enumeração.")
             .value.get!string;
+        bool publico = this.match([TokenKind.Star]);
         Loc start = this.previous().loc;
         this.consume(TokenKind.LBrace, "Esperado '{' após o nome da enumeração.");
         EnumField[] fields;
@@ -151,7 +197,7 @@ private:
             fields ~= EnumField(fieldName, value.type, dF, value);
         }
         this.consume(TokenKind.RBrace, "Esperado '}' após a enumeração.");
-        return new EnumDeclaration(name, fields, start);
+        return new EnumDeclaration(name, fields, start, publico);
     }
 
     IndexAssignmentDecl parseIndexAssignmentDecl(IndexExpr member)
@@ -227,6 +273,7 @@ private:
     {
         string name = this.consume(TokenKind.Identifier, "É esperado um nome para a estrutura.")
             .value.get!string;
+        bool publico = this.match([TokenKind.Star]);
         Loc start = this.previous().loc;
         this.consume(TokenKind.LBrace, "Esperado '{' após o nome da estrutura.");
         StructField[] fields;
@@ -246,7 +293,7 @@ private:
             fields ~= StructField(fieldName, ty, dF, value);
         }
         this.consume(TokenKind.RBrace, "Esperado '}' após a estrutura.");
-        return new StructDeclaration(name, fields, start);
+        return new StructDeclaration(name, fields, start, publico);
     }
 
     ForStatement parseForStmt()
@@ -334,6 +381,7 @@ private:
     FunctionDeclaration parseFuncDecl()
     {
         Token id = this.consume(TokenKind.Identifier, "Era esperado um nome para a função.");
+        bool publico = this.match([TokenKind.Star]);
 
         FunctionArgument[] args;
         if (this.match([TokenKind.LParen]))
@@ -345,10 +393,10 @@ private:
         Type funcType = this.parseType();
         Node[] body;
         if (this.match([TokenKind.SemiColon]))
-            return new FunctionDeclaration(id.value.get!string, args, body, funcType, id.loc);
+            return new FunctionDeclaration(id.value.get!string, args, body, funcType, id.loc, true, publico);
 
         body = this.parseBody();
-        return new FunctionDeclaration(id.value.get!string, args, body, funcType, id.loc);
+        return new FunctionDeclaration(id.value.get!string, args, body, funcType, id.loc, false, publico);
     }
 
     FunctionArgument[] parseFuncArgs()
@@ -361,7 +409,13 @@ private:
             bool isRef = false;
             if (this.match([TokenKind.Variadic]))
             {
-                args ~= FunctionArgument("...", Type(Types.Undefined, BaseType.Void, true), defaultValue, dV);
+                Type ty = Type(Types.Undefined, BaseType.Any, true);
+                if (!this.check(TokenKind.Comma) && !this.check(TokenKind.RParen))
+                {
+                    ty = this.parseType();
+                    ty.undefined = true;
+                }
+                args ~= FunctionArgument("...", ty, defaultValue, dV);
                 break;
             }
             Token id = this.consume(TokenKind.Identifier, "Era esperado um nome para o argumento.");
@@ -406,6 +460,15 @@ private:
         Token ty = this.advance();
         bool isArray = false;
         long dimensions = -1;
+        Type* next_ = null; // ponteiro inicializado como null
+
+        // |
+        if (this.match([TokenKind.BitOr]))
+        {
+            // aloca memória para o próximo tipo e chama parseType recursivamente
+            next_ = new Type();
+            *next_ = this.parseType();
+        }
 
         if (this.match([TokenKind.LBracket]))
         {
@@ -419,41 +482,58 @@ private:
             this.consume(TokenKind.RBracket, "Esperado ']' durante a declaração do tipo de um vetor.");
         }
 
+        Type result;
         switch (ty.kind)
         {
         case TokenKind.Int:
         case TokenKind.I32:
         case TokenKind.I64:
             if (isArray)
-                return Type(Types.Array, BaseType.Int, false, "", dimensions);
-            return Type(Types.Literal, BaseType.Int);
+                result = Type(Types.Array, BaseType.Int, false, "", dimensions, "", next_);
+            else
+                result = Type(Types.Literal, BaseType.Int, false, "", dimensions, "", next_);
+            break;
         case TokenKind.Dec:
         case TokenKind.F64:
             if (isArray)
-                return Type(Types.Array, BaseType.Double, false, "", dimensions);
-            return Type(Types.Literal, BaseType.Double);
+                result = Type(Types.Array, BaseType.Double, false, "", dimensions, "", next_);
+            else
+                result = Type(Types.Literal, BaseType.Double, false, "", dimensions, "", next_);
+            break;
         case TokenKind.Txt:
             if (isArray)
-                return Type(Types.Array, BaseType.String, false, "", dimensions);
-            return Type(Types.Literal, BaseType.String);
+                result = Type(Types.Array, BaseType.String, false, "", dimensions, "", next_);
+            else
+                result = Type(Types.Literal, BaseType.String, false, "", dimensions, "", next_);
+            break;
         case TokenKind.Qualquer:
         case TokenKind.Qqr:
             if (isArray)
-                return Type(Types.Array, BaseType.Any, false, "", dimensions);
-            return Type(Types.Literal, BaseType.Any);
+                result = Type(Types.Array, BaseType.Any, false, "", dimensions, "", next_);
+            else
+                result = Type(Types.Literal, BaseType.Any, false, "", dimensions, "", next_);
+            break;
         case TokenKind.Logico:
             if (isArray)
-                return Type(Types.Array, BaseType.Bool, false, "", dimensions);
-            return Type(Types.Literal, BaseType.Bool);
+                result = Type(Types.Array, BaseType.Bool, false, "", dimensions, "", next_);
+            else
+                result = Type(Types.Literal, BaseType.Bool, false, "", dimensions, "", next_);
+            break;
         case TokenKind.Vazio:
             if (isArray)
-                return Type(Types.Array, BaseType.Void, false, "", dimensions);
-            return Type(Types.Void, BaseType.Void);
+                result = Type(Types.Array, BaseType.Void, false, "", dimensions, "", next_);
+            else
+                result = Type(Types.Void, BaseType.Void, false, "", dimensions, "", next_);
+            break;
         default:
             if (isArray)
-                return Type(Types.Array, BaseType.Void, false, to!string(ty.value), dimensions);
-            return Type(Types.Struct, BaseType.Void, false, to!string(ty.value));
+                result = Type(Types.Array, BaseType.Void, false, to!string(ty.value), dimensions, "", next_);
+            else
+                result = Type(Types.Struct, BaseType.Void, false, to!string(ty.value), dimensions, "", next_);
+            break;
         }
+
+        return result;
     }
 
     BinaryExpr parseBinaryExpr(Node left)

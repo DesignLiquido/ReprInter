@@ -1,17 +1,7 @@
 // interpretador de calculos matematicos simples
 
-externo {
-    declarar lerArquivo(arquivo txt) ARQUIVO;
-    declarar entrada(msg txt = "") texto;
-    declarar escrevaf(msg txt, ...) vazio;
-    declarar escrevaln(...) vazio;
-}
-
-estrutura ARQUIVO {
-    conteudo texto
-    tamanho  inteiro
-    erro     inteiro
-}
+importar biblioteca.entrada_saida
+importar biblioteca.arquivo : { lerArquivo, ARQUIVO }
 
 enum TokenTipo {
     Numero = "Numero"               // 0..9 || 0..9.0..9
@@ -27,7 +17,7 @@ enum TokenTipo {
 }
 
 // vai servir como um sistema de contextos simples (muito simples)
-estrutura Tabela {
+estrutura Tabela* {
     simbolos Simbolo[]
     tamanho int // tamanho do vetor de simbolos
 }
@@ -39,7 +29,7 @@ estrutura Simbolo {
 }
 
 declarar set(tabela ref Tabela, nome txt, tipo ref Tipo, valor qualquer = 0) int {
-    alocar tamanho int = __nucleo_harpy_tamanho_vetor(tabela.tamanho)
+    alocar tamanho int = @tamanho_vetor(tabela.tamanho)
     alocar idx int = -1
     para alocar i int = 0; i < tamanho; i++
         se tabela.simbolos[i].nome == nome {
@@ -113,20 +103,20 @@ declarar criarTexto(valor txt) Valor {
 }
 
 declarar pop(vm ref MaquinaVirtual) Valor {
-    alocar tam int = __nucleo_harpy_tamanho_vetor(vm.pilha)
+    alocar tam int = @tamanho_vetor(vm.pilha)
     se tam == 0 {
         // pilha vazia, erro
         escrevaln("Pilha vazia!")
         fim
     }
     alocar ultimo Valor = vm.pilha[tam - 1]
-    vm.pilha = __nucleo_harpy_vetor_pop(vm.pilha)
+    vm.pilha = @vetor_pop(vm.pilha)
     retorne ultimo
 }
 
 declarar executar(vm ref MaquinaVirtual, tabela ref Tabela) vazio {
     alocar instrucoes Instrucao[] = vm.programa
-    alocar tam int = __nucleo_harpy_tamanho_vetor(instrucoes)
+    alocar tam int = @tamanho_vetor(instrucoes)
     // contador do programa (program counter)
     alocar pc int = 0
     enquanto pc < tam {
@@ -270,7 +260,6 @@ declarar eTexto(ch txt) logico {
     retorne (ch >= "a" && ch <= "z") || (ch >= "A" && ch <= "Z") || ch == "_"
 }
 
-
 declarar eNumero(ch txt) logico {
     retorne ch >= "0" && ch <= "9"
 }
@@ -370,7 +359,7 @@ declarar novoParse(tokens Token[]) Parser {
 }
 
 declarar atual(p ref Parser) Token {
-    se p.pos >= __nucleo_harpy_tamanho_vetor(p.tokens) {
+    se p.pos >= @tamanho_vetor(p.tokens) {
         escrevaln("ERROR")
         fim
     }
@@ -379,7 +368,7 @@ declarar atual(p ref Parser) Token {
 
 declarar adicionarNo(p ref Parser, no ref ASTNode) int {
     // adiciona o nó à lista e retorna seu índice
-    alocar idx int = __nucleo_harpy_tamanho_vetor(p.nos)
+    alocar idx int = @tamanho_vetor(p.nos)
     p.nos ~= no
     retorne idx
 }
@@ -452,7 +441,7 @@ declarar gerarNo(vm ref MaquinaVirtual, ast ref ASTNode[], idx int) vazio {
     
     se node.tipo == NodeKind.Numero {
         // Empurra número literal na pilha
-        alocar val decimal = __nucleo_harpy_tpd(node.valor)
+        alocar val decimal = @tpd(node.valor)
         vm.programa ~= Instrucao(OpCode.Empurrar, criarDecimal(val))
         retorne;
     }
@@ -485,9 +474,9 @@ declarar gerarNo(vm ref MaquinaVirtual, ast ref ASTNode[], idx int) vazio {
     }
 }
 
-declarar interpretador(tabela ref Tabela, conteudo txt, tamanho int) qualquer {
+declarar interpretador*(tabela ref Tabela, conteudo txt, tamanho int) decimal {
     alocar tokens Token[] = tokenize(conteudo, tamanho)
-    alocar tokensTam int = __nucleo_harpy_tamanho_vetor(tokens)
+    alocar tokensTam int = @tamanho_vetor(tokens)
 
     // se o tamanho do tokensTam for 1 então não há operações
     // há apenas o EoF
@@ -503,7 +492,7 @@ declarar interpretador(tabela ref Tabela, conteudo txt, tamanho int) qualquer {
     alocar parser Parser = novoParse(tokens)
     alocar raiz int = parseExpressao(parser)
     alocar ast ASTNode[] = parser.nos
-    alocar nosTam int = __nucleo_harpy_tamanho_vetor(ast)
+    alocar nosTam int = @tamanho_vetor(ast)
 
     alocar vm MaquinaVirtual = MaquinaVirtual([], [])
     gerarBytecode(vm, ast, raiz)
@@ -516,8 +505,9 @@ declarar interpretador(tabela ref Tabela, conteudo txt, tamanho int) qualquer {
     //    escrevaf("Tipo: %s\nValor: %s %d %d\n-----------------\n", no.tipo, no.valor, no.esq, no.dir)
     //}
 
-    se __nucleo_harpy_tamanho_vetor(vm.pilha) > 0
+    se @tamanho_vetor(vm.pilha) > 0
         retorne pop(vm).valor
+
     retorne 0.0
 }
 
@@ -536,7 +526,7 @@ declarar principal vazio {
     se !modoRepl {
         alocar arquivo ARQUIVO = lerArquivo("tests/um_mais_um.rrp")
         conteudo = arquivo.conteudo
-        tamanho  = __nucleo_harpy_tamanho_texto(conteudo)
+        tamanho  = @tamanho_texto(conteudo)
 
         se arquivo.erro > 0 {
             escrevaf("Ocorreu um erro ao ler o arquivo: %s\n", conteudo)
@@ -559,10 +549,12 @@ declarar principal vazio {
             continuar
         }
 
-        tamanho = __nucleo_harpy_tamanho_texto(opt)
+        tamanho = @tamanho_texto(opt)
         // para evitar erro
         opt ~= "\n" // adiciona a quebra de linha para simular a mesma quebra de linha dos arquivos
-        escrevaln(interpretador(tabela, opt, tamanho))
+        alocar resultado decimal = interpretador(tabela, opt, tamanho)
+        se resultado != 0.0
+            escrevaln(resultado)
     }
 
     fim

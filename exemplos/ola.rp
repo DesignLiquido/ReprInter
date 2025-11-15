@@ -1,8 +1,6 @@
-externo {
-    declarar escrevaf(msg texto, ...) vazio;
-}
+importar biblioteca.entrada_saida : { escrevaf, entrada }
 
 declarar principal vazio {
-    escrevaf("Ola %s\n", "Fernando")
+    escrevaf("Ola %s\n", entrada("Nome: "))
     fim
 }

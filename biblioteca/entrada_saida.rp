@@ -1,0 +1,98 @@
+// Maquina Virtual Harpy
+// Copyright (c) 2025 Fernando (FernandoTheDev)
+// Biblioteca padrão de entrada e saida (io)
+
+declarar sair*(codigo inteiro = 0) vazio {
+    @sair(codigo)
+}
+
+declarar erro*(msg texto) vazio {
+    @escreva("ERRO: ", msg, "\n")
+    sair(-1)
+}
+
+declarar escreva_varrags(args qualquer[]) vazio {
+    para alocar i int = 0; i < @tamanho_vetor(args); i++ {
+        se @tipo(args[i]) == "vetor" {
+            @escreva("<Vetor>: ")
+            escreva_varrags(args[i])
+            continuar
+        }
+        se @tipo(args[i]) == "estrutura" { @escreva("<Estrutura>") continuar }
+        se @tipo(args[i]) == "enum" { @escreva("<Enum>") continuar }
+        @escreva(args[i])
+    }
+}
+
+declarar escreva*(...) vazio {
+    escreva_varrags(varargs)
+}
+
+declarar escrevaln*(...) vazio {
+    escreva_varrags(varargs)
+    @escreva("\n")
+}
+
+declarar escrevaf*(mensagem texto, ...) vazio {
+    alocar argI int = 0
+    alocar len int = @tamanho_texto(mensagem)
+    alocar ch texto = "" 
+
+    para alocar i int = 0; i < len; i++ {
+        ch = mensagem[i]
+
+        se ch == "%" {
+            se i + 1 >= len
+                erro("Formato inválido: '%' no final do texto.")
+            
+            i++
+            ch = mensagem[i]
+
+            se ch == "%" {
+                @escreva("%")
+                continuar
+            }
+
+            se argI >= varargc
+                erro("Argumentos insuficientes para os especificadores de formato")
+
+            se ch == "s" {
+                se @tipo(varargs[argI]) != "texto"
+                    erro("Esperado tipo Textto para %s")
+                @escreva(varargs[argI++])
+                continuar
+            }
+            se ch == "d" {
+                se @tipo(varargs[argI]) != "inteiro"
+                    erro("Esperado tipo Inteiro para %d")
+                @escreva(varargs[argI++])
+                continuar
+            }
+            se ch == "f" {
+                se @tipo(varargs[argI]) != "decimal"
+                    erro("Esperado tipo Decimal para %f")
+                @escreva(varargs[argI++])
+                continuar
+            }
+            se ch == "b" {
+                se @tipo(varargs[argI]) != "logico"
+                    erro("Esperado tipo Logico para %b")
+                @escreva(varargs[argI++])
+                continuar
+            }
+        } senao se ch == "\\" {
+            se i + 1 >= len
+                erro("Escape inválido: '\\' no final da string")
+            i++
+            ch = mensagem[i]
+            // o motor do reprinter vai lidar com os escapes automaticamente
+            @escreva(ch)
+        } senao
+            @escreva(ch)
+    }
+}
+
+declarar entrada*(mensagem texto = "") texto {
+    escreva(mensagem)
+    retorne @entrada()
+}

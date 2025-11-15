@@ -1,4 +1,5 @@
 module frontend.type;
+import std.stdio : writeln;
 
 // o sistema de tipos é simples mas poderoso
 // por padrão todo tipo é uma estrutura (Type)
@@ -6,10 +7,10 @@ module frontend.type;
 // podendo ser um literal, indefinido, void, array e outros caso haja mais
 // após isso vem o baseType (tipo base), ele determina especificamente o tipo usado em um literal ou não literal
 // como é o caso do void
-// sendo assim, podemos ter Type(Types.Literal, Int) ou Type(Types.Array, Int)
+// sendo assim, podemos ter new Type(Types.Literal, Int) ou new Type(Types.Array, Int)
 // o poder dele é justamente em tipos complexos como Array tudo ainda se manter organizado
 // sendo fácil implementar ponteiros e outros
-// por padrão, o Type(Types.Array, Void) (array de tipo base Void) será um array que suporta todos os tipos
+// por padrão, o new Type(Types.Array, Void) (array de tipo base Void) será um array que suporta todos os tipos
 import std.algorithm : canFind;
 import middle.semantic_analyzer : Symbol;
 
@@ -48,8 +49,14 @@ struct Type
     string structName = "";
     ulong dimensions = 0; // dimensões de um array
     string enumName = "";
+    Type* next = null;
+    int[string] hirarquia = [
+        "logico": 1,
+        "inteiro": 2,
+        "decimal": 3,
+    ];
 
-    bool isCompatibleWith(Type t, ref Symbol[string] structs)
+    bool isCompatibleWith(ref Type t, ref Symbol[string] structs)
     {
         if (baseType == BaseType.Any || t.baseType == BaseType.Any)
             return true;
@@ -60,11 +67,30 @@ struct Type
         // mapa de compatibilidade
         string[][string] compatibilityMap = [
             "inteiro": ["inteiro", "decimal", "qualquer"],
-            "texto": ["texto", "qualquer"],
+            "texto": ["texto", "inteiro", "decimal", "qualquer"],
             "decimal": ["inteiro", "decimal", "qualquer"]
         ];
 
-        if (toStr() in compatibilityMap && compatibilityMap[toStr()].canFind(t.toStr()))
+        // encadeado
+        // se o meu next não for null
+        // eu chamo o metodo de compatibilidade dele
+        if (next !is null) // desreferencia os ponteiros para comparar
+            if (!(*next).isCompatibleWith(t, structs))
+                return false;
+
+        // vamos supor que passou no meu next, vamos verificar se o T passado tem tambem
+        if (t.next !is null)
+            if (!(*t.next).isCompatibleWith(this, structs))
+                return false;
+
+        if (t.type == Types.Literal && type == Types.Literal)
+            if (baseType in compatibilityMap && compatibilityMap[baseType].canFind(t.baseType))
+            {
+                promoteType(t);
+                return true;
+            }
+
+        if (t.enumName == enumName && t.enumName != "" && enumName != "")
             return true;
 
         final switch (t.type)
@@ -84,6 +110,23 @@ struct Type
         }
     }
 
+    void promoteType(ref Type t)
+    {
+        int left = hirarquia.get(baseType, 0);
+        int right = hirarquia.get(t.baseType, 0);
+        // writeln("LEFT: ", baseType, " ", left);
+        // writeln("RIGHT: ", t.baseType, " ", right);
+        // se o nivel atual for menor que o outro nivel então haverá um "UPGRADE"
+        // int < double
+        // baseType = double
+        // promoção do tipo mais fraco
+        if (left < right)
+            baseType = t.baseType;
+        else if (left > right)
+            t.baseType = baseType;
+
+    }
+
     bool isNumeric()
     {
         return type == Types.Literal &&
@@ -93,12 +136,15 @@ struct Type
 
     string toStr()
     {
+        string _next = "";
+        if (next !is null)
+            _next ~= "|" ~ (*next).toStr();
         if (type == Types.Array)
-            return baseType ~ "[]";
+            return baseType ~ "[]" ~ _next;
         if (type == Types.Struct)
-            return structName;
+            return structName ~ _next;
         if (type == Types.Literal)
-            return baseType;
+            return baseType ~ _next;
         if (type == Types.Void)
             return "void";
         return "undefined";
