@@ -835,6 +835,8 @@ private:
                 found = true;
             }
         }
+        else
+            found = true;
 
         if (!found)
             deErro(format("O arquivo não existe '%s'.", filename), node.loc);

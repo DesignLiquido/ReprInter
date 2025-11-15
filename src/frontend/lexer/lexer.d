@@ -340,7 +340,7 @@ public:
                 continue;
             }
 
-            if (ch == '/' && offset + 1 < source.length && source[offset + 1] == '/')
+            if ((ch == '/' && offset + 1 < source.length && source[offset + 1] == '/') || ch == '#')
             {
                 while (offset < source.length && peek() != '\n')
                     advance();
