@@ -138,6 +138,9 @@ private:
     pragma(inline, true);
     string makeNameMangling(string n, string m)
     {
+        n = n.replace("/", "$");
+        n = n.replace(".rp", "$");
+        n = n.replace(".", "_");
         return n ~ m;
     }
 
@@ -176,23 +179,6 @@ public:
 
     Instruction[] generate(Program program)
     {
-        foreach (string id, Program prog; imports)
-        {
-
-            // gera as funções primeiro
-            FunctionDeclaration[] funcs = prog.body
-                .filter!(
-                    node => node.kind == NodeKind.FuncDeclaration)
-                .map!(node => cast(FunctionDeclaration) node)
-                .array;
-
-            foreach (FunctionDeclaration func; funcs)
-                functionInitializer(func);
-
-            foreach (Node node; prog.body)
-                generateNode(node);
-        }
-
         // gera as funções primeiro
         FunctionDeclaration[] funcoes = program.body
             .filter!(
@@ -211,6 +197,8 @@ public:
         if (!halt)
             cg.emit(Instruction(OpCode.HALT));
         popScope();
+        if ("mainprincipal" !in cg.labels)
+            deErro("A função 'principal' não foi encontrada.", program.loc);
         cg.callLabel("mainprincipal");
         return cg.build();
     }
@@ -955,8 +943,6 @@ public:
         bool isAny = node.left.type.baseType == BaseType.Any || node.right.type.baseType == BaseType
             .Any;
         bool isDiff = node.left.type.baseType != node.right.type.baseType;
-
-        isAny = true;
 
         void erroBitWise(bool check, Loc loc)
         {

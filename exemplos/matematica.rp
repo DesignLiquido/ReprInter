@@ -2,7 +2,7 @@ importar biblioteca.entrada_saida
 importar biblioteca.matematica
 
 declarar principal vazio {
-    alocar x inteiro = elevado(2, 4)
-    escrevaln(x)
+    alocar x decimal = elevado(2.0, 4)
+    escrevaf("%.8f\n", x)
     fim
 }

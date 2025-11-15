@@ -7,6 +7,10 @@ enum OpCode : ubyte
 {
     // Builtin
     PRINT,
+    PRINTI, // print int
+    PRINTD, // print double
+    PRINTS, // print string
+    PRINTB, // print bool
     INPUT,
 
     // Math operations {{
@@ -112,6 +116,7 @@ enum OpCode : ubyte
     // Casts (conversões)
     STOF, // string to float
     ITOF, // int to float
+    STOI, // string to int
 
     // Core
     PUSH,
@@ -413,9 +418,9 @@ class HarpyVM
                 else if (a.type == Type.Float && b.type == Type.Float)
                     push(makeFloat(a.value.f64 + b.value.f64));
                 else if (a.type == Type.Int && b.type == Type.Float)
-                    push(makeFloat(cast(double) a.value.i64 + b.value.f64));
+                    push(makeFloat(to!double(a.value.i64) + b.value.f64));
                 else if (a.type == Type.Float && b.type == Type.Int)
-                    push(makeFloat(a.value.f64 + cast(double) b.value.i64));
+                    push(makeFloat(a.value.f64 + to!double(b.value.i64)));
                 else
                     throw new Exception("Tipos incompatíveis para ADD");
                 pc++;
@@ -429,9 +434,9 @@ class HarpyVM
                 else if (a.type == Type.Float && b.type == Type.Float)
                     push(makeFloat(a.value.f64 - b.value.f64));
                 else if (a.type == Type.Int && b.type == Type.Float)
-                    push(makeFloat(cast(double) a.value.i64 - b.value.f64));
+                    push(makeFloat(to!double(a.value.i64) - b.value.f64));
                 else if (a.type == Type.Float && b.type == Type.Int)
-                    push(makeFloat(a.value.f64 - cast(double) b.value.i64));
+                    push(makeFloat(a.value.f64 - to!double(b.value.i64)));
                 else
                     throw new Exception("Tipos incompatíveis para SUB");
                 pc++;
@@ -445,9 +450,9 @@ class HarpyVM
                 else if (a.type == Type.Float && b.type == Type.Float)
                     push(makeFloat(a.value.f64 * b.value.f64));
                 else if (a.type == Type.Int && b.type == Type.Float)
-                    push(makeFloat(cast(double) a.value.i64 * b.value.f64));
+                    push(makeFloat(to!double(a.value.i64) * b.value.f64));
                 else if (a.type == Type.Float && b.type == Type.Int)
-                    push(makeFloat(a.value.f64 * cast(double) b.value.i64));
+                    push(makeFloat(a.value.f64 * to!double(b.value.i64)));
                 else
                     throw new Exception("Tipos incompatíveis para MUL");
                 pc++;
@@ -472,13 +477,13 @@ class HarpyVM
                 {
                     if (b.value.f64 == 0.0)
                         throw new Exception("Divisão por zero");
-                    push(makeFloat(cast(double) a.value.i64 / b.value.f64));
+                    push(makeFloat(to!double(a.value.i64) / b.value.f64));
                 }
                 else if (a.type == Type.Float && b.type == Type.Int)
                 {
                     if (b.value.i64 == 0)
                         throw new Exception("Divisão por zero");
-                    push(makeFloat(a.value.f64 / cast(double) b.value.i64));
+                    push(makeFloat(a.value.f64 / to!double(b.value.i64)));
                 }
                 else
                     throw new Exception("Tipos incompatíveis para DIV");
@@ -910,6 +915,11 @@ class HarpyVM
                 pc++;
                 break;
 
+            case OpCode.STOI:
+                push(makeInt(to!long(pop().value.str)));
+                pc++;
+                break;
+
             case OpCode.STOF:
                 push(makeFloat(to!double(pop().value.str)));
                 pc++;
@@ -929,7 +939,7 @@ class HarpyVM
                     type = "inteiro";
                     break;
                 case Type.Float:
-                    type = "inteiro";
+                    type = "decimal";
                     break;
                 case Type.String:
                     type = "texto";
@@ -1026,27 +1036,62 @@ class HarpyVM
                 final switch (v.type)
                 {
                 case Type.Int:
-                    printf("%lld".toStringz(), v.value.i64);
+                    write(v.value.i64);
                     break;
                 case Type.Float:
-                    printf("%.8f".toStringz(), v.value.f64);
+                    write(v.value.f64);
                     break;
                 case Type.String:
-                    printf("%s", v.value.str.toStringz());
+                    write(v.value.str);
                     break;
                 case Type.Bool:
-                    printf("%s".toStringz(), v.value.i1 ? "verdadeiro".toStringz() : "falso".toStringz());
+                    write(v.value.i1 ? "verdadeiro" : "falso");
                     break;
                 case Type.Array:
-                    printf("<Array>".toStringz());
+                    write("<Array>");
                     break;
                 case Type.Struct:
-                    printf("<Struct>".toStringz());
+                    write("<Struct>");
                     break;
                 case Type.Enum:
-                    printf("<Enum>".toStringz());
+                    write("<Enum>");
                     break;
                 }
+                pc++;
+                break;
+
+            case OpCode.PRINTI:
+                Value val = pop();
+                if (val.type != Type.Int)
+                    throw new Exception("PRINTI esperava um inteiro.");
+                write(val.value.i64);
+                pc++;
+                break;
+
+            case OpCode.PRINTD:
+                Value val2 = pop();
+                Value val1 = pop();
+                if (val1.type != Type.Float)
+                    throw new Exception("PRINTF esperava um decimal.");
+                if (val2.type != Type.Int)
+                    throw new Exception("PRINTI esperava um inteiro.");
+                writef(format("%%.%df", val2.value.i64), val1.value.f64);
+                pc++;
+                break;
+
+            case OpCode.PRINTS:
+                Value val = pop();
+                if (val.type != Type.String)
+                    throw new Exception("PRINTS esperava um texto.");
+                write(val.value.str);
+                pc++;
+                break;
+
+            case OpCode.PRINTB:
+                Value val = pop();
+                if (val.type != Type.Bool)
+                    throw new Exception("PRINTB esperava um logico.");
+                write(val.value.i1);
                 pc++;
                 break;
 

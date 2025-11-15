@@ -96,19 +96,32 @@ private:
         error.addWarning(Diagnostic(message, loc, sugestoes));
     }
 
+    pragma(inline, true);
     void deErro(string message, Loc loc, Suggestion[] sugestoes = [])
     {
         error.addError(Diagnostic(message, loc, sugestoes));
         throw new Exception(message);
     }
 
-    void checkType(ref Type left, ref Type right, ref Loc loc)
+    pragma(inline, true);
+    void checkType(ref Type left, ref Type right, ref Loc loc, bool estrito = true)
     {
-        if (!left.isCompatibleWith(right, structs))
+        if (!left.isCompatibleWith(right, structs, estrito))
             deErro(format(
                     "Tipo inesperado: esperado '%s', recebido '%s'",
                     left.toStr(), right.toStr()
             ), loc);
+    }
+
+    Type resolveType(ref Type type)
+    {
+        if (type.type == Types.Array)
+            return type;
+        if (type.enumName in enums)
+            type.type = Types.Enum;
+        else if (type.structName in structs)
+            type.type = Types.Struct;
+        return type;
     }
 
     Node analyze(Node node)
@@ -207,6 +220,7 @@ private:
         node.idx = this.analyze(node.idx);
         node.object = this.analyze(node.object);
         node.type = node.object.type;
+        resolveType(node.type);
         if (node.object.type.baseType != BaseType.String && node.object.type.type != Types.Array)
             deErro(
                 "O acesso ao indice só pode ser feito em vetores e dados do tipo texto.", node.loc);
@@ -237,6 +251,7 @@ private:
         node.member = cast(MemberCallExpr) this.analyze(node.member);
         node.value = this.analyze(node.value.get!Node);
         node.nameMangling = this.nameMangling;
+        resolveType(node.type);
         return node;
     }
 
@@ -247,6 +262,7 @@ private:
         Node object = node.object;
         Node left = node.member;
         node.nameMangling = this.nameMangling;
+        resolveType(node.type);
 
         // o membro deve ser um identificador obrigatoriamente
         if (left.kind != NodeKind.Identifier)
@@ -369,6 +385,8 @@ private:
         if (!insideFunction)
             deErro("O 'retorne' foi usado fora de uma função.", node.loc);
 
+        resolveType(node.type);
+
         if (node.ret && node.value.convertsTo!Node)
         {
             Node returnValue = node.value.get!Node;
@@ -431,6 +449,7 @@ private:
             // node.type = valueNode.type;
         }
 
+        resolveType(node.type);
         Symbol sym;
         sym.type = node.type;
         sym.isLet = true;
@@ -460,6 +479,8 @@ private:
             node.value = valueNode;
         }
 
+        resolveType(sym.type);
+        resolveType(node.type);
         node.nameMangling = sym.nameMangling;
         node.type = sym.type;
         return node;
@@ -467,9 +488,6 @@ private:
 
     Node analyzeFuncDecl(FunctionDeclaration node)
     {
-        // writeln("FN: ", node.name);
-        // writeln("NM: ", node.nameMangling);
-        // writeln("NMM: ", this.nameMangling);
         pushScope();
         scope (exit)
             popScope();
@@ -479,6 +497,7 @@ private:
         foreach (ref param; node.args)
         {
             Symbol paramSym;
+            resolveType(param.type);
             paramSym.type = param.type;
             paramSym.isLet = true;
             paramSym.isConst = false;
@@ -547,6 +566,7 @@ private:
                 checkType(symbol.fields[i].type, arg.type, node.loc);
         }
 
+        resolveType(symbol.type);
         node.type = symbol.type;
         return new StructExpr(node);
     }
@@ -590,6 +610,7 @@ private:
                     node.id, funcSym.funcArgs.length, node.args.length
             ), node.loc);
 
+        // writeln(node.id);
         foreach (i, ref arg; node.args)
         {
             arg = analyze(arg);
@@ -601,6 +622,7 @@ private:
                 checkType(funcSym.funcArgs[i].type, arg.type, node.loc);
         }
 
+        resolveType(funcSym.type);
         node.type = funcSym.type;
         node.nameMangling = funcSym.nameMangling; // atualiza o nameMangling pra chamar no codegen corretamente
         return node;
@@ -627,8 +649,10 @@ private:
             return node;
         }
 
-        checkType(node.left.type, node.right.type, node.loc);
-        node.type = node.left.type;
+        checkType(node.left.type, node.right.type, node.loc, false);
+        node.type = Type.getPromotedType(node.left.type, node.right.type);
+        node.left.type = node.type;
+        node.right.type = node.type;
         return node;
     }
 
@@ -660,16 +684,13 @@ private:
 
     Node analyzeIdentifier(Identifier node)
     {
-        Symbol* sym = lookupSymbol(node.value.get!string);
+        string name = node.value.get!string;
+        Symbol* sym = lookupSymbol(name);
         if (sym is null)
-            deErro(format("Identificador '%s' não declarado.", node.value.get!string), node.loc);
+            deErro(format("Identificador '%s' não declarado.", name), node.loc);
 
         node.type = sym.type;
-
-        // writeln(node.value.get!string);
-        // writeln("NM: ", node.nameMangling);
-        // writeln("SYMNM: ", sym.nameMangling);
-        // writeln("THISNM: ", this.nameMangling, "\n");
+        resolveType(node.type);
 
         if (sym.isStruct || sym.isEnum || sym.isConst)
             node.nameMangling = sym.nameMangling;
@@ -706,6 +727,7 @@ private:
         Symbol* sym = this.lookupSymbol(node.name);
         if (sym !is null)
             deErro(format("A estrutura ja existe '%s'.", node.name), node.loc);
+
         Symbol symbol;
         symbol.type = node.type;
         symbol.fields = node.fields;
@@ -737,6 +759,7 @@ private:
         foreach (ref param; node.args)
         {
             Symbol paramSym;
+            resolveType(param.type);
             paramSym.type = param.type;
             paramSym.isLet = true;
             paramSym.isConst = false;
@@ -905,6 +928,40 @@ private:
         return node;
     }
 
+    string gerarChaveUnica(Node node)
+    {
+        // gera chave unica para evitar colisões ao juntar todas as ASTs no fim da analise
+        switch (node.kind)
+        {
+        case NodeKind.FuncDeclaration:
+            FunctionDeclaration func = cast(FunctionDeclaration) node;
+            return format("func:%s:%s", func.nameMangling, func.name);
+
+        case NodeKind.StructDeclaration:
+            StructDeclaration strc = cast(StructDeclaration) node;
+            return format("struct:%s:%s", strc.nameMangling, strc.name);
+
+        case NodeKind.EnumDeclaration:
+            EnumDeclaration enm = cast(EnumDeclaration) node;
+            return format("enum:%s:%s", enm.nameMangling, enm.name);
+
+        case NodeKind.ConstDeclaration:
+            ConstDeclaration cnst = cast(ConstDeclaration) node;
+            return format("const:%s:%s", cnst.nameMangling, cnst.id);
+
+        case NodeKind.Extern:
+            Extern ext = cast(Extern) node;
+            if (ext.funcs.length > 0)
+                return format("extern:%s", ext.funcs[0].name);
+            return "";
+
+        default:
+            // Para nós sem nome (imports, statements, etc), retorna vazio
+            // Isso fará com que sejam sempre incluídos
+            return "";
+        }
+    }
+
 public:
     Program[string] arquivosImportados; // cache das ASTs
 
@@ -957,14 +1014,14 @@ public:
             foreach (ImportStatement imprt; imports)
                 importInitializer(imprt);
 
-            foreach (FunctionDeclaration func; funcoes)
-                functionInitializer(func);
-
             foreach (StructDeclaration strc; estruturas)
                 structInitializer(strc);
 
             foreach (EnumDeclaration enm; enums_)
                 enumInitializer(enm);
+
+            foreach (FunctionDeclaration func; funcoes)
+                functionInitializer(func);
 
             foreach (ConstDeclaration const_; consts_)
                 constInitializer(const_);
@@ -977,5 +1034,23 @@ public:
         }
         finally
             popScope();
+
+        Node[] body;
+        bool[string] nodosProcessados; // chave: nome_do_simbolo + tipo_do_no
+
+        foreach (string n, Program p; this.arquivosImportados)
+            foreach (Node node; p.body)
+            {
+                string chave = gerarChaveUnica(node);
+                // Se a chave for vazia (nó sem nome) ou ainda não foi processada
+                if (chave == "" || chave !in nodosProcessados)
+                {
+                    body ~= node;
+                    if (chave != "")
+                        nodosProcessados[chave] = true;
+                }
+            }
+
+        program = new Program(body ~ program.body);
     }
 }

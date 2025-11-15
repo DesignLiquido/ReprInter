@@ -53,9 +53,9 @@ declarar raiz*(n decimal) decimal {
     retorne guess
 }
 
-declarar elevado*(base decimal|inteiro, exp inteiro) decimal {
-    se exp == 0 retorne 1.0
-    se exp < 0 retorne 1.0 / elevado(base, -exp)
+declarar elevado*(base decimal, exp inteiro) decimal {
+    se exp == 0.0 retorne 1.0
+    se exp < 0.0 retorne 1.0 / elevado(base, -exp)
     
     alocar resultado decimal = 1.0
     para alocar i int = 0; i < exp; i++
@@ -73,6 +73,6 @@ declarar principal vazio {
     escrevaln("maximo(10.0, PI) = ", maximo(10.0, PI))
     escrevaln("media(1.0, 2.0, 3.0, 10.0) = ", media(1.0, 2.0, 3.0, 10.0))
     escrevaln("raiz(625) = ", raiz(625))
-    escrevaln("elevado(10.0, 3.0) = ", elevado(2, 3))
+    escrevaln("elevado(2.0, 3) = ", elevado(2, 3))
     fim
 }

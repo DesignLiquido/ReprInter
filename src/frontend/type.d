@@ -41,6 +41,26 @@ enum Types : string
     Enum = "Enum",
 }
 
+const int[string] hirarquia = [
+    "logico": 1,
+    "inteiro": 2,
+    "decimal": 3,
+];
+
+// mapa de compatibilidade estrito
+string[][string] compatibilityMap1 = [
+    "inteiro": ["inteiro", "qualquer"],
+    "texto": ["texto", "inteiro", "decimal", "qualquer"],
+    "decimal": ["inteiro", "decimal", "qualquer"]
+];
+
+// mapa de compatibilidade liberal
+string[][string] compatibilityMap2 = [
+    "inteiro": ["inteiro", "decimal", "qualquer"],
+    "texto": ["texto", "inteiro", "decimal", "qualquer"],
+    "decimal": ["inteiro", "decimal", "qualquer"]
+];
+
 struct Type
 {
     Types type;
@@ -50,26 +70,14 @@ struct Type
     ulong dimensions = 0; // dimensões de um array
     string enumName = "";
     Type* next = null;
-    int[string] hirarquia = [
-        "logico": 1,
-        "inteiro": 2,
-        "decimal": 3,
-    ];
 
-    bool isCompatibleWith(ref Type t, ref Symbol[string] structs)
+    bool isCompatibleWith(ref Type t, ref Symbol[string] structs, bool estrito = true)
     {
         if (baseType == BaseType.Any || t.baseType == BaseType.Any)
             return true;
 
         if (structName in structs)
             return true;
-
-        // mapa de compatibilidade
-        string[][string] compatibilityMap = [
-            "inteiro": ["inteiro", "decimal", "qualquer"],
-            "texto": ["texto", "inteiro", "decimal", "qualquer"],
-            "decimal": ["inteiro", "decimal", "qualquer"]
-        ];
 
         // encadeado
         // se o meu next não for null
@@ -83,12 +91,15 @@ struct Type
             if (!(*t.next).isCompatibleWith(this, structs))
                 return false;
 
+        string[][string] compatibilityMap;
+        if (estrito)
+            compatibilityMap = compatibilityMap1;
+        else
+            compatibilityMap = compatibilityMap2;
+
         if (t.type == Types.Literal && type == Types.Literal)
             if (baseType in compatibilityMap && compatibilityMap[baseType].canFind(t.baseType))
-            {
-                promoteType(t);
                 return true;
-            }
 
         if (t.enumName == enumName && t.enumName != "" && enumName != "")
             return true;
@@ -122,9 +133,13 @@ struct Type
         // promoção do tipo mais fraco
         if (left < right)
             baseType = t.baseType;
-        else if (left > right)
-            t.baseType = baseType;
+    }
 
+    static Type getPromotedType(ref Type left, ref Type right)
+    {
+        int leftLevel = hirarquia.get(left.baseType, 0);
+        int rightLevel = hirarquia.get(right.baseType, 0);
+        return (leftLevel >= rightLevel) ? left : right;
     }
 
     bool isNumeric()
