@@ -1,6 +1,6 @@
 module backend.codegen;
 
-import std.stdio, std.format, std.conv, std.algorithm, std.string, std.array : array;
+import std.stdio, std.format, std.conv, std.algorithm, std.string, std.path, std.array : array;
 import core.sys.posix.dlfcn;
 import frontend.parser.ast, middle.semantic_analyzer : Symbol;
 import frontend.lexer.token : Loc;
@@ -164,6 +164,7 @@ private:
 
 public:
     void*[string] libs;
+    bool[string] libsUsadas;
     ffi_extern_function[string] externalFunctions;
 
     this(HarpyVM engine, DiagnosticError error, ref void*[string] libs, ref Builtin embutido, Program[string] imports)
@@ -467,11 +468,43 @@ public:
         }
     }
 
+    void generateMember(MemberCallExpr node)
+    {
+        // gera normalmente
+        Identifier left = node.member;
+        generateIdentifier(left);
+    }
+
+    void generateMemberCall(MemberCallExpr node)
+    {
+        // monta o callExpr
+        Identifier left = node.member;
+        string funcName = left.value.get!string;
+        // gera a chamada normalmente
+        CallExpr call = new CallExpr(funcName, node.args, left.loc);
+        call.nameMangling = left.nameMangling;
+        if (node.isStruct)
+            generateStructExpr(new StructExpr(call));
+        else
+            generateCallExpr(call);
+    }
+
     void generateMemberCallExpr(MemberCallExpr node, bool multi = false)
     {
         // gera o object
         // sendo uma estrutura haverá um push dela para a stack
-        //node.object.print();
+        if (node.isMethodCall)
+        {
+            generateMemberCall(node);
+            return;
+        }
+
+        if (node.isAlias)
+        {
+            generateMember(node);
+            return;
+        }
+
         generateNode(node.object);
         if (multi)
             generateNode(node.object);
@@ -508,6 +541,7 @@ public:
                 {
                     externalFunctions[name] = funcPtr;
                     foundHandle = handle;
+                    libsUsadas[lib] = true;
                     foundLib = lib;
                     break;
                 }
@@ -522,7 +556,9 @@ public:
                         .value);
             functionArguments[name] = args;
 
-            externFuncs[name] = ExternFunc(name, foundLib, foundHandle);
+            // carrega com o nome da lib em si (eu gostaria de xingar aqui mas não tenho certeza se outras pessoas irão ler isso ._. )
+            string lib = replace(baseName(foundLib), ".so", "");
+            externFuncs[name] = ExternFunc(name, lib, foundHandle);
         }
     }
     else version (Windows)
@@ -553,10 +589,6 @@ public:
 
     void generateForStmt(ForStatement node)
     {
-        import std.stdio;
-
-        // writeln("1Mangling: ", node.init_.nameMangling);
-        // writeln("2Mangling: ", node.increment.nameMangling);
         pushScope();
 
         string loopLabel = genLabel("loop");
@@ -795,9 +827,6 @@ public:
 
     void generateCallExpr(CallExpr node)
     {
-        // writeln("ID: ", node.id);
-        // writeln("NM: ", node.nameMangling);
-
         if (node.id in externFuncs)
         {
             generateExternCall(node);
@@ -811,6 +840,10 @@ public:
         }
 
         string name = makeNameMangling(node.nameMangling, node.id);
+
+        if (name !in functionArguments)
+            deErro(format("A função '%s' não foi inicializada corretamente.", node.id), node.loc);
+
         FunctionArg[] fA = functionArguments[name];
         bool var = false;
         // processa argumentos variadicos primeiro

@@ -1,5 +1,4 @@
-importar "io.rp"
-importar "lexer.rp"
+importar lexer
 
 declarar principal vazio {
     alocar codigo texto = "declarar principal vazio { alocar x decimal = 100 * 3.14 } \n"

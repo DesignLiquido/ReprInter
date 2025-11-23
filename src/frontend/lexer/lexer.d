@@ -77,6 +77,7 @@ private:
         keywords["parar"] = TokenKind.Parar;
         keywords["enquanto"] = TokenKind.Enquanto;
         keywords["importar"] = TokenKind.Importar;
+        keywords["como"] = TokenKind.Como;
 
         // tipos
         keywords["i32"] = TokenKind.I32;

@@ -1,4 +1,4 @@
-importar "io.rp"
+importar biblioteca.entrada_saida
 
 enum TokenKind* {
     Identificador = "Identificador"

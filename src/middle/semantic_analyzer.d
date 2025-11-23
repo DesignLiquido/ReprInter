@@ -1,6 +1,6 @@
 module middle.semantic_analyzer;
 
-import std.stdio, std.format, std.conv, std.algorithm, std.array : array;
+import std.stdio, std.format, std.conv, std.algorithm, std.range, std.array : array;
 import frontend.type, frontend.parser.ast, erro, frontend.lexer.token : Loc;
 import builtin;
 
@@ -35,10 +35,8 @@ class SemanticAnalyzer
 {
 private:
     Symbol[string][] scopes; // stack de escopos (cada escopo é um dicionário)
-    Symbol[string] globalFuncs; // funções globais
-    Symbol[string] structs; // estruturas
-    Symbol[string] enums; // enums
-    Symbol[string] consts; // consts
+    Symbol[string] globals; // globais
+    Symbol[string][string] aliase; // aliases
     Type currentFuncReturnType; // tipo de retorno da função atual
     bool insideFunction = false; // flag para verificar se estamos dentro de uma função
     bool insideLoop = false; // flag para verificar se estamos dentro de um loop
@@ -59,25 +57,21 @@ private:
             throw new Exception("Attempt to remove non-existent scope");
     }
 
-    Symbol* lookupSymbol(string name)
+    Symbol* lookupSymbol(string name, string aliase_ = "")
     {
         // busca em escopos locais
         for (long i = cast(long) scopes.length - 1; i >= 0; i--)
             if (auto sym = name in scopes[i])
                 return sym;
+        if (aliase_ != "")
+        {
+            if (auto n = name in aliase[aliase_])
+                return n;
+            return null; // passou alias e não achou
+        }
         // busca em funções globais
-        if (auto func = name in globalFuncs)
-            return func;
-        // busca em estruturas
-        if (auto strct = name in structs)
-            return strct;
-        // busca em enums
-        if (auto enm = name in enums)
-            return enm;
-        // busca em consts
-        if (auto cnts = name in consts)
-            return cnts;
-
+        if (auto n = name in globals)
+            return n;
         return null;
     }
 
@@ -104,23 +98,73 @@ private:
     }
 
     pragma(inline, true);
-    void checkType(ref Type left, ref Type right, ref Loc loc, bool estrito = true)
+    void checkType(ref Type left, ref Type right, ref Loc loc, bool estrito = true, string aliasname = "")
     {
-        if (!left.isCompatibleWith(right, structs, estrito))
+        Symbol[string] sym;
+        if (aliasname != "")
+            sym = aliase[aliasname];
+        else
+            sym = globals;
+        if (!left.isCompatibleWith(right, sym, estrito))
             deErro(format(
                     "Tipo inesperado: esperado '%s', recebido '%s'",
                     left.toStr(), right.toStr()
             ), loc);
     }
 
-    Type resolveType(ref Type type)
+    Type resolveType(ref Type type, string aliase_ = "", Loc loc = Loc.init)
     {
         if (type.type == Types.Array)
             return type;
-        if (type.enumName in enums)
-            type.type = Types.Enum;
-        else if (type.structName in structs)
-            type.type = Types.Struct;
+
+        if (type.type == Types.Qualified)
+        {
+            if (type.aliase !in aliase)
+                deErro(format("Alias não existe '%'.", type.aliase), loc);
+
+            Symbol* sym = lookupSymbol(type.qualified, type.aliase);
+            if (sym is null)
+                deErro(format("Simbolo não existe '%'.", type.qualified), loc);
+
+            sym.type.aliase = type.aliase;
+            sym.type.qualified = type.qualified;
+            type = sym.type;
+            return sym.type;
+        }
+
+        if (aliase_ != "")
+        {
+            if (type.enumName in aliase[aliase_])
+                if (aliase[aliase_][type.enumName].isEnum)
+                {
+                    type.type = Types.Enum;
+                    return type;
+                }
+
+            if (type.structName in aliase[aliase_])
+                if (aliase[aliase_][type.structName].isStruct)
+                {
+                    type.type = Types.Struct;
+                    return type;
+                }
+
+            return type;
+        }
+
+        if (type.enumName in globals)
+            if (globals[type.enumName].isEnum)
+            {
+                type.type = Types.Enum;
+                return type;
+            }
+
+        if (type.structName in globals)
+            if (globals[type.structName].isStruct)
+            {
+                type.type = Types.Struct;
+                return type;
+            }
+
         return type;
     }
 
@@ -192,6 +236,57 @@ private:
         }
     }
 
+    Node analyzeMember(MemberCallExpr node)
+    {
+        Identifier object = cast(Identifier) node.object;
+        string aliasname = object.value.get!string;
+
+        // o alias existe?
+        if (aliasname !in aliase)
+            deErro(format("O alias não existe '%s'.", aliasname), object.loc);
+
+        Identifier left = node.member;
+        string id = left.value.get!string;
+
+        if (id !in aliase[aliasname])
+            deErro(format("O simbolo não existe '%s'.", id), left.loc);
+
+        // cria um CallExpr e passa pro analisador resolver
+        node.member = cast(Identifier) this.analyzeIdentifier(left, aliasname);
+        node.nameMangling = this.nameMangling;
+        node.type = node.member.type;
+        node.type.aliase = aliasname;
+        node.isAlias = true;
+        return node;
+    }
+
+    Node analyzeMemberCall(MemberCallExpr node)
+    {
+        Identifier object = cast(Identifier) node.object;
+        string aliasname = object.value.get!string;
+
+        // o alias existe?
+        if (aliasname !in aliase)
+            deErro(format("O alias '%s' não existe.", aliasname), object.loc);
+
+        Identifier left = node.member;
+        string funcName = left.value.get!string;
+        Symbol* sym = lookupSymbol(funcName, aliasname);
+
+        if (sym is null)
+            deErro(format("A função '%s' não existe.", funcName), left.loc);
+
+        // cria um CallExpr e passa pro analisador resolver
+        Node call = new CallExpr(funcName, node.args, left.loc);
+        call = this.analyzeCallExpr(cast(CallExpr) call, aliasname);
+
+        node.isStruct = sym.isStruct;
+        node.nameMangling = this.nameMangling;
+        node.member.nameMangling = sym.nameMangling;
+        node.type = call.type;
+        return node;
+    }
+
     Node analyzeConstDecl(ConstDeclaration node)
     {
         return node;
@@ -257,12 +352,22 @@ private:
 
     Node analyzeMemberCallExpr(MemberCallExpr node)
     {
+        if (node.isMethodCall)
+            return this.analyzeMemberCall(node);
         // analisa o objeto à esquerda do ponto
-        node.object = this.analyze(node.object);
         Node object = node.object;
+
+        if (object.kind == NodeKind.Identifier)
+        {
+            Identifier id = cast(Identifier) object;
+            if (id.value.get!string in aliase)
+                return this.analyzeMember(node);
+        }
+
+        node.object = this.analyze(node.object);
         Node left = node.member;
         node.nameMangling = this.nameMangling;
-        resolveType(node.type);
+        resolveType(node.type, "", node.loc);
 
         // o membro deve ser um identificador obrigatoriamente
         if (left.kind != NodeKind.Identifier)
@@ -270,18 +375,19 @@ private:
 
         Identifier member = cast(Identifier) left;
         string campo = member.value.get!string;
+        resolveType(object.type, "", object.loc);
 
         // tratamento para Enum
         if (object.type.type == Types.Enum)
         {
-            Symbol* enumSym = this.lookupSymbol(object.type.enumName);
+            Symbol* globalsym = this.lookupSymbol(object.type.enumName, node.object.type.aliase);
 
-            if (enumSym is null)
+            if (globalsym is null)
                 deErro(format("A enum '%s' não existe.", object.type.enumName), object.loc);
-            if (!enumSym.isEnum)
+            if (!globalsym.isEnum)
                 deErro(format("'%s' não é uma enum.", object.type.enumName), object.loc);
 
-            EnumField[] enumFields = enumSym.eFields;
+            EnumField[] enumFields = globalsym.eFields;
             long idx = -1;
 
             for (long i; i < enumFields.length; i++)
@@ -304,9 +410,9 @@ private:
         if (object.type.type != Types.Struct)
             deErro("O tipo da expressão deve ser uma estrutura ou enum.", object.loc);
 
-        Symbol* sym = this.lookupSymbol(object.type.structName);
-
+        Symbol* sym = this.lookupSymbol(object.type.structName, node.object.type.aliase);
         string nExiste = format("A estrutura '%s' não existe.", object.type.structName);
+
         if (sym is null)
             deErro(nExiste, object.loc);
         if (!sym.isStruct)
@@ -335,10 +441,10 @@ private:
     {
         foreach (FunctionDeclaration func; node.funcs)
         {
-            if (func.name in globalFuncs)
+            if (func.name in globals)
                 deErro(format("A função '%s' já existe.", func.name), func.loc);
             Symbol[] args = func.args.map!(x => Symbol(x.type, x.value)).array;
-            globalFuncs[func.name] = createFunction(func.type, args);
+            globals[func.name] = createFunction(func.type, args);
         }
         return node;
     }
@@ -437,19 +543,16 @@ private:
         if (sym_ !is null)
             deErro(format("Variavel já existe '%s'", node.id), node.loc);
 
+        resolveType(node.type);
+
         if (node.value.convertsTo!Node)
         {
             Node valueNode = node.value.get!Node;
             valueNode = analyze(valueNode);
             checkType(node.type, valueNode.type, node.loc);
             node.value = valueNode;
-            // não atualiza o tipo para evitar erros
-            // se o checkType passou é porque ja é valido/compativel
-            // não precisa alterar isso
-            // node.type = valueNode.type;
         }
 
-        resolveType(node.type);
         Symbol sym;
         sym.type = node.type;
         sym.isLet = true;
@@ -497,7 +600,6 @@ private:
         foreach (ref param; node.args)
         {
             Symbol paramSym;
-            resolveType(param.type);
             paramSym.type = param.type;
             paramSym.isLet = true;
             paramSym.isConst = false;
@@ -542,7 +644,7 @@ private:
         return node;
     }
 
-    Node analyzeStructExpr(CallExpr node, Symbol* symbol)
+    Node analyzeStructExpr(CallExpr node, Symbol* symbol, string aliasname = "")
     {
         // recebe um callExpr e retorna uma structExpr
         ulong expectedArgsMin = 0;
@@ -563,22 +665,22 @@ private:
             arg = analyze(arg);
             // verifica tipo do argumento correspondente
             if (i < symbol.fields.length)
-                checkType(symbol.fields[i].type, arg.type, node.loc);
+                checkType(symbol.fields[i].type, arg.type, node.loc, true, aliasname);
         }
 
-        resolveType(symbol.type);
+        resolveType(symbol.type, aliasname);
         node.type = symbol.type;
         return new StructExpr(node);
     }
 
-    Node analyzeCallExpr(CallExpr node)
+    Node analyzeCallExpr(CallExpr node, string aliasname = "")
     {
-        Symbol* funcSym = lookupSymbol(node.id);
+        Symbol* funcSym = lookupSymbol(node.id, aliasname);
         if (funcSym is null || (!funcSym.isFunc && !funcSym.isStruct))
             deErro(format("A função '%s' não existe.", node.id), node.loc);
 
         if (funcSym.isStruct)
-            return analyzeStructExpr(node, funcSym);
+            return analyzeStructExpr(node, funcSym, aliasname);
 
         ulong expectedArgsMin = 0;
         bool hasVariadic = false;
@@ -610,7 +712,6 @@ private:
                     node.id, funcSym.funcArgs.length, node.args.length
             ), node.loc);
 
-        // writeln(node.id);
         foreach (i, ref arg; node.args)
         {
             arg = analyze(arg);
@@ -619,10 +720,10 @@ private:
                 continue;
             // verifica tipo do argumento correspondente
             if (i < funcSym.funcArgs.length)
-                checkType(funcSym.funcArgs[i].type, arg.type, node.loc);
+                checkType(funcSym.funcArgs[i].type, arg.type, node.loc, true, aliasname);
         }
 
-        resolveType(funcSym.type);
+        resolveType(funcSym.type, aliasname);
         node.type = funcSym.type;
         node.nameMangling = funcSym.nameMangling; // atualiza o nameMangling pra chamar no codegen corretamente
         return node;
@@ -682,15 +783,15 @@ private:
         return node;
     }
 
-    Node analyzeIdentifier(Identifier node)
+    Node analyzeIdentifier(Identifier node, string aliasename = "")
     {
         string name = node.value.get!string;
-        Symbol* sym = lookupSymbol(name);
+        Symbol* sym = lookupSymbol(name, aliasename);
         if (sym is null)
             deErro(format("Identificador '%s' não declarado.", name), node.loc);
 
         node.type = sym.type;
-        resolveType(node.type);
+        node.type = resolveType(node.type, aliasename);
 
         if (sym.isStruct || sym.isEnum || sym.isConst)
             node.nameMangling = sym.nameMangling;
@@ -718,7 +819,7 @@ private:
         symbol.isEnum = true;
         symbol.isPublic = node.publico;
         symbol.nameMangling = this.nameMangling;
-        structs[node.name] = symbol;
+        globals[node.name] = symbol;
         return node;
     }
 
@@ -734,20 +835,18 @@ private:
         symbol.isStruct = true;
         symbol.isPublic = node.publico;
         symbol.nameMangling = this.nameMangling;
-        structs[node.name] = symbol;
+        globals[node.name] = symbol;
         return node;
     }
 
     Node functionInitializer(FunctionDeclaration node)
     {
-        // writeln("FUNC: ", node.name);
-        // writeln("NM: ", node.nameMangling);
-        // writeln("NM>: ", nameMangling);
-
-        if (node.name in globalFuncs)
+        if (node.name in globals)
             deErro(format("A função '%s' já foi declarada.", node.name), node.loc);
+
         Symbol funcSym;
         funcSym.isFunc = true;
+        resolveType(node.type);
         funcSym.type = node.type;
         funcSym.isPublic = node.publico;
         funcSym.nameMangling = this.nameMangling;
@@ -778,7 +877,7 @@ private:
 
             funcSym.funcArgs ~= paramSym;
         }
-        globalFuncs[node.name] = funcSym;
+        globals[node.name] = funcSym;
         return node;
     }
 
@@ -787,6 +886,8 @@ private:
         Symbol* sym_ = lookupSymbol(node.id);
         if (sym_ !is null)
             deErro(format("Constante já existe '%s'", node.id), node.loc);
+
+        resolveType(node.type);
 
         if (node.value.convertsTo!Node)
         {
@@ -803,7 +904,7 @@ private:
         sym.isPublic = node.publico;
         sym.value = node.value.get!Node;
         sym.nameMangling = this.nameMangling;
-        consts[node.id] = sym;
+        globals[node.id] = sym;
         return node;
     }
 
@@ -875,6 +976,12 @@ private:
         // salva tudo em cache
         arquivosImportados[file] = program;
 
+        // aliase = Symbol[string][string]
+        // copia os aliases, parece ruim mas não é tanto :)
+        foreach (string i, Symbol[string] innerAA; analisador.aliase)
+            foreach (string j, Symbol v; innerAA)
+                aliase[i][j] = v;
+
         // valida tudo e ja copia pro contexto atual
         if (node.symbols.length > 0)
             foreach (string name, bool val; node.symbols)
@@ -888,42 +995,19 @@ private:
                     deErro(format("O simbolo '%s' não é publico para a importação.", name), node
                             .loc);
 
-                if (sym.isConst)
-                    consts[name] = *sym;
-                else if (sym.isEnum)
-                    enums[name] = *sym;
-                else if (sym.isStruct)
-                    structs[name] = *sym;
-                else if (sym.isFunc)
-                    globalFuncs[name] = *sym;
+                if (node.aliasname != "")
+                    aliase[node.aliasname][name] = *sym;
+                else
+                    globals[name] = *sym;
             }
-        else
-        {
-            // adição manual de cada coisa
-            foreach (string name, ref Symbol sym; analisador.consts)
+        else // adição manual de cada coisa
+            foreach (string name, ref Symbol sym; analisador.globals)
                 if (!sym.isPublic)
                     continue;
+                else if (node.aliasname != "")
+                    aliase[node.aliasname][name] = sym;
                 else
-                    consts[name] = sym;
-
-            foreach (string name, ref Symbol sym; analisador.structs)
-                if (!sym.isPublic)
-                    continue;
-                else
-                    structs[name] = sym;
-
-            foreach (string name, ref Symbol sym; analisador.enums)
-                if (!sym.isPublic)
-                    continue;
-                else
-                    enums[name] = sym;
-
-            foreach (string name, ref Symbol sym; analisador.globalFuncs)
-                if (!sym.isPublic)
-                    continue;
-                else
-                    globalFuncs[name] = sym;
-        }
+                    globals[name] = sym;
 
         return node;
     }
@@ -976,55 +1060,29 @@ public:
     {
         pushScope();
         foreach (ref BuiltinFunction func; builtin.funcoes)
-            globalFuncs[func.nome] = createFunction(func.retorno, createFunctionArgs(func.args));
+            globals[func.nome] = createFunction(func.retorno, createFunctionArgs(func.args));
 
         try
         {
-            // cria as funções, estruturas, enums e constantes primeiro
-            FunctionDeclaration[] funcoes = program.body
-                .filter!(
-                    node => node.kind == NodeKind.FuncDeclaration)
-                .map!(node => cast(FunctionDeclaration) node)
-                .array;
+            // cria as funções, estruturas, globals e constantes primeiro
+            auto funcoes = program.body.filter!(node => node.kind == NodeKind.FuncDeclaration);
+            auto estruturas = program.body.filter!(
+                node => node.kind == NodeKind.StructDeclaration);
+            auto enums = program.body.filter!(node => node.kind == NodeKind.EnumDeclaration);
+            auto consts = program.body.filter!(node => node.kind == NodeKind.ConstDeclaration);
+            auto imports = program.body.filter!(node => node.kind == NodeKind.ImportStatement);
 
-            StructDeclaration[] estruturas = program.body
-                .filter!(
-                    node => node.kind == NodeKind.StructDeclaration)
-                .map!(node => cast(StructDeclaration) node)
-                .array;
-
-            EnumDeclaration[] enums_ = program.body
-                .filter!(
-                    node => node.kind == NodeKind.EnumDeclaration)
-                .map!(node => cast(EnumDeclaration) node)
-                .array;
-
-            ConstDeclaration[] consts_ = program.body
-                .filter!(
-                    node => node.kind == NodeKind.ConstDeclaration)
-                .map!(node => cast(ConstDeclaration) node)
-                .array;
-
-            ImportStatement[] imports = program.body
-                .filter!(
-                    node => node.kind == NodeKind.ImportStatement)
-                .map!(node => cast(ImportStatement) node)
-                .array;
-
-            foreach (ImportStatement imprt; imports)
-                importInitializer(imprt);
-
-            foreach (StructDeclaration strc; estruturas)
-                structInitializer(strc);
-
-            foreach (EnumDeclaration enm; enums_)
-                enumInitializer(enm);
-
-            foreach (FunctionDeclaration func; funcoes)
-                functionInitializer(func);
-
-            foreach (ConstDeclaration const_; consts_)
-                constInitializer(const_);
+            foreach (Node node; chain(imports, estruturas, enums, funcoes, consts))
+                if (node.kind == NodeKind.ImportStatement)
+                    importInitializer(cast(ImportStatement) node);
+                else if (node.kind == NodeKind.StructDeclaration)
+                    structInitializer(cast(StructDeclaration) node);
+                else if (node.kind == NodeKind.EnumDeclaration)
+                    enumInitializer(cast(EnumDeclaration) node);
+                else if (node.kind == NodeKind.ConstDeclaration)
+                    constInitializer(cast(ConstDeclaration) node);
+                else
+                    functionInitializer(cast(FunctionDeclaration) node);
 
             foreach (ref stmt; program.body)
             {

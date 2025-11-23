@@ -1,5 +1,4 @@
-// importar interpretador : { interpretador, Tabela, escrevaln }
-// importa apenas os simbolos publicos que são os acima deste comentario
+// primeira forma alias
 importar interpretador
 
 declarar principal vazio {

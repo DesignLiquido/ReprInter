@@ -641,6 +641,8 @@ class MemberCallExpr : Node
     ulong fieldIdx = 0; // posição do field (campo) em relação a struct
     Node[] args; // Argumentos se for uma chamada de método
     bool isMethodCall; // true se for x.method(), false se for x.property
+    bool isAlias; // define se expressões como mat.PI são de um alias ou não
+    bool isStruct; // define se é uma struct na chamada
 
     this(Node object, Identifier member, Node[] args, bool isMethodCall, Loc loc)
     {
@@ -821,13 +823,15 @@ class ConstDeclaration : Node
 
 class ImportStatement : Node
 {
+    string aliasname = "";
     bool[string] symbols;
-    this(Node file, Loc loc, bool[string] symbols)
+    this(Node file, Loc loc, bool[string] symbols, string aliasname = "")
     {
         this.kind = NodeKind.ImportStatement;
         this.type = Type(Types.Void, BaseType.Void);
         this.value = file;
         this.loc = loc;
+        this.aliasname = aliasname;
         this.symbols = symbols;
     }
 

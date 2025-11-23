@@ -1,7 +1,10 @@
+importar "biblioteca/entrada_saida"
+
 declarar principal vazio {
     alocar tam int = 10
     para alocar i int = 0; i < tam; ++i {
-        @escreva(i, " ")
+        escreva(i, " ")
     }
+    escrevaln("")
     fim
 }

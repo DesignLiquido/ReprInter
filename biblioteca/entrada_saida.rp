@@ -36,7 +36,8 @@ declarar escreva*(...) vazio {
 }
 
 declarar escrevaln*(...) vazio {
-    escreva_varrags(varargs)
+    se varargc != 0
+        escreva_varrags(varargs)
     @escrevas("\n")
 }
 

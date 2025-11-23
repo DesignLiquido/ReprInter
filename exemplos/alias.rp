@@ -1,0 +1,24 @@
+importar biblioteca.entrada_saida como es
+importar biblioteca.matematica : { PI, E } como math
+importar pasta.outra.exportar : { E, Pagamento, Status } como outro
+importar biblioteca.arquivo como file
+
+declarar mostrarPagamento(pen ref outro.Pagamento, pag ref outro.Pagamento) vazio {
+    es.escrevaln("Pagamento pendente: ", pen.status)
+    es.escrevaln("Pagamento pago: ", pag.status)
+}
+
+declarar principal vazio {
+    es.escrevaln("PI: ", math.PI)
+    es.escrevaln("E Math: ", math.E)
+    es.escrevaln("E Outro: ", outro.E)
+    alocar arquivo file.ARQUIVO = file.lerArquivo("tests/arquivo.txt")
+    es.escreva("Conteudo: ", arquivo.conteudo)
+    
+    // estrutura (struct) e enum
+    alocar pendente outro.Pagamento = outro.Pagamento(outro.Status.Pendente)
+    alocar pago outro.Pagamento = outro.Pagamento(outro.Status.Pago)
+    mostrarPagamento(pendente, pago)
+    
+    fim
+}

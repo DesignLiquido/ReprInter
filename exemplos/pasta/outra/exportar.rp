@@ -1,16 +1,16 @@
 // forma mais simples de escrever funções externas
-declarar escreva(...) vazio;
-declarar escrevaln*(...) vazio;
+importar biblioteca.entrada_saida : { escrevaln }
 
 declarar soma_publica*(x int, y int) int {
     retorne x + y
 }
 
 const PI f64 = 3.141592
+const E* inteiro = 69
 
 enum Status* {
-    Pago
-    Pendente
+    Pago = "pago"
+    Pendente = "pendente"
 }
 
 estrutura Pagamento* {

@@ -1,5 +1,6 @@
 module frontend.type;
 import std.stdio : writeln;
+import std.format : format;
 
 // o sistema de tipos é simples mas poderoso
 // por padrão todo tipo é uma estrutura (Type)
@@ -38,7 +39,8 @@ enum Types : string
     Void = "void", // é um tipo não literal
     Array = "array",
     Struct = "struct",
-    Enum = "Enum",
+    Enum = "enum",
+    Qualified = "qualified"
 }
 
 const int[string] hirarquia = [
@@ -70,6 +72,10 @@ struct Type
     ulong dimensions = 0; // dimensões de um array
     string enumName = "";
     Type* next = null;
+
+    // tipos qualificados usarão essas flags, será resolvido no analisador semantico transformando o tipo original no novo tipo resolvido
+    string aliase = ""; // para tipos qualificados
+    string qualified = ""; // para tipos qualificados
 
     bool isCompatibleWith(ref Type t, ref Symbol[string] structs, bool estrito = true)
     {
@@ -118,6 +124,9 @@ struct Type
             return type == Types.Undefined;
         case Types.Void:
             return type == Types.Void;
+        case Types.Qualified:
+            writeln("Qualificado;");
+            return true;
         }
     }
 
@@ -162,6 +171,8 @@ struct Type
             return baseType ~ _next;
         if (type == Types.Void)
             return "void";
+        if (type == Types.Qualified)
+            return format("%s.%s", aliase, qualified);
         return "undefined";
     }
 }

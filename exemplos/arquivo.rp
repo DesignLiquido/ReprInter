@@ -1,15 +1,5 @@
-estrutura ARQUIVO {
-    conteudo texto   // se erro = 1 então esse campo (field) terá uma mensagem de erro
-    tamanho  inteiro // em bytes
-    erro     inteiro // 0 = sem erro; 1 = erro
-}
-
-externo {
-    declarar escrevaln(...) vazio;
-    declarar escreva(...) vazio;
-    declarar escrevaf(msg texto = "", ...) vazio;
-    declarar lerArquivo(arquivo texto) ARQUIVO;
-}
+importar biblioteca.entrada_saida
+importar biblioteca.arquivo
 
 declarar principal vazio {
     alocar arquivo ARQUIVO = lerArquivo("tests/teste.txt")

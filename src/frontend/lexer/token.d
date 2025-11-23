@@ -24,6 +24,7 @@ enum TokenKind
     Continuar,
     Enquanto,
     Importar,
+    Como,
 
     // tipos
     I32,
