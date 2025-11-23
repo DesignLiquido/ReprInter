@@ -10,6 +10,7 @@ import erro, builtin, env;
 
 const string VERSAO = "0.1.0";
 string[] arquivosTemporarios;
+void*[string] cacheGlobalBibliotecas;
 
 version (Windows)
 	string ext = ".dll";
@@ -99,12 +100,11 @@ void executarHvm(ref string arquivo_, bool mostrarTempo = false, void*[string] b
 					string tempPath = criarArquivoTemp(nome, dadosSo);
 
 					// carregar dinamicamente
-					void* handle = dlopen(tempPath.toStringz, RTLD_LAZY);
+					void* handle = carregarBibliotecaDaMemoria(nome, dadosSo);
 					if (handle)
 						bibliotecas[nome] = handle;
 					else
-						writefln("AVISO: Falha ao carregar biblioteca %s: %s",
-							nome, dlerror().fromStringz);
+						writefln("AVISO: Falha ao carregar biblioteca %s", nome);
 				}
 				else if (tipo == HarpyBinTipo.SECAO_BYTECODE)
 				{
@@ -151,11 +151,28 @@ void executarHvm(ref string arquivo_, bool mostrarTempo = false, void*[string] b
 	exit(0);
 }
 
+void* carregarBibliotecaDaMemoria(string nome, ubyte[] dados)
+{
+	if (nome in cacheGlobalBibliotecas)
+		return cacheGlobalBibliotecas[nome];
+
+	string tempPath = criarArquivoTemp(nome, dados);
+	void* handle = dlopen(tempPath.toStringz, RTLD_LAZY);
+
+	if (handle)
+		cacheGlobalBibliotecas[nome] = handle;
+
+	return handle;
+}
+
 string criarArquivoTemp(string nome, ubyte[] dados)
 {
-	// criar em /tmp ou equivalente
-	string uuid = randomUUID().toString();
-	string caminho = buildPath(tempDir(), "harpy_" ~ uuid ~ "_" ~ nome ~ ext);
+	// reusa o UUID para otimizar
+	static string uuidCache;
+	if (uuidCache.length == 0)
+		uuidCache = randomUUID().toString();
+
+	string caminho = buildPath(tempDir(), "harpy_" ~ uuidCache ~ "_" ~ nome ~ ext);
 
 	std.file.write(caminho, dados);
 	arquivosTemporarios ~= caminho;
@@ -227,23 +244,28 @@ void ajuda()
 	// mostra uma mensagem de ajuda
 	writeln("Forma de uso: harpy <arquivo.rp> [opções]\n");
 	writeln("Opções:");
-	writeln("	-v, --versao      Mostra a versão da maquina virtual.");
-	writeln("	-a, --ajuda       Mostra a mensagem de ajuda.");
-	writeln("	-t, --tempo       Mostra métricas de execução do programa.");
-	writeln("	-c, --compilar    Compila o programa e gera um arquivo binário.");
+	writeln("	-v, --versao      	Mostra a versão da maquina virtual.");
+	writeln("	-a, --ajuda       	Mostra a mensagem de ajuda.");
+	writeln("	-t, --tempo       	Mostra métricas de execução do programa.");
+	writeln("	-c, --compilar    	Compila o programa e gera um arquivo binário.");
 	writeln(
-		"	-o, --otimizar    Realiza otimizações no código (use quando compilar um programa, será melhor).");
-	writeln("	--verboso         Ativa o modo verboso.");
-	writeln("	--token           Mostra os tokens (debug).");
-	writeln("	--ast             Mostra as ast's  (debug).");
+		"	-E, --estatico    	Compila o programa de forma estatica, gerando um binario mais pesado.");
+	writeln("	-I, --incluir     	Inclui uma biblioteca dinamica ao motor.");
 	writeln(
-		"	-s, --saida       Especifica o arquivo de saida do arquivo binario (padrão = harpy.hvm).");
+		"	-B, --sem-biblioteca	Ignora a biblioteca padrão do motor, não carregando ela na inicialização.");
+	writeln(
+		"	-o, --otimizar    	Realiza otimizações no código (use quando compilar um programa, será melhor).");
+	writeln("	--verboso        	Ativa o modo verboso.");
+	writeln("	--token           	Mostra os tokens (debug).");
+	writeln("	--ast             	Mostra as ast's  (debug).");
+	writeln(
+		"	-s, --saida       	Especifica o arquivo de saida do arquivo binario (padrão = harpy.hvm).");
 	writeln("\nExemplos:");
 	writeln("	harpy -v");
 	writeln("	harpy ola_mundo.hp");
 	writeln("	harpy ola_mundo.hp --token --ast");
 	writeln("	harpy ola_mundo.hp --compilar --saida ola.hvm");
-	writeln("	harpy ola_mundo.hp -c -s -o ola.hvm");
+	writeln("	harpy ola_mundo.hp -c -o -s ola.hvm");
 }
 
 void versao()
@@ -253,7 +275,7 @@ void versao()
 
 // retorna o nome da biblioteca concatenado com o diretório de bibliotecas instalado do sistema
 // nome = io
-// retorno = /home/<USER>/.harpy/libs/io.so
+// retorno = /home/<USER>/.harpy/libs/io (.so | .dll)
 string criarLibSys(string nome)
 {
 	return DIR_LIBS ~ nome ~ ext;
@@ -339,14 +361,13 @@ void main(string[] argumentos)
 
 		// carrega bibliotecas externas, incluindo bibliotecas padrão da VM
 		// bibliotecas do sistema ja estará pré carregadas
-		string[] bibliotecasNativas = [
-			criarLibSys("entrada_saida"), criarLibSys("matematica"),
-			criarLibSys("arquivo")
-		];
 		string[] bibliotecasExternas;
 
 		if (!args.semBiblioteca)
-			bibliotecasExternas = bibliotecasNativas;
+			bibliotecasExternas = [
+				criarLibSys("entrada_saida"), criarLibSys("matematica"),
+				criarLibSys("arquivo")
+			];
 
 		if (args.importacoes.length > 0)
 			bibliotecasExternas ~= args.importacoes;

@@ -35,12 +35,12 @@ void loadEnv()
         SetConsoleOutputCP(65_001);
         SetConsoleCP(65_001);
         // vou dar a saida precoce pois sei que o suporte é inexistente
-        exit(-69);
+        exit(69);
     }
     else
     {
         writeln("Não há suporte para o seu sistema operacional.");
-        exit(-1);
+        exit(1);
     }
 
     // valida se alguma das variaveis importantes não foram definidas
@@ -49,6 +49,6 @@ void loadEnv()
     {
         writeln(
             "Houve um erro ao definir algumas variaveis globais, crie um ISSUE no repositório.");
-        exit(-1);
+        exit(1);
     }
 }

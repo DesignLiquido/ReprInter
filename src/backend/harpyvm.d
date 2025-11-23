@@ -1,7 +1,12 @@
 module backend.harpyvm;
 import std.stdio, std.variant, std.conv, std.datetime.stopwatch, std.string, std.algorithm;
-import core.stdc.stdio, core.stdc.string, core.stdc.stdlib, core.sys.posix.dlfcn, core
+import core.stdc.stdio, core.stdc.string, core.stdc.stdlib, core
     .stdc.string : strlen;
+
+version (linux)
+{
+    import core.sys.posix.dlfcn;
+}
 
 enum OpCode : ubyte
 {
