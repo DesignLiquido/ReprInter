@@ -132,6 +132,7 @@ private:
     ImportStatement parseImportStmt()
     {
         bool[string] symbols = null;
+        string aliasname = "";
         // Token file = this.consume(TokenKind.Txt, "Esperado o nome do arquivo.");
         Node file = this.parseExpression(Precedence.LOWEST);
         if (this.match([TokenKind.Colon]))
@@ -145,7 +146,11 @@ private:
             }
             this.consume(TokenKind.RBrace, "Esperado '}' após a importação seletiva.");
         }
-        return new ImportStatement(file, file.loc, symbols);
+        if (this.match([TokenKind.Como]))
+            aliasname = this.consume(TokenKind.Identifier,
+                "Esperado um identificador após 'como' para o nome do alias.").value.get!string;
+
+        return new ImportStatement(file, file.loc, symbols, aliasname);
     }
 
     ConstDeclaration parseConstDecl()
@@ -235,8 +240,19 @@ private:
         Identifier member;
         Token id = this.consume(TokenKind.Identifier, "O membro dessa expressão deve ser um identificador.");
         member = new Identifier(id.value.get!string, id.loc);
-        Node[] args; // ainda não é suportado, talvez no futuro quando houver aliases para importações
-        MemberCallExpr node = new MemberCallExpr(object, member, args, false, object.loc);
+        Node[] args;
+        bool isMethodCall = false;
+        if (this.match([TokenKind.LParen]))
+        {
+            while (!this.check(TokenKind.RParen) && !this.isAtEnd())
+            {
+                args ~= this.parseExpression(Precedence.LOWEST);
+                this.match([TokenKind.Comma]);
+            }
+            this.consume(TokenKind.RParen, "Esperava-se ')' após a chamada.");
+            isMethodCall = true;
+        }
+        MemberCallExpr node = new MemberCallExpr(object, member, args, isMethodCall, object.loc);
         // se houver o '=' então é um Node diferente
         if (this.match([TokenKind.Equals]))
             return this.parseMemberCallAssignmentDecl(node);
@@ -350,7 +366,7 @@ private:
     {
         this.match([TokenKind.LParen]);
         Node[] args;
-        while (this.peek().kind != TokenKind.RParen && !this.isAtEnd())
+        while (!this.check(TokenKind.RParen) && !this.isAtEnd())
         {
             args ~= this.parseExpression(Precedence.LOWEST);
             this.match([TokenKind.Comma]);
@@ -460,6 +476,8 @@ private:
     {
         Token ty = this.advance();
         bool isArray = false;
+        bool isQuali = false;
+        Token quali;
         long dimensions = -1;
         Type* next_ = null; // ponteiro inicializado como null
 
@@ -469,6 +487,12 @@ private:
             // aloca memória para o próximo tipo e chama parseType recursivamente
             next_ = new Type();
             *next_ = this.parseType();
+        }
+
+        if (this.match([TokenKind.Dot]))
+        {
+            isQuali = true;
+            quali = this.consume(TokenKind.Identifier, "Esperado um identificador no tipo qualificado.");
         }
 
         if (this.match([TokenKind.LBracket]))
@@ -482,6 +506,10 @@ private:
             }
             this.consume(TokenKind.RBracket, "Esperado ']' durante a declaração do tipo de um vetor.");
         }
+
+        if (isQuali)
+            return Type(Types.Qualified, BaseType.Void, false, "", 0, "", next_, ty.value.get!string,
+                quali.value.get!string);
 
         Type result;
         switch (ty.kind)

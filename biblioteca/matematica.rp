@@ -73,6 +73,6 @@ declarar principal vazio {
     escrevaln("maximo(10.0, PI) = ", maximo(10.0, PI))
     escrevaln("media(1.0, 2.0, 3.0, 10.0) = ", media(1.0, 2.0, 3.0, 10.0))
     escrevaln("raiz(625) = ", raiz(625))
-    escrevaln("elevado(2.0, 3) = ", elevado(2, 3))
+    escrevaln("elevado(2, 3) = ", elevado(2, 3))
     fim
 }

@@ -28,7 +28,7 @@ estrutura Simbolo {
     valor qualquer // inteiro ou decimal
 }
 
-declarar set(tabela ref Tabela, nome txt, tipo ref Tipo, valor qualquer = 0) int {
+declarar set(tabela ref Tabela, nome txt, tipo Tipo, valor qualquer = 0) int {
     alocar tamanho int = @tamanho_vetor(tabela.tamanho)
     alocar idx int = -1
     para alocar i int = 0; i < tamanho; i++

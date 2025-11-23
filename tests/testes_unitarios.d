@@ -360,11 +360,6 @@ void main(string[] args)
             "exemplos/matematica.rp",
             ["16.00000000"]
         ),
-        // CasoTeste(
-        //     "Ola",
-        //     "exemplos/ola.rp",
-        //     ["Ola Fernando"]
-        // ),
         CasoTeste(
             "Para",
             "exemplos/para.rp",
@@ -398,6 +393,16 @@ void main(string[] args)
                 "Olá Fernando",
                 "Olá Jonas",
             ]
+        ),
+        CasoTeste(
+            "Maquina Virtual",
+            "exemplos/vm/uso.rp",
+            ["Resultado: 73.00"]
+        ),
+        CasoTeste(
+            "Interpretador",
+            "exemplos/interpretador/uso.rp",
+            ["2.00"]
         ),
     ]);
 

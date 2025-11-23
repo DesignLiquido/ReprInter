@@ -335,7 +335,7 @@ class HarpyVM
                 break;
 
             case OpCode.DUP:
-                Value v = peek();
+                Value v = pop();
                 push(deepCopy(v));
                 pc++;
                 break;
@@ -987,13 +987,13 @@ class HarpyVM
                 string libname = pop().value.str;
                 long argc = pop().value.i64;
 
-                void* handle = libs[libname];
-                if (!handle)
-                {
-                    writefln("Erro ao carregar %s:", libname);
-                    writeln(dlerror().fromStringz);
+                void* handle = null;
+
+                if (libname in libs)
+                    handle = libs[libname];
+
+                if (!handle) // writefln("Erro ao carregar %s:", libname); // writeln("Erro: ", dlerror().fromStringz);
                     throw new Exception("Falha ao carregar biblioteca: " ~ libname);
-                }
 
                 ffi_extern_function funcPtr;
                 if (funcname !in externalFunctions)

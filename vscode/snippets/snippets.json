@@ -1,0 +1,107 @@
+{
+    "Estrutura básica": {
+        "prefix": "estrutura",
+        "body": [
+            "estrutura ${1:NomeDaEstrutura} {",
+            "\t${2:// campos}",
+            "}"
+        ],
+        "description": "Cria uma estrutura básica"
+    },
+    "Enumeração": {
+        "prefix": "enum",
+        "body": [
+            "enum ${1:NomeDoEnum} {",
+            "\t${2:Valor1},",
+            "\t${3:Valor2}",
+            "}"
+        ],
+        "description": "Cria uma enumeração"
+    },
+    "Função": {
+        "prefix": "declarar",
+        "body": [
+            "declarar ${1:nome_funcao}(${2:parametros}) ${3:tipo_retorno} {",
+            "\t${4:// corpo}",
+            "}"
+        ],
+        "description": "Cria uma função"
+    },
+    "Alocar variavel": {
+        "prefix": "alocar",
+        "body": [
+            "alocar ${1:variavel} ${2:tipo} = ${3:valor}"
+        ],
+        "description": "Alocar variável"
+    },
+    "Condicional Se": {
+        "prefix": "se",
+        "body": [
+            "se ${1:condicao} {",
+            "\t${2:// código}",
+            "}"
+        ],
+        "description": "Estrutura condicional se"
+    },
+    "Senão": {
+        "prefix": "senao",
+        "body": [
+            "senao {",
+            "\t${3:// código se falso}",
+            "}"
+        ],
+        "description": "Estrutura condicional senão"
+    },
+    "Se Senão": {
+        "prefix": "sesenao",
+        "body": [
+            "se ${1:condicao} {",
+            "\t${2:// código se verdadeiro}",
+            "} senao {",
+            "\t${3:// código se falso}",
+            "}"
+        ],
+        "description": "Estrutura condicional se-senão"
+    },
+    "Loop Para": {
+        "prefix": "para",
+        "body": [
+            "para alocar ${1:i} inteiro = ${2:0}; ${1:i} < ${3:10}; ${1:i}++ {",
+            "\t${4:// código}",
+            "}"
+        ],
+        "description": "Loop para"
+    },
+    "Loop Enquanto": {
+        "prefix": "enquanto",
+        "body": [
+            "enquanto ${1:condicao} {",
+            "\t${2:// código}",
+            "}"
+        ],
+        "description": "Loop enquanto"
+    },
+    "Importar": {
+        "prefix": "importar",
+        "body": [
+            "importar \"${1:modulo}\""
+        ],
+        "description": "Importa um módulo"
+    },
+    "Constante": {
+        "prefix": "const",
+        "body": [
+            "const ${1:NOME} ${2:tipo} = ${3:valor}"
+        ],
+        "description": "Define uma constante"
+    },
+    "Função principal": {
+        "prefix": "principal",
+        "body": [
+            "declarar principal vazio {",
+            "\tfim",
+            "}"
+        ],
+        "description": "Função principal"
+    }
+}

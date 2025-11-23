@@ -3,7 +3,7 @@ module backend.compiler;
 import std.stdio, std.file;
 import std.bitmanip : nativeToLittleEndian, littleEndianToNative;
 import std.exception : enforce;
-import std.path : extension, setExtension;
+import std.path : extension, setExtension, baseName;
 import backend.harpyvm : OpCode, Value, EValue, Type, Instruction;
 
 // tipos de dados no formato binário da HarpyVM
@@ -23,9 +23,43 @@ enum HarpyBinTipo : ubyte
     INSTRUCAO = 9, // define uma instrução
     OPCODE = 10, // define o Opcode
     VALOR_TIPO = 11, // define o tipo e consequentemente após ele virá o valor desejado
+
+    SECAO_BIBLIOTECA = 12, // início de uma biblioteca .so
+    BIBLIOTECA_NOME = 13, // nome da biblioteca
+    BIBLIOTECA_DADOS = 14, // bytes da .so
+    BIBLIOTECA_DEPENDENCIAS = 15, // lista de deps da lib
 }
 
 private enum BUFFER_INICIAL = 4096; // 4KB inicial
+
+void adicionarBiblioteca(ref ubyte[] buffer, string caminho)
+{
+    import std.path : baseName;
+    import std.file : read;
+
+    string nome = baseName(caminho, ".so");
+    ubyte[] dadosSo = cast(ubyte[]) read(caminho);
+
+    // calcular tamanho total da seção
+    // 1 + 4 + nome.length (nome TLV)
+    // 1 + 4 + dadosSo.length (dados TLV)
+    uint tamanhoTotal = (1 + 4 + cast(uint) nome.length) +
+        (1 + 4 + cast(uint) dadosSo.length);
+
+    // SEÇÃO BIBLIOTECA com tamanho
+    buffer ~= HarpyBinTipo.SECAO_BIBLIOTECA;
+    buffer ~= nativeToLittleEndian(tamanhoTotal);
+
+    // nome (TLV interno)
+    buffer ~= HarpyBinTipo.BIBLIOTECA_NOME;
+    buffer ~= nativeToLittleEndian(cast(uint) nome.length);
+    buffer ~= cast(ubyte[]) nome;
+
+    // dados (TLV interno)
+    buffer ~= HarpyBinTipo.BIBLIOTECA_DADOS;
+    buffer ~= nativeToLittleEndian(cast(uint) dadosSo.length);
+    buffer ~= dadosSo;
+}
 
 // adiciona cabeçalho mágico "HarpyVM" + versão
 void adicionarCabecalho(ref ubyte[] buffer, ubyte versaoMaior = 0,
@@ -175,8 +209,13 @@ void adicionarInstrucao(ref ubyte[] buffer, OpCode op, Value val)
     }
 }
 
-void adicionarPrograma(ref ubyte[] buffer, Instruction[] instrucoes)
+void adicionarPrograma(ref ubyte[] buffer, Instruction[] instrucoes,
+    string[] bibliotecasUsadas = [])
 {
+    foreach (caminho; bibliotecasUsadas)
+        if (exists(caminho))
+            adicionarBiblioteca(buffer, caminho);
+
     // seção de bytecode
     buffer ~= HarpyBinTipo.SECAO_BYTECODE;
     // calcular tamanho total da seção

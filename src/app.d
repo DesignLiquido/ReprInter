@@ -1,5 +1,5 @@
 import std.stdio, std.file, std.path, std.array, std.getopt, std.datetime.stopwatch, std.algorithm, std
-	.string, std.process;
+	.string, std.process, std.uuid;
 import frontend.lexer.token, frontend.lexer.lexer;
 import frontend.parser.ast, frontend.parser.parser;
 import middle.semantic_analyzer, middle.harpy_optimizer;
@@ -9,6 +9,29 @@ import core.sys.posix.dlfcn;
 import erro, builtin, env;
 
 const string VERSAO = "0.1.0";
+string[] arquivosTemporarios;
+
+version (Windows)
+	string ext = ".dll";
+else
+	string ext = ".so";
+
+private struct Argumentos
+{
+	bool versao;
+	bool ajuda;
+	bool token;
+	bool ast;
+	bool tempo;
+	bool compilar;
+	bool otimizar;
+	bool verboso;
+	bool _asm;
+	bool estatico;
+	bool semBiblioteca;
+	string saida = "harpy.hvm";
+	string[] importacoes;
+}
 
 // guarda informações de tempo para métricas, serve para passar todas as métricas para a função de compilação
 // é privada pois não deve ser usada fora deste arquivo (main.d)
@@ -22,56 +45,105 @@ private struct Tempo
 	StopWatch tempoCG;
 }
 
-// area de compilação do sistema {{
 void executarHvm(ref string arquivo_, bool mostrarTempo = false, void*[string] bibliotecas)
 {
+	scope (exit)
+		limparArquivosTemporarios();
+
 	auto tempoTotal = StopWatch(AutoStart.yes);
 	auto arquivo = File(arquivo_, "rb");
+
 	try
 	{
 		ubyte maior, menor, patch;
 
 		if (!validarCabecalho(arquivo, maior, menor, patch))
 		{
-			writeln(
-				"O binário contém contém um cabeçalho inválido! O arquivo pode estar corrompido.");
-			exit(-1);
+			writeln("O binário contém um cabeçalho inválido! O arquivo pode estar corrompido.");
+			exit(1);
 		}
 
-		ubyte tipo;
-		uint tamanho;
-		lerItemTLV(arquivo, tipo, tamanho);
+		// loop até encontrar bytecode ou EOF
+		bool encontrouBytecode = false;
 
-		if (tipo != HarpyBinTipo.SECAO_BYTECODE)
+		try
 		{
-			writeln(
-				"O binário é inválido! O arquivo pode estar corrompido.");
-			exit(-1);
+			while (!encontrouBytecode)
+			{
+				ubyte tipo;
+				uint tamanho;
+				lerItemTLV(arquivo, tipo, tamanho);
+
+				if (tipo == HarpyBinTipo.SECAO_BIBLIOTECA)
+				{
+
+					ubyte tipoNome;
+					uint tamNome;
+					lerItemTLV(arquivo, tipoNome, tamNome);
+
+					if (tipoNome != HarpyBinTipo.BIBLIOTECA_NOME)
+					{
+						writeln("Esperado BIBLIOTECA_NOME, encontrado: ", tipoNome);
+						throw new Exception("Formato inválido");
+					}
+
+					string nome = lerTLVTexto(arquivo, tamNome);
+
+					// ler dados da .so ou .dll
+					ubyte tipoDados;
+					uint tamDados;
+					lerItemTLV(arquivo, tipoDados, tamDados);
+					ubyte[] dadosSo = lerTLVBytes(arquivo, tamDados);
+
+					// salvar em arquivo temporário
+					string tempPath = criarArquivoTemp(nome, dadosSo);
+
+					// carregar dinamicamente
+					void* handle = dlopen(tempPath.toStringz, RTLD_LAZY);
+					if (handle)
+						bibliotecas[nome] = handle;
+					else
+						writefln("AVISO: Falha ao carregar biblioteca %s: %s",
+							nome, dlerror().fromStringz);
+				}
+				else if (tipo == HarpyBinTipo.SECAO_BYTECODE)
+				{
+					// ler bytecode
+					Instruction[] programa = lerPrograma(arquivo);
+
+					// executar
+					HarpyVM motor = new HarpyVM();
+					motor.libs = bibliotecas;
+					motor.code = programa;
+
+					auto tempoMotor = StopWatch(AutoStart.yes);
+					motor.run();
+					tempoMotor.stop();
+
+					if (mostrarTempo)
+					{
+						writeln("\n---------------- Tempo ----------------:");
+						mostrarStatus("motor", tempoMotor);
+						mostrarStatus("total", tempoTotal);
+					}
+
+					encontrouBytecode = true;
+				}
+				else // tipo desconhecido, pular
+					arquivo.seek(tamanho, SEEK_CUR);
+			}
 		}
-
-		Instruction[] programa = lerPrograma(arquivo);
-		HarpyVM motor = new HarpyVM();
-		motor.libs = bibliotecas;
-		motor.code = programa;
-
-		auto tempoMotor = StopWatch(AutoStart.yes);
-		motor.run();
-
-		tempoMotor.stop();
-		tempoTotal.stop();
-
-		if (mostrarTempo)
-		{
-			writefln("\nTempo do motor (execução da HarpyVM): %d µs", tempoMotor.peek()
-					.total!"usecs");
-			writefln("Tempo total: %d µs", tempoTotal.peek().total!"usecs");
-		}
+		catch (Exception e) // se for EOF e já processou bytecode, tudo ok
+			if (!encontrouBytecode)
+				throw e;
 	}
 	catch (Exception e)
 	{
-		writeln("Um erro ocorreu ao tentar ler o binário!");
-		writeln(e);
-		exit(-1);
+		writeln("Erro ao ler o binário: ", e.msg);
+		writeln("Arquivo: ", e.file);
+		writeln("Linha: ", e.line);
+		writeln("Rastro: ", e);
+		exit(1);
 	}
 	finally
 		arquivo.close();
@@ -79,15 +151,44 @@ void executarHvm(ref string arquivo_, bool mostrarTempo = false, void*[string] b
 	exit(0);
 }
 
+string criarArquivoTemp(string nome, ubyte[] dados)
+{
+	// criar em /tmp ou equivalente
+	string uuid = randomUUID().toString();
+	string caminho = buildPath(tempDir(), "harpy_" ~ uuid ~ "_" ~ nome ~ ext);
+
+	std.file.write(caminho, dados);
+	arquivosTemporarios ~= caminho;
+
+	return caminho;
+}
+
+void limparArquivosTemporarios()
+{
+	foreach (arquivo; arquivosTemporarios)
+		try
+		{
+			remove(arquivo);
+		}
+		catch (Exception)
+		{ /* ignora */ }
+	arquivosTemporarios.length = 0;
+}
+
 // a saida tem um arquivo padrão caso nada seja passado
 // saida = "harpy.hvm"
 // coloquei aqui assim como na variavel principal na função "main" por garantia
-void compilarPrograma(ref Instruction[] instrucoes, string saida = "harpy.hvm", Tempo tempo)
+void compilarPrograma(ref Instruction[] instrucoes, string saida = "harpy.hvm", Tempo tempo,
+	string[] bibliotecasExternas, bool estatico = false)
 {
 	ubyte[] buffer;
 	auto tempoCompilacao = StopWatch(AutoStart.yes);
 	adicionarCabecalho(buffer, 0, 1, 0);
-	adicionarPrograma(buffer, instrucoes);
+
+	if (!estatico)
+		bibliotecasExternas = [];
+
+	adicionarPrograma(buffer, instrucoes, bibliotecasExternas);
 	writeln("Compilação concluida!");
 	salvarArquivoBinario(saida, buffer);
 	tempoCompilacao.stop();
@@ -95,17 +196,13 @@ void compilarPrograma(ref Instruction[] instrucoes, string saida = "harpy.hvm", 
 
 	if (tempo.tempo)
 	{
-		writefln("\nTempo do lexer (geração de tokens): %d µs", tempo.tempoLexer.peek()
-				.total!"usecs");
-		writefln("Tempo do parser (geração de nós): %d µs", tempo.tempoParser.peek()
-				.total!"usecs");
-		writefln("Tempo do analisador semantico: %d µs", tempo.tempoSA.peek()
-				.total!"usecs");
-		writefln("Tempo do gerador de bytecode (codegen): %d µs", tempo.tempoCG.peek()
-				.total!"usecs");
-		writefln("Tempo de compilação: %d µs", tempoCompilacao.peek()
-				.total!"usecs");
-		writefln("Tempo total: %d µs", tempo.tempoTotal.peek().total!"usecs");
+		writeln("\n---------------- Tempo ----------------:");
+		mostrarStatus("lexer", tempo.tempoLexer);
+		mostrarStatus("parser", tempo.tempoParser);
+		mostrarStatus("analisador semantico", tempo.tempoSA);
+		mostrarStatus("gerador de bytecode", tempo.tempoCG);
+		mostrarStatus("compilador", tempoCompilacao);
+		mostrarStatus("total", tempo.tempoTotal);
 	}
 
 	exit(0);
@@ -118,9 +215,9 @@ void checkErrors(DiagnosticError erro)
 	if (erro.hasErrors() || erro.hasWarnings())
 	{
 		erro.printDiagnostics();
-		// fecha o programa com código -1 caso haja erros
+		// fecha o programa com código 1 caso haja erros
 		if (erro.hasErrors())
-			exit(-1);
+			exit(1);
 		erro.clear();
 	}
 }
@@ -151,7 +248,6 @@ void ajuda()
 
 void versao()
 {
-	// mostra uma mensagem de ajuda
 	writefln("HarpyVM - %s", VERSAO);
 }
 
@@ -160,7 +256,7 @@ void versao()
 // retorno = /home/<USER>/.harpy/libs/io.so
 string criarLibSys(string nome)
 {
-	return DIR_LIBS ~ nome ~ ".so";
+	return DIR_LIBS ~ nome ~ ext;
 }
 
 string extrairDir(string path)
@@ -169,72 +265,91 @@ string extrairDir(string path)
 	return dir == "." || dir == "" ? "." : dir;
 }
 
+void mostrarStatus(string nome, StopWatch sw)
+{
+	writefln("%-25s %10d µs", nome, sw.peek().total!"usecs");
+}
+
+void sair(string mensagem, int codigo)
+{
+	writeln(mensagem);
+	exit(codigo);
+}
+
+void sair_(string mensagem, int codigo)
+{
+	writeln(mensagem);
+	ajuda();
+	exit(codigo);
+}
+
 void main(string[] argumentos)
 {
+	// verifica se foram passados argumentos
+	// o argumentos[0] por padrão contem o nome do executavel que está sendo executado
+	if (argumentos.length == 1)
+		sair_("Era esperado um arquivo de extensão '.rp' como argumento.", 1);
+
+	// arquivo aparentemente passado, vamos validar
+	string arquivo = argumentos[1];
+
+	// é um arquivo ou existe?
+	if (!exists(arquivo))
+		sair(format("O arquivo '%s' não existe.", arquivo), 1);
+
+	if (!isFile(arquivo))
+		sair(format("'%s' não é um arquivo.", arquivo), 1);
+
 	loadEnv();
 
 	DiagnosticError erro = new DiagnosticError; // classe que gera os erros de todo o sistema
-	bool mostrarVersao, mostrarAjuda, mostrarToken, mostrarAst, mostrarTempo, compilar, otimizar, verboso, mostrarAsm;
+	Argumentos args;
 	string saida = "harpy.hvm"; // arquivo padrão caso nenhuma saída seja passada
 
 	try
 	{
 		// configura todos os argumentos do sistema
 		getopt(argumentos,
-			"v|versao", &mostrarVersao,
-			"a|ajuda", &mostrarAjuda,
-			"token", &mostrarToken,
-			"ast", &mostrarAst,
-			"t|tempo", &mostrarTempo,
-			"c|compilar", &compilar,
-			"s|saida", &saida,
-			"o|otimizar", &otimizar,
-			"verboso", &verboso,
-			"asm", &mostrarAsm,
+			"v|versao", &args.versao,
+			"a|ajuda", &args.ajuda,
+			"token", &args.token,
+			"ast", &args.ast,
+			"t|tempo", &args.tempo,
+			"c|compilar", &args.compilar,
+			"s|saida", &args.saida,
+			"o|otimizar", &args.otimizar,
+			"verboso", &args.verboso,
+			"asm", &args._asm,
+			"E|estatico", &args.estatico,
+			"I|incluir", &args.importacoes,
+			"B|sem-biblioteca", &args.semBiblioteca,
 		);
 
-		if (mostrarVersao)
+		if (args.versao)
 		{
 			versao();
 			return;
 		}
 
-		if (mostrarAjuda)
+		if (args.ajuda)
 		{
 			ajuda();
 			return;
-		}
-
-		// verifica se foram passados argumentos
-		// o argumentos[0] por padrão contem o nome do executavel que está sendo executado
-		if (argumentos.length == 1)
-		{
-			writeln("Era esperado um arquivo de extensão '.rp' como argumento.");
-			ajuda();
-			exit(-1);
-		}
-
-		// arquivo aparentemente passado, vamos validar
-		string arquivo = argumentos[1];
-
-		// é um arquivo ou existe?
-		if (!exists(arquivo))
-		{
-			writefln("O arquivo '%s' não existe.", arquivo);
-			return;
-		}
-		if (!isFile(arquivo))
-		{
-			writefln("'%s' não é um arquivo.", arquivo);
-			exit(-1);
 		}
 
 		// carrega bibliotecas externas, incluindo bibliotecas padrão da VM
 		// bibliotecas do sistema ja estará pré carregadas
-		string[] bibliotecasExternas = [
+		string[] bibliotecasNativas = [
 			criarLibSys("entrada_saida"), criarLibSys("matematica"),
 			criarLibSys("arquivo")
 		];
+		string[] bibliotecasExternas;
+
+		if (!args.semBiblioteca)
+			bibliotecasExternas = bibliotecasNativas;
+
+		if (args.importacoes.length > 0)
+			bibliotecasExternas ~= args.importacoes;
 
 		// carrega todas as bibliotecas dinamicas antes de tudo executar
 		// o overhead inicia aqui
@@ -242,28 +357,28 @@ void main(string[] argumentos)
 		void*[string] bibliotecas;
 		foreach (string path; bibliotecasExternas)
 		{
+			if (!exists(path))
+				sair(format("ERRO: A biblioteca dinamica '%s' não existe.", path), 1);
+
 			if (path !in bibliotecas)
 			{
 				void* handle = dlopen(path.toStringz, RTLD_LAZY | RTLD_NODELETE);
 				if (!handle)
-				{
-					writefln("Erro ao carregar %s:", path);
-					writeln(dlerror().fromStringz);
 					throw new Exception("Falha ao carregar biblioteca: " ~ path);
-				}
-				bibliotecas[path] = handle;
+				string lib = replace(baseName(path), ext, "");
+				bibliotecas[lib] = handle;
 			}
 		}
 
 		// se a extensão for .hvm então executaremos o bytecode diretamente
 		if (extension(arquivo) == ".hvm")
-			executarHvm(arquivo, mostrarTempo, bibliotecas);
+			executarHvm(arquivo, args.tempo, bibliotecas);
 
 		// valida a extensão do arquivo
 		if (extension(arquivo) != ".rp")
 		{
 			writefln("O arquivo '%s' precisa ter a extensão '.rp' ou '.hvm'.", arquivo);
-			exit(-1);
+			exit(1);
 		}
 
 		// vamos salvar métricas de tempo pra analisar a velocidade do sistema
@@ -282,7 +397,7 @@ void main(string[] argumentos)
 		// para a contagem de tempo
 		tempoLexer.stop();
 
-		if (mostrarToken)
+		if (args.token)
 			foreach (Token token; tokens)
 				token.print();
 
@@ -292,7 +407,7 @@ void main(string[] argumentos)
 		checkErrors(erro);
 		tempoParser.stop();
 
-		if (mostrarAst)
+		if (args.ast)
 			programa.print();
 
 		// gera todo o builtin (embutido) do sistema
@@ -315,9 +430,19 @@ void main(string[] argumentos)
 		Instruction[] instrucoes = cg.generate(programa);
 		tempoCG.stop();
 
-		if (otimizar)
+		bool[string] nomesLibsUsadas;
+		foreach (lib; cg.libsUsadas.byKey)
+			nomesLibsUsadas[baseName(lib).stripExtension] = true;
+
+		// filtra removendo bibliotecas não usadas
+		bibliotecasExternas = bibliotecasExternas.filter!(bibExt =>
+				baseName(bibExt)
+				.stripExtension in nomesLibsUsadas
+		).array;
+
+		if (args.otimizar)
 		{
-			if (verboso)
+			if (args.verboso)
 				writeln("Numero de instruções antes da otimização: ", instrucoes.length);
 
 			// executa passes até o numero de instruções não mudar mais
@@ -329,23 +454,24 @@ void main(string[] argumentos)
 				tamanhoAnterior = cast(ulong) instrucoes.length;
 				instrucoes = cf.optimize();
 				cf.instructions = instrucoes;
-				if (verboso)
+				if (args.verboso)
 					writefln("Passe %d, %d instruções.", passe++, instrucoes
 							.length);
 			}
 			while (instrucoes.length < tamanhoAnterior);
 
-			if (verboso)
+			if (args.verboso)
 				writeln("Numero de instruções depois da otimização: : ", instrucoes.length);
 		}
 
 		// verifica se o usuário deseja compilar o programa
-		if (compilar)
-			compilarPrograma(instrucoes, saida, Tempo(mostrarTempo, tempoTotal, tempoLexer, tempoParser, tempoSA, tempoCG));
+		if (args.compilar)
+			compilarPrograma(instrucoes, saida, Tempo(args.tempo, tempoTotal, tempoLexer, tempoParser, tempoSA, tempoCG),
+				bibliotecasExternas, args.estatico);
 
 		motor.code = instrucoes;
 
-		if (mostrarAsm)
+		if (args._asm)
 		{
 			HarpyDisassembler.run(instrucoes);
 			return;
@@ -361,35 +487,32 @@ void main(string[] argumentos)
 		tempoMotor.stop();
 		tempoTotal.stop();
 
-		if (mostrarTempo)
+		if (args.tempo)
 		{
-			writefln("\nTempo do lexer (geração de tokens): %d µs", tempoLexer.peek()
-					.total!"usecs");
-			writefln("Tempo do parser (geração de nós): %d µs", tempoParser.peek()
-					.total!"usecs");
-			writefln("Tempo do analisador semantico: %d µs", tempoSA.peek()
-					.total!"usecs");
-			writefln("Tempo do gerador de bytecode (codegen): %d µs", tempoCG.peek()
-					.total!"usecs");
-			writefln("Tempo do motor (execução da HarpyVM): %d µs", tempoMotor.peek()
-					.total!"usecs");
-			writefln("Tempo total: %d µs", tempoTotal.peek().total!"usecs");
+			writeln("\n---------------- Tempo ----------------");
+			mostrarStatus("lexer", tempoLexer);
+			mostrarStatus("parser", tempoParser);
+			mostrarStatus("analisador semantico", tempoSA);
+			mostrarStatus("gerador de bytecode", tempoCG);
+			mostrarStatus("motor", tempoMotor);
+			mostrarStatus("total", tempoTotal);
 		}
 	}
 	catch (Exception e)
 	{
-		// if (find("Unrecognized option", e.msg))
-		// {
-		// 	writeln("Opção desconhecida passada: ", e.msg[20 .. $]);
-		// 	ajuda();
-		// 	return;
-		// }
-		// se for um erro do sistema ele irá fechar o programa, caso contrário irá mostrar o e.msg
-		checkErrors(erro);
-		writeln("Erro critico: ", e.msg);
-		writeln("Arquivo: ", e.file);
-		writeln("Linha: ", e.line);
-		writeln("Erro critico: ", e);
-		exit(-1);
+		// o tamanho da mensagem até a flag será de 20, por isso o numero magico
+		if (canFind(e.msg, "Unrecognized option"))
+			writefln("Opção desconhecida passada '%s', use '-a' e veja o menu de ajuda.", e
+					.msg[20 .. $]);
+		else
+		{
+			// se for um erro do sistema ele irá fechar o programa, caso contrário irá mostrar o e.msg
+			checkErrors(erro);
+			writeln("Erro critico: ", e.msg);
+			writeln("Arquivo: ", e.file);
+			writeln("Linha: ", e.line);
+			writeln("Rastro: ", e);
+		}
+		exit(1);
 	}
 }

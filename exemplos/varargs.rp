@@ -1,6 +1,4 @@
-externo {
-    declarar escrevaln(...) vazio;
-}
+importar biblioteca.entrada_saida
 
 declarar somatorio(mensagem texto, ...inteiro|decimal) vazio {
     escrevaln(mensagem)
@@ -17,7 +15,7 @@ declarar media(...decimal) decimal {
 }
 
 declarar principal vazio {
-    alocar m decimal = media(1.0, 10)
+    alocar m decimal = media(1.0, 10.0)
     escrevaln(m)
     fim
 }

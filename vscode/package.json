@@ -1,0 +1,37 @@
+{
+  "name": "reprinter",
+  "displayName": "reprinter",
+  "description": "Extensão para o IR ReprInter da HarpyVM",
+  "version": "0.0.9",
+  "publisher": "FarpyOrganization",
+  "icon": "./imagens/icon.png",
+  "engines": {
+    "vscode": "^1.106.1"
+  },
+  "categories": [
+    "Programming Languages"
+  ],
+  "contributes": {
+    "languages": [{
+      "id": "reprinter",
+      "aliases": ["reprinter"],
+      "extensions": [".rp", ".hvm"],
+      "configuration": "./language-configuration.json",
+      "icon": {
+        "light": "./imagens/file.png",
+        "dark": "./imagens/file.png"
+      }
+    }],
+    "grammars": [{
+      "language": "reprinter",
+      "scopeName": "source.rp",
+      "path": "./syntaxes/reprinter.tmLanguage.json"
+    }],
+    "snippets": [
+      {
+        "language": "reprinter",
+        "path": "./snippets/snippets.json"
+      }
+    ]
+  }
+}
