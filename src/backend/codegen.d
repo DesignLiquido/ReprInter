@@ -100,7 +100,7 @@ private:
         // Busca do escopo mais interno para o mais externo
         for (long i = cast(long) scopeStack.length - 1; i >= 0; i--)
         {
-            if (auto var = name in scopeStack[i])
+            if (auto var = name in scopeStack[cast(uint) i])
                 return var;
         }
         return null;
@@ -275,7 +275,7 @@ public:
             EnumDeclaration e = cast(EnumDeclaration) node;
             string name = makeNameMangling(e.nameMangling, e.name);
             for (long i = cast(long) e.fields.length - 1; i >= 0; i--)
-                generateNode(e.fields[i].value);
+                generateNode(e.fields[cast(uint) i].value);
             cg.emit(Instruction(OpCode.ENUMN, engine.makeInt(e.fields.length)));
             cg.emit(Instruction(OpCode.STOREG, engine.makeStr(name)));
             this.addVar(name, true);
@@ -568,6 +568,11 @@ public:
         {
             throw new Exception("O Windows não suporta o uso de 'externo' no momento.");
         }
+
+        void generateExtern(FunctionDeclaration funcDecl)
+        {
+            throw new Exception("O Windows não suporta o uso de 'externo' no momento.");
+        }
     }
     else
     {
@@ -849,7 +854,7 @@ public:
         // processa argumentos variadicos primeiro
         for (long i = 0; i < node.args.length; i++)
         {
-            if (i < fA.length && fA[i].isVar)
+            if (i < fA.length && fA[cast(uint) i].isVar)
             {
                 var = true;
                 // Conta quantos argumentos variádicos restam
@@ -858,8 +863,9 @@ public:
                 // Gera os argumentos variádicos em ordem direta
                 for (long j = cast(long) node.args.length - 1; j >= i; j--)
                 {
-                    checkType(fA[i].type, node.args[j].type, node.args[j].loc);
-                    generateNode(node.args[j]);
+                    checkType(fA[cast(uint) i].type, node.args[cast(uint) j].type, node.args[cast(
+                                uint) j].loc);
+                    generateNode(node.args[cast(uint) j]);
                 }
 
                 // Cria um array com os argumentos variádicos
@@ -891,7 +897,7 @@ public:
             // loop REVERSO porque a pilha inverte a ordem!
             for (long i = cast(long) fA.length - 1; i >= cast(long) node.args.length;
                 i--)
-                generateNode(fA[i].value);
+                generateNode(fA[cast(uint) i].value);
         }
 
         // primeiro geramos os argumentos opcionais em ordem reversa para seguir o padrão
@@ -926,14 +932,14 @@ public:
         // Processa argumentos não variádicos
         for (long i = cast(long) node.args.length - 1; i >= 0; i--)
         {
-            Node arg = node.args[i];
+            Node arg = node.args[cast(uint) i];
             // verifica se ainda existem parâmetros formais correspondentes
-            if (i < fA.length && !fA[i].isVar)
+            if (i < fA.length && !fA[cast(uint) i].isVar)
             {
                 generateNode(arg);
                 // para tipos compostos, verifica se precisa fazer cópia
                 if (arg.type.type == Types.Array || arg.type.type == Types.Struct)
-                    if (!fA[i].isRef)
+                    if (!fA[cast(uint) i].isRef)
                         cg.emit(Instruction(OpCode.DUP));
             }
         }
@@ -949,7 +955,7 @@ public:
         if (node.args.length < fA.length)
             for (long i = cast(long) fA.length - 1; i >= cast(long) node.args.length;
                 i--)
-                generateNode(fA[i].value);
+                generateNode(fA[cast(uint) i].value);
 
         foreach_reverse (arg; node.args)
             generateNode(arg);

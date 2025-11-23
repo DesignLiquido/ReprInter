@@ -325,7 +325,7 @@ class HarpyVM
         pc = 0;
         while (pc < code.length)
         {
-            Instruction inst = code[pc];
+            Instruction inst = code[cast(uint) pc];
             // writeln("OPCODE: ", to!string(inst.op));
             switch (inst.op)
             {
@@ -748,7 +748,7 @@ class HarpyVM
                 // writeln(val, " ", idx);
                 if (idx >= arr.length)
                     throw new Exception("O indice acessado é maior do que o tamanho do vetor.");
-                push(arr[idx]);
+                push(arr[cast(uint) idx]);
                 pc++;
                 break;
 
@@ -781,7 +781,7 @@ class HarpyVM
                     throw new Exception("O indice acessado é maior do que o tamanho do vetor.");
 
                 // Modifica diretamente na stack
-                valueStack[$ - 1].value.array[idx] = val;
+                valueStack[$ - 1].value.array[cast(uint) idx] = val;
                 //pop(); // Remove o array da stack após modificação
                 pc++;
                 break;
@@ -835,7 +835,7 @@ class HarpyVM
                 // writeln("STRUCTG IDX: ", idx);
                 Value[] strc = val.value.struct_;
                 // writeln("STRUCTG VALUES: ", strc);
-                push(strc[idx]);
+                push(strc[cast(uint) idx]);
                 pc++;
                 break;
 
@@ -863,7 +863,7 @@ class HarpyVM
                     throw new Exception("Índice de field inválido");
 
                 // Modifica diretamente na stack
-                valueStack[$ - 1].value.struct_[idx] = val;
+                valueStack[$ - 1].value.struct_[cast(uint) idx] = val;
                 pc++;
                 break;
 

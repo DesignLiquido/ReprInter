@@ -151,18 +151,29 @@ void executarHvm(ref string arquivo_, bool mostrarTempo = false, void*[string] b
 	exit(0);
 }
 
-void* carregarBibliotecaDaMemoria(string nome, ubyte[] dados)
+version (linux)
 {
-	if (nome in cacheGlobalBibliotecas)
-		return cacheGlobalBibliotecas[nome];
+	void* carregarBibliotecaDaMemoria(string nome, ubyte[] dados)
+	{
+		if (nome in cacheGlobalBibliotecas)
+			return cacheGlobalBibliotecas[nome];
 
-	string tempPath = criarArquivoTemp(nome, dados);
-	void* handle = dlopen(tempPath.toStringz, RTLD_LAZY);
+		string tempPath = criarArquivoTemp(nome, dados);
+		void* handle = dlopen(tempPath.toStringz, RTLD_LAZY);
 
-	if (handle)
-		cacheGlobalBibliotecas[nome] = handle;
+		if (handle)
+			cacheGlobalBibliotecas[nome] = handle;
 
-	return handle;
+		return handle;
+	}
+}
+else version (Windows)
+{
+	void* carregarBibliotecaDaMemoria(string nome, ubyte[] dados)
+	{
+		void* handle = null;
+		return handle;
+	}
 }
 
 string criarArquivoTemp(string nome, ubyte[] dados)
@@ -326,7 +337,7 @@ void main(string[] argumentos)
 
 	DiagnosticError erro = new DiagnosticError; // classe que gera os erros de todo o sistema
 	Argumentos args;
-	string saida = "harpy.hvm"; // arquivo padrão caso nenhuma saída seja passada
+	args.saida = "harpy.hvm"; // arquivo padrão caso nenhuma saída seja passada
 
 	try
 	{
@@ -381,9 +392,12 @@ void main(string[] argumentos)
 			if (!exists(path))
 				sair(format("ERRO: A biblioteca dinamica '%s' não existe.", path), 1);
 
-			if (path !in bibliotecas)
 			{
-				void* handle = dlopen(path.toStringz, RTLD_LAZY | RTLD_NODELETE);
+				void* handle = null;
+				if (path !in bibliotecas)
+					version (linux)
+						handle = dlopen(path.toStringz, RTLD_LAZY | RTLD_NODELETE);
+
 				if (!handle)
 					throw new Exception("Falha ao carregar biblioteca: " ~ path);
 				string lib = replace(baseName(path), ext, "");
@@ -487,7 +501,7 @@ void main(string[] argumentos)
 
 		// verifica se o usuário deseja compilar o programa
 		if (args.compilar)
-			compilarPrograma(instrucoes, saida, Tempo(args.tempo, tempoTotal, tempoLexer, tempoParser, tempoSA, tempoCG),
+			compilarPrograma(instrucoes, args.saida, Tempo(args.tempo, tempoTotal, tempoLexer, tempoParser, tempoSA, tempoCG),
 				bibliotecasExternas, args.estatico);
 
 		motor.code = instrucoes;
