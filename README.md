@@ -1,6 +1,6 @@
-# ReprInter
+# Harpy
 
-**ReprInter** é uma representação intermediária (IR) projetada para a máquina virtual **HarpyVM** — uma VM leve, eficiente e focada em simplicidade.
+**Harpy** é uma linguagem de programação projetada para a máquina virtual **HarpyVM** — uma VM leve, eficiente e focada em simplicidade.
 
 ---
 
@@ -17,7 +17,7 @@ Ao contrário de VMs complexas como o V8 (Google), a Harpy mantém uma arquitetu
 
 ### Características principais
 
-- **IR próprio (ReprInter)**: Representação intermediária simples e direta que abstrai complexidades desnecessárias
+- **IR próprio**: Representação intermediária simples e direta que abstrai complexidades desnecessárias
 - **Múltiplos frontends**: Geradores de IR disponíveis em D e TypeScript
 - **Foco no essencial**: Implementação concentrada nas operações críticas, delegando aspectos secundários ao ecossistema D
 
@@ -42,7 +42,7 @@ Aqui você encontrará não apenas documentação teórica, mas também ferramen
 ```
 MIT License
 
-Copyright (c) 2025 Fernando
+Copyright (c) 2025-current Fernando
 Supported by Design Liquido
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
