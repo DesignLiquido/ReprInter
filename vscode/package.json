@@ -1,7 +1,7 @@
 {
-  "name": "reprinter",
-  "displayName": "reprinter",
-  "description": "Extensão para o IR ReprInter da HarpyVM",
+  "name": "harpy",
+  "displayName": "harpy",
+  "description": "Extensão para a linguagem Harpy",
   "version": "0.0.9",
   "publisher": "FarpyOrganization",
   "icon": "./imagens/icon.png",
@@ -13,23 +13,23 @@
   ],
   "contributes": {
     "languages": [{
-      "id": "reprinter",
-      "aliases": ["reprinter"],
-      "extensions": [".rp", ".hvm"],
+      "id": "harpy",
+      "aliases": ["harpy"],
+      "extensions": [".hrp", ".hvm"],
       "configuration": "./language-configuration.json",
       "icon": {
-        "light": "./imagens/file.png",
-        "dark": "./imagens/file.png"
+        "light": "./imagens/icone-harpy.png",
+        "dark": "./imagens/icone-harpy.png"
       }
     }],
     "grammars": [{
-      "language": "reprinter",
-      "scopeName": "source.rp",
-      "path": "./syntaxes/reprinter.tmLanguage.json"
+      "language": "harpy",
+      "scopeName": "fonte.hrp",
+      "path": "./sintaxes/harpy.tmLanguage.json"
     }],
     "snippets": [
       {
-        "language": "reprinter",
+        "language": "harpy",
         "path": "./snippets/snippets.json"
       }
     ]
