@@ -5,7 +5,7 @@
 	"copyright": "Copyright © 2025, Fernando Dev",
 	"description": "A minimal D application.",
 	"license": "MIT",
-	"name": "reprinter",
+	"name": "harpy",
 	"targetType": "executable",
 	"targetName": "harpy",
 	"buildTypes": {

@@ -1,1 +1,0 @@
-Arquivo de teste para verificar se a função "lerArquivo" está funcionando corretamente

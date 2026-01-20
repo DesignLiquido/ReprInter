@@ -1,6 +1,0 @@
-importar biblioteca.entrada_saida
-
-declarar principal vazio {
-    escrevaln("Olá Mundo!")
-    fim
-}
