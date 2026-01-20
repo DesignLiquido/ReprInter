@@ -1,0 +1,14 @@
+{
+    "nome": "Projeto HarpyVM",
+    "descricao": "Testando arquivo de configuração",
+    "autor": "Fernando the Dev",
+    "versao": "0.1.0",
+    "entrada": "exemplos/interpretador/uso.rp",
+    "compilacao": {
+        "saida": "interpretador",
+        "estatico": true,
+        "biblioteca_nativa": true,
+        "otimizar": false
+    },
+    "dependencias": []
+}

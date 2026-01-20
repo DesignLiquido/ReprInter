@@ -1,7 +1,7 @@
 // interpretador de calculos matematicos simples
 
-importar biblioteca.entrada_saida
-importar biblioteca.arquivo : { lerArquivo, ARQUIVO }
+importar padrao.es
+importar nucleo.arquivo : { lerArquivo, ARQUIVO }
 
 enum TokenTipo {
     Numero = "Numero"               // 0..9 || 0..9.0..9

@@ -1,4 +1,4 @@
-importar biblioteca.entrada_saida
+importar padrao.es
 
 enum TokenKind* {
     Identificador = "Identificador"

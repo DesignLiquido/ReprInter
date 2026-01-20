@@ -76,7 +76,7 @@ class Program : Node
         println("│   └── Corpo (" ~ to!string(body.length) ~ " nó(s)):", ident);
         foreach (long i, Node node; body)
         {
-            if (i == cast(uint)
+            if (i == cast(int)
                 body.length - 1)
                 node.print(ident + 8, true); // ultimo
             else
@@ -124,18 +124,19 @@ class FunctionDeclaration : Node
 
         foreach (long i, FunctionArgument arg; args)
         {
-            string argPrefix = (i == cast(uint) args.length - 1) ? "└── " : "├── ";
+            string argPrefix = (i == cast(int) args.length - 1) ? "└── " : "├── ";
             println(continuation ~ "│   " ~ argPrefix ~ "Argumento: " ~ arg.name, ident);
-            println(continuation ~ "│   " ~ (i == cast(uint) args.length - 1 ? "    " : "│   ") ~
-                    "├── Tipo: " ~ cast(string) arg.type.baseType, ident);
-            println(continuation ~ "│   " ~ (i == cast(uint) args.length - 1 ? "    " : "│   ") ~
+            println(continuation ~ "│   " ~ (i == cast(int) args.length - 1 ? "    " : "│   ") ~
+                    "├── Tipo: " ~ cast(
+                        string) arg.type.baseType, ident);
+            println(continuation ~ "│   " ~ (i == cast(int) args.length - 1 ? "    " : "│   ") ~
                     "└── Tem valor padrão: " ~ to!string(arg.defaultValue), ident);
         }
 
         println(continuation ~ "└── Corpo (" ~ to!string(body.length) ~ " nó(s)):", ident);
         foreach (long i, Node node; body)
         {
-            if (i == cast(uint)
+            if (i == cast(int)
                 body.length - 1)
                 node.print(ident + continuation.length + 4, true);
             else
@@ -325,7 +326,7 @@ class CallExpr : Node
 
         foreach (long i, Node arg; args)
         {
-            if (i == cast(uint) args.length - 1)
+            if (i == cast(int) args.length - 1)
                 arg.print(ident + continuation.length + 4, true);
             else
                 arg.print(ident + continuation.length + 4, false);
@@ -443,7 +444,7 @@ class IfStatement : Node
         println(continuation ~ "└── Corpo (" ~ to!string(body.length) ~ " nó(s)):", ident);
         foreach (long i, Node node; body)
         {
-            if (i == cast(uint)
+            if (i == cast(int)
                 body.length - 1)
                 node.print(ident + continuation.length + 4, else_ !is null);
             else
@@ -561,7 +562,7 @@ class ForStatement : Node
         // corpo
         println(continuation ~ "└── Corpo (" ~ to!string(body.length) ~ " nó(s)):", ident);
         foreach (long i, Node node; body)
-            if (i == cast(uint)
+            if (i == cast(int)
                 body.length - 1)
                 node.print(ident + continuation.length + 4, true);
             else

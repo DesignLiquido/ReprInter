@@ -1,0 +1,397 @@
+// Maquina Virtual Harpy
+// Copyright (c) 2025 Fernando (FernandoTheDev)
+// Biblioteca padrão para criptografia
+
+importar padrao.es : { escrevaln, escrevaf }
+
+declarar char_para_codigo(ch texto) inteiro {
+    // Retorna o código ASCII aproximado do caractere
+    alocar codigo int = 0
+    se ch == "A" retorne 65
+    se ch == "B" retorne 66
+    se ch == "C" retorne 67
+    se ch == "D" retorne 68
+    se ch == "E" retorne 69
+    se ch == "F" retorne 70
+    se ch == "G" retorne 71
+    se ch == "H" retorne 72
+    se ch == "I" retorne 73
+    se ch == "J" retorne 74
+    se ch == "K" retorne 75
+    se ch == "L" retorne 76
+    se ch == "M" retorne 77
+    se ch == "N" retorne 78
+    se ch == "O" retorne 79
+    se ch == "P" retorne 80
+    se ch == "Q" retorne 81
+    se ch == "R" retorne 82
+    se ch == "S" retorne 83
+    se ch == "T" retorne 84
+    se ch == "U" retorne 85
+    se ch == "V" retorne 86
+    se ch == "W" retorne 87
+    se ch == "X" retorne 88
+    se ch == "Y" retorne 89
+    se ch == "Z" retorne 90
+    se ch == "a" retorne 97
+    se ch == "b" retorne 98
+    se ch == "c" retorne 99
+    se ch == "d" retorne 100
+    se ch == "e" retorne 101
+    se ch == "f" retorne 102
+    se ch == "g" retorne 103
+    se ch == "h" retorne 104
+    se ch == "i" retorne 105
+    se ch == "j" retorne 106
+    se ch == "k" retorne 107
+    se ch == "l" retorne 108
+    se ch == "m" retorne 109
+    se ch == "n" retorne 110
+    se ch == "o" retorne 111
+    se ch == "p" retorne 112
+    se ch == "q" retorne 113
+    se ch == "r" retorne 114
+    se ch == "s" retorne 115
+    se ch == "t" retorne 116
+    se ch == "u" retorne 117
+    se ch == "v" retorne 118
+    se ch == "w" retorne 119
+    se ch == "x" retorne 120
+    se ch == "y" retorne 121
+    se ch == "z" retorne 122
+    se ch == "0" retorne 48
+    se ch == "1" retorne 49
+    se ch == "2" retorne 50
+    se ch == "3" retorne 51
+    se ch == "4" retorne 52
+    se ch == "5" retorne 53
+    se ch == "6" retorne 54
+    se ch == "7" retorne 55
+    se ch == "8" retorne 56
+    se ch == "9" retorne 57
+    se ch == " " retorne 32
+    se ch == "!" retorne 33
+    se ch == "?" retorne 63
+    se ch == "." retorne 46
+    se ch == "," retorne 44
+    retorne 35  // # para caracteres desconhecidos
+}
+
+declarar codigo_para_char(codigo inteiro) texto {
+    se codigo == 65 retorne "A"
+    se codigo == 66 retorne "B"
+    se codigo == 67 retorne "C"
+    se codigo == 68 retorne "D"
+    se codigo == 69 retorne "E"
+    se codigo == 70 retorne "F"
+    se codigo == 71 retorne "G"
+    se codigo == 72 retorne "H"
+    se codigo == 73 retorne "I"
+    se codigo == 74 retorne "J"
+    se codigo == 75 retorne "K"
+    se codigo == 76 retorne "L"
+    se codigo == 77 retorne "M"
+    se codigo == 78 retorne "N"
+    se codigo == 79 retorne "O"
+    se codigo == 80 retorne "P"
+    se codigo == 81 retorne "Q"
+    se codigo == 82 retorne "R"
+    se codigo == 83 retorne "S"
+    se codigo == 84 retorne "T"
+    se codigo == 85 retorne "U"
+    se codigo == 86 retorne "V"
+    se codigo == 87 retorne "W"
+    se codigo == 88 retorne "X"
+    se codigo == 89 retorne "Y"
+    se codigo == 90 retorne "Z"
+    se codigo == 97 retorne "a"
+    se codigo == 98 retorne "b"
+    se codigo == 99 retorne "c"
+    se codigo == 100 retorne "d"
+    se codigo == 101 retorne "e"
+    se codigo == 102 retorne "f"
+    se codigo == 103 retorne "g"
+    se codigo == 104 retorne "h"
+    se codigo == 105 retorne "i"
+    se codigo == 106 retorne "j"
+    se codigo == 107 retorne "k"
+    se codigo == 108 retorne "l"
+    se codigo == 109 retorne "m"
+    se codigo == 110 retorne "n"
+    se codigo == 111 retorne "o"
+    se codigo == 112 retorne "p"
+    se codigo == 113 retorne "q"
+    se codigo == 114 retorne "r"
+    se codigo == 115 retorne "s"
+    se codigo == 116 retorne "t"
+    se codigo == 117 retorne "u"
+    se codigo == 118 retorne "v"
+    se codigo == 119 retorne "w"
+    se codigo == 120 retorne "x"
+    se codigo == 121 retorne "y"
+    se codigo == 122 retorne "z"
+    se codigo == 48 retorne "0"
+    se codigo == 49 retorne "1"
+    se codigo == 50 retorne "2"
+    se codigo == 51 retorne "3"
+    se codigo == 52 retorne "4"
+    se codigo == 53 retorne "5"
+    se codigo == 54 retorne "6"
+    se codigo == 55 retorne "7"
+    se codigo == 56 retorne "8"
+    se codigo == 57 retorne "9"
+    se codigo == 32 retorne " "
+    se codigo == 33 retorne "!"
+    se codigo == 63 retorne "?"
+    se codigo == 46 retorne "."
+    se codigo == 44 retorne ","
+    retorne "#"
+}
+
+// ============================================
+// XOR CIPHER (Corrigido para trabalhar com bytes)
+// ============================================
+
+declarar xor_criptografar*(mensagem texto, chave texto) texto {
+    alocar resultado texto = ""
+    alocar tam_msg int = @tamanho_texto(mensagem)
+    alocar tam_chave int = @tamanho_texto(chave)
+    
+    se tam_chave == 0 retorne mensagem
+    
+    // Converte para representação hexadecimal para preservar todos os bytes
+    para alocar i int = 0; i < tam_msg; i++ {
+        alocar ch_msg int = char_para_codigo(mensagem[i])
+        alocar ch_chave int = char_para_codigo(chave[i % tam_chave])
+        
+        alocar xor_result int = ch_msg ^ ch_chave
+        
+        // Converte para hex (2 dígitos)
+        alocar hex_high int = xor_result >> 4
+        alocar hex_low int = xor_result & 15
+        
+        // Converte para char hex
+        se hex_high < 10
+            resultado ~= codigo_para_char(48 + hex_high)
+        senao
+            resultado ~= codigo_para_char(65 + (hex_high - 10))
+        
+        se hex_low < 10
+            resultado ~= codigo_para_char(48 + hex_low)
+        senao
+            resultado ~= codigo_para_char(65 + (hex_low - 10))
+    }
+    
+    retorne resultado
+}
+
+declarar hex_para_valor(ch texto) inteiro {
+    alocar codigo int = char_para_codigo(ch)
+    
+    // 0-9
+    se codigo >= 48 && codigo <= 57
+        retorne codigo - 48
+    
+    // A-F
+    se codigo >= 65 && codigo <= 70
+        retorne codigo - 65 + 10
+    
+    // a-f
+    se codigo >= 97 && codigo <= 102
+        retorne codigo - 97 + 10
+    
+    retorne 0
+}
+
+declarar xor_descriptografar*(mensagem texto, chave texto) texto {
+    alocar resultado texto = ""
+    alocar tam_msg int = @tamanho_texto(mensagem)
+    alocar tam_chave int = @tamanho_texto(chave)
+    
+    se tam_chave == 0 retorne mensagem
+    
+    // Processa pares de caracteres hex
+    alocar idx_chave int = 0
+    para alocar i int = 0; i < tam_msg; i = i + 2 {
+        alocar hex_high int = hex_para_valor(mensagem[i])
+        alocar hex_low int = hex_para_valor(mensagem[i + 1])
+        
+        alocar byte_criptografado int = (hex_high << 4) | hex_low
+        alocar ch_chave int = char_para_codigo(chave[idx_chave % tam_chave])
+        
+        alocar byte_original int = byte_criptografado ^ ch_chave
+        
+        resultado ~= codigo_para_char(byte_original)
+        idx_chave = idx_chave + 1
+    }
+    
+    retorne resultado
+}
+
+// ============================================
+// HASH SIMPLES (FNV-1a like)
+// ============================================
+
+declarar hash_texto*(mensagem texto) inteiro {
+    alocar hash int = 2166136261  // FNV offset basis
+    alocar tamanho int = @tamanho_texto(mensagem)
+    
+    para alocar i int = 0; i < tamanho; i++ {
+        alocar codigo int = char_para_codigo(mensagem[i])
+        hash = hash ^ codigo
+        hash = hash * 16777619  // FNV prime
+    }
+    
+    retorne hash
+}
+
+// ============================================
+// BASE64 (Simples)
+// ============================================
+
+constante BASE64_CHARS texto = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"
+
+declarar base64_char_para_indice(ch texto) inteiro {
+    alocar tamanho int = @tamanho_texto(BASE64_CHARS)
+    para alocar i int = 0; i < tamanho; i++
+        se BASE64_CHARS[i] == ch
+            retorne i
+    retorne -1
+}
+
+declarar base64_codificar*(mensagem texto) texto {
+    alocar resultado texto = ""
+    alocar tamanho int = @tamanho_texto(mensagem)
+    
+    para alocar i int = 0; i < tamanho; i = i + 3 {
+        alocar b1 int = char_para_codigo(mensagem[i])
+        alocar b2 int = 0
+        alocar b3 int = 0
+        
+        se i + 1 < tamanho
+            b2 = char_para_codigo(mensagem[i + 1])
+        
+        se i + 2 < tamanho
+            b3 = char_para_codigo(mensagem[i + 2])
+        
+        // Combina os 3 bytes em um número de 24 bits
+        alocar triplo int = (b1 << 16) | (b2 << 8) | b3
+        
+        // Extrai 4 grupos de 6 bits
+        alocar idx1 int = (triplo >> 18) & 63
+        alocar idx2 int = (triplo >> 12) & 63
+        alocar idx3 int = (triplo >> 6) & 63
+        alocar idx4 int = triplo & 63
+        
+        resultado ~= BASE64_CHARS[idx1]
+        resultado ~= BASE64_CHARS[idx2]
+        
+        se i + 1 < tamanho
+            resultado ~= BASE64_CHARS[idx3]
+        senao
+            resultado ~= "="
+        
+        se i + 2 < tamanho
+            resultado ~= BASE64_CHARS[idx4]
+        senao
+            resultado ~= "="
+    }
+    
+    retorne resultado
+}
+
+declarar base64_decodificar*(mensagem texto) texto {
+    alocar resultado texto = ""
+    alocar tamanho int = @tamanho_texto(mensagem)
+    
+    // Remove padding
+    alocar tam_real int = tamanho
+    enquanto tam_real > 0 && mensagem[tam_real - 1] == "="
+        tam_real = tam_real - 1
+    
+    para alocar i int = 0; i < tam_real; i = i + 4 {
+        alocar idx1 int = base64_char_para_indice(mensagem[i])
+        alocar idx2 int = 0
+        alocar idx3 int = 0
+        alocar idx4 int = 0
+        
+        se i + 1 < tam_real
+            idx2 = base64_char_para_indice(mensagem[i + 1])
+        
+        se i + 2 < tam_real
+            idx3 = base64_char_para_indice(mensagem[i + 2])
+        
+        se i + 3 < tam_real
+            idx4 = base64_char_para_indice(mensagem[i + 3])
+        
+        // Combina os 4 grupos de 6 bits em 24 bits
+        alocar triplo int = (idx1 << 18) | (idx2 << 12) | (idx3 << 6) | idx4
+        
+        // Extrai os 3 bytes
+        alocar b1 int = (triplo >> 16) & 255
+        alocar b2 int = (triplo >> 8) & 255
+        alocar b3 int = triplo & 255
+        
+        resultado ~= codigo_para_char(b1)
+        
+        se i + 2 < tam_real
+            resultado ~= codigo_para_char(b2)
+        
+        se i + 3 < tam_real
+            resultado ~= codigo_para_char(b3)
+    }
+    
+    retorne resultado
+}
+
+// ============================================
+// ROT13 (Caso especial de César)
+// ============================================
+
+declarar rot13*(mensagem texto) texto {
+    alocar resultado texto = ""
+    alocar tamanho int = @tamanho_texto(mensagem)
+    
+    para alocar i int = 0; i < tamanho; i++ {
+        alocar ch texto = mensagem[i]
+        alocar codigo int = char_para_codigo(ch)
+        
+        // Aplica ROT13 apenas em letras
+        se codigo >= 65 && codigo <= 90 {
+            // Maiúsculas
+            codigo = ((codigo - 65 + 13) % 26) + 65
+        } senao se codigo >= 97 && codigo <= 122 {
+            // Minúsculas
+            codigo = ((codigo - 97 + 13) % 26) + 97
+        }
+        
+        resultado ~= codigo_para_char(codigo)
+    }
+    
+    retorne resultado
+}
+
+// ============================================
+// GERADOR DE SENHA
+// ============================================
+
+declarar gerar_senha*(tamanho inteiro = 12, incluir_especiais logico = verdadeiro) texto {
+    alocar caracteres texto = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
+    
+    se incluir_especiais
+        caracteres ~= "!@#$%&*"
+    
+    alocar senha texto = ""
+    alocar tam_chars int = @tamanho_texto(caracteres)
+    
+    // Usa hash como seed pseudo-aleatório
+    alocar seed int = hash_texto("HarpyVM") + tamanho
+    
+    para alocar i int = 0; i < tamanho; i++ {
+        seed = (seed * 1103515245 + 12345) & 2147483647  // LCG
+        alocar idx int = seed % tam_chars
+        senha ~= caracteres[idx]
+    }
+    
+    retorne senha
+}

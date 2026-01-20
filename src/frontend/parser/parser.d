@@ -573,49 +573,60 @@ private:
         return new BinaryExpr(left, right, op.value.get!string, this.getLoc(left.loc, right.loc));
     }
 
+    // void infix(ref Node leftOld)
+    // {
+    //     switch (this.peek().kind)
+    //     {
+    //     case TokenKind.Plus:
+    //     case TokenKind.Minus:
+    //     case TokenKind.Star:
+    //     case TokenKind.Slash:
+
+    //     case TokenKind.And:
+    //     case TokenKind.Or:
+
+    //     case TokenKind.BitAnd:
+    //     case TokenKind.BitOr:
+    //     case TokenKind.BitXor:
+    //     case TokenKind.BitSHL:
+    //     case TokenKind.BitSHR:
+    //     case TokenKind.BitSAR:
+
+    //     case TokenKind.PlusEquals:
+    //     case TokenKind.MinusEquals:
+    //     case TokenKind.StarEquals:
+    //     case TokenKind.SlashEquals:
+    //     case TokenKind.ModuloEquals:
+
+    //     case TokenKind.BitAndEquals:
+    //     case TokenKind.BitOrEquals:
+    //     case TokenKind.BitXorEquals:
+    //     case TokenKind.BitSHLEquals:
+    //     case TokenKind.BitSHREquals:
+
+    //     case TokenKind.EqualsEquals:
+    //     case TokenKind.GreaterThan:
+    //     case TokenKind.GreaterThanEquals:
+    //     case TokenKind.LessThanEquals:
+    //     case TokenKind.LessThan:
+    //     case TokenKind.NotEquals:
+    //     case TokenKind.TildeEquals:
+    //         leftOld = parseBinaryExpr(leftOld);
+    //         return;
+    //     default:
+    //         return;
+    //     }
+    // }
+
     void infix(ref Node leftOld)
     {
-        switch (this.peek().kind)
-        {
-        case TokenKind.Plus:
-        case TokenKind.Minus:
-        case TokenKind.Star:
-        case TokenKind.Slash:
-
-        case TokenKind.And:
-        case TokenKind.Or:
-
-        case TokenKind.BitAnd:
-        case TokenKind.BitOr:
-        case TokenKind.BitXor:
-        case TokenKind.BitSHL:
-        case TokenKind.BitSHR:
-        case TokenKind.BitSAR:
-
-        case TokenKind.PlusEquals:
-        case TokenKind.MinusEquals:
-        case TokenKind.StarEquals:
-        case TokenKind.SlashEquals:
-        case TokenKind.ModuloEquals:
-
-        case TokenKind.BitAndEquals:
-        case TokenKind.BitOrEquals:
-        case TokenKind.BitXorEquals:
-        case TokenKind.BitSHLEquals:
-        case TokenKind.BitSHREquals:
-
-        case TokenKind.EqualsEquals:
-        case TokenKind.GreaterThan:
-        case TokenKind.GreaterThanEquals:
-        case TokenKind.LessThanEquals:
-        case TokenKind.LessThan:
-        case TokenKind.NotEquals:
-        case TokenKind.TildeEquals:
+        if (this.isBinaryOperator(this.peek().kind))
             leftOld = parseBinaryExpr(leftOld);
-            return;
-        default:
-            return;
-        }
+    }
+
+    bool isBinaryOperator(TokenKind kind)
+    {
+        return this.getPrecedence(kind) > Precedence.LOWEST;
     }
 
     Node parseExpression(Precedence precedence)

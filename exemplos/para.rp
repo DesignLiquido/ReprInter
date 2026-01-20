@@ -1,8 +1,8 @@
-importar "biblioteca/entrada_saida"
+importar padrao.es
 
 declarar principal vazio {
     alocar tam int = 10
-    para alocar i int = 0; i < tam; ++i {
+    para alocar i int = 0; i < tam; i++ {
         escreva(i, " ")
     }
     escrevaln("")

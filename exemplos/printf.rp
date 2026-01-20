@@ -66,5 +66,4 @@ declarar principal vazio {
     alocar nome texto = "Fernando"
     alocar idade inteiro = 17
     printf("Ola %s, você tem %d anos!\n", nome, idade)
-    fim
 }

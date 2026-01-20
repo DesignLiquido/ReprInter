@@ -1,0 +1,36 @@
+// Maquina Virtual Harpy
+// Copyright (c) 2025 Fernando (FernandoTheDev)
+// Biblioteca padrão para gerar numeros aleatorios
+
+declarar semente*() i64 {
+    retorne @microtime()
+}
+
+const PCG_MULT i64 = 0x5851F42D4C957F2D // 6_364_136_223_846_793_005
+const PCG_INC  i64 = 0x14057B7EF767814F // 1_442_695_040_888_963_407
+
+declarar pcg32*(seed i64) i64 {
+    // avança o estado
+    seed = seed * PCG_MULT + (PCG_INC | 1)
+
+    // xorshift interno
+    alocar xorshifted i64 = ((seed >> 18) ^ seed) >> 27
+    alocar rot i64 = seed >> 59
+
+    // rotacao tipo PCG (32 bits)
+    alocar out i64 = (xorshifted >> rot) | (xorshifted << ((-rot) & 31))
+
+    retorne out & 0xFFFFFFFF // garante 32 bits
+}
+
+declarar aleatorio*(min i64, max i64, seed i64 = semente()) i64 {
+    alocar rnd i64 = pcg32(seed)
+    alocar range i64 = max - min + 1
+    retorne min + (rnd % range)
+}
+
+declarar principal vazio {
+    @escrevai(aleatorio(1, 100))
+    @escrevas("\n")
+    fim
+}

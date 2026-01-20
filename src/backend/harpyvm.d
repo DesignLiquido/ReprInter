@@ -1,11 +1,33 @@
 module backend.harpyvm;
-import std.stdio, std.variant, std.conv, std.datetime.stopwatch, std.string, std.algorithm;
+import core.thread : Thread;
+import core.time : dur;
+import std.stdio, std.variant, std.conv, std.datetime.stopwatch, std.string, std.algorithm, std
+    .datetime.systime : Clock;
 import core.stdc.stdio, core.stdc.string, core.stdc.stdlib, core
     .stdc.string : strlen;
 
-version (linux)
+version (Posix)
 {
     import core.sys.posix.dlfcn;
+}
+else version (Windows)
+{
+    const int RTLD_LAZY = 0; // Não usado no Windows
+
+    void* dlopen(const char* filename, int flags)
+    {
+        return null;
+    }
+
+    void* dlsym(void* handle, const char* symbol)
+    {
+        return null;
+    }
+
+    const(char)* dlerror()
+    {
+        return null;
+    }
 }
 
 enum OpCode : ubyte
@@ -17,6 +39,8 @@ enum OpCode : ubyte
     PRINTS, // print string
     PRINTB, // print bool
     INPUT,
+    MICROTIME,
+    NSLEEP,
 
     // Math operations {{
     // long
@@ -122,6 +146,9 @@ enum OpCode : ubyte
     STOF, // string to float
     ITOF, // int to float
     STOI, // string to int
+    ITOS, // int to string
+    FTOS, // float to string
+    FTOI, // float to int
 
     // Core
     PUSH,
@@ -325,7 +352,7 @@ class HarpyVM
         pc = 0;
         while (pc < code.length)
         {
-            Instruction inst = code[cast(uint) pc];
+            Instruction inst = code[pc];
             // writeln("OPCODE: ", to!string(inst.op));
             switch (inst.op)
             {
@@ -625,7 +652,6 @@ class HarpyVM
             case OpCode.LT:
                 Value b = pop();
                 Value a = pop();
-                // writeln("LT: ", a, " < ", b);
                 if (a.type == Type.Int && b.type == Type.Int)
                     push(makeBool(a.value.i64 < b.value.i64 ? 1 : 0));
                 else if (a.type == Type.Float && b.type == Type.Float)
@@ -745,10 +771,11 @@ class HarpyVM
                 Value val = pop();
                 // não faz pop pra garantir que não fique copiando os arrays
                 Value[] arr = val.value.array;
-                // writeln(val, " ", idx);
+                // writeln(val.value.array, " ", idx);
+                // writeln(valueStack);
                 if (idx >= arr.length)
                     throw new Exception("O indice acessado é maior do que o tamanho do vetor.");
-                push(arr[cast(uint) idx]);
+                push(arr[idx]);
                 pc++;
                 break;
 
@@ -781,7 +808,7 @@ class HarpyVM
                     throw new Exception("O indice acessado é maior do que o tamanho do vetor.");
 
                 // Modifica diretamente na stack
-                valueStack[$ - 1].value.array[cast(uint) idx] = val;
+                valueStack[$ - 1].value.array[idx] = val;
                 //pop(); // Remove o array da stack após modificação
                 pc++;
                 break;
@@ -835,7 +862,7 @@ class HarpyVM
                 // writeln("STRUCTG IDX: ", idx);
                 Value[] strc = val.value.struct_;
                 // writeln("STRUCTG VALUES: ", strc);
-                push(strc[cast(uint) idx]);
+                push(strc[idx]);
                 pc++;
                 break;
 
@@ -863,7 +890,7 @@ class HarpyVM
                     throw new Exception("Índice de field inválido");
 
                 // Modifica diretamente na stack
-                valueStack[$ - 1].value.struct_[cast(uint) idx] = val;
+                valueStack[$ - 1].value.struct_[idx] = val;
                 pc++;
                 break;
 
@@ -914,9 +941,9 @@ class HarpyVM
                 break;
 
             case OpCode.STRP: // string push
-                string str_ = pop().value.str;
-                string str = pop().value.str;
-                push(this.makeStr(str ~ str_));
+                Value str_ = pop();
+                Value str = pop();
+                push(this.makeStr(str.value.str ~ str_.value.str));
                 pc++;
                 break;
 
@@ -932,6 +959,21 @@ class HarpyVM
 
             case OpCode.ITOF:
                 push(makeFloat(to!double(pop().value.i64)));
+                pc++;
+                break;
+
+            case OpCode.ITOS:
+                push(makeStr(to!string(pop().value.i64)));
+                pc++;
+                break;
+
+            case OpCode.FTOS:
+                push(makeStr(to!string(pop().value.f64)));
+                pc++;
+                break;
+
+            case OpCode.FTOI:
+                push(makeInt(to!long(pop().value.f64)));
                 pc++;
                 break;
 
@@ -1106,9 +1148,20 @@ class HarpyVM
                 pc++;
                 break;
 
+            case OpCode.MICROTIME:
+                push(makeInt(Clock.currStdTime()));
+                pc++;
+                break;
+
+            case OpCode.NSLEEP:
+                Thread.sleep(dur!"nsecs"(pop().value.i64));
+                pc++;
+                break;
+
             case OpCode.EXIT:
                 exit(to!int(pop().value.i64));
                 return;
+
             case OpCode.HALT:
                 return;
             default:

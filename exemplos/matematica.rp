@@ -1,5 +1,5 @@
-importar biblioteca.entrada_saida
-importar biblioteca.matematica
+importar padrao.es
+importar padrao.matematica
 
 declarar principal vazio {
     alocar x decimal = elevado(2.0, 4)

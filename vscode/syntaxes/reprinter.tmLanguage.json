@@ -32,7 +32,7 @@
 		"keywords": {
 			"patterns": [{
 				"name": "keyword.control.reprinter",
-				"match": "\\b(alocar|declarar|se|senao|importar|fim|enum|estrutura|enumeracao|const|constante|vazio|int|inteiro|i64|f32|dec|decimal|f64|txt|texto|qqr|qualquer|logico|para|retorne|externo|enquanto|continuar|parar)\\b"
+				"match": "\\b(alocar|declarar|se|senao|importar|fim|enum|estrutura|enumeracao|const|constante|vazio|int|inteiro|i64|f32|dec|decimal|f64|txt|texto|qqr|qualquer|logico|para|retorne|externo|enquanto|continuar|parar|ref)\\b"
 			}]
 		},
 		"strings": {
@@ -64,10 +64,16 @@
 			]
 		},
 		"numbers": {
-			"patterns": [{
-				"name": "constant.numeric.reprinter",
-				"match": "\\b\\d+(\\.\\d+)?\\b"
-			}]
+			"patterns": [
+				{
+					"name": "constant.numeric.hex.reprinter",
+					"match": "\\b0[xX][0-9A-Fa-f](_?[0-9A-Fa-f])*\\b"
+				},
+				{
+					"name": "constant.numeric.reprinter",
+					"match": "\\b\\d+(_\\d+)*(\\.\\d+(_\\d+)*)?\\b"
+				}
+			]
 		},
 		"operators": {
 			"patterns": [

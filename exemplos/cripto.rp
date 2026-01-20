@@ -1,0 +1,31 @@
+importar nucleo.cripto
+
+declarar principal vazio {
+    alocar mensagem texto = "Fernando Dev"
+    
+    // XOR
+    escrevaln("🔒 XOR CIPHER:")
+    alocar chave texto = "chave123"
+    alocar xor_enc texto = xor_criptografar(mensagem, chave)
+    escrevaln("Criptografado: ", xor_enc)
+    escrevaln("Descriptografado: ", xor_descriptografar(xor_enc, chave))
+    
+    // Hash
+    escrevaln("\n🔒 HASH:")
+    escrevaln("Hash de '", mensagem, "': ", hash_texto(mensagem))
+    
+    // Base64
+    escrevaln("\n🔒 BASE64:")
+    alocar base64 texto = base64_codificar(mensagem)
+    escrevaln("Codificado: ", base64)
+    escrevaln("Decodificado: ", base64_decodificar(base64))
+    
+    // ROT13
+    escrevaln("\n🔒 ROT13:")
+    escrevaln("Original: ", mensagem)
+    alocar rot13_enc texto = rot13(mensagem)
+    escrevaln("ROT13: ", rot13_enc)
+    escrevaln("ROT13 (duplo): ", rot13(rot13_enc))
+    
+    fim
+}

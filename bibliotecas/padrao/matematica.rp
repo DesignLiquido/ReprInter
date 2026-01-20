@@ -2,7 +2,7 @@
 // Copyright (c) 2025 Fernando (FernandoTheDev)
 // Biblioteca padrão de matemática
 
-importar biblioteca.entrada_saida : { escrevaln }
+importar padrao.es : { escrevaln }
 
 const PI* decimal = 3.141592653589793
 const E* decimal = 2.718281828459045
@@ -72,7 +72,7 @@ declarar principal vazio {
     escrevaln("minimo(10.0, PI) = ", minimo(10.0, PI))
     escrevaln("maximo(10.0, PI) = ", maximo(10.0, PI))
     escrevaln("media(1.0, 2.0, 3.0, 10.0) = ", media(1.0, 2.0, 3.0, 10.0))
-    escrevaln("raiz(625) = ", raiz(625))
-    escrevaln("elevado(2, 3) = ", elevado(2, 3))
+    escrevaln("raiz(625.0) = ", raiz(625.0))
+    escrevaln("elevado(2.0, 3) = ", elevado(2.0, 3))
     fim
 }

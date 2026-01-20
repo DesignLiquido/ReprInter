@@ -1,8 +1,8 @@
 // Maquina Virtual Harpy
 // Copyright (c) 2025 Fernando (FernandoTheDev)
-// Biblioteca padrão de manipulação de texto
+// Biblioteca padrão para manipulação de texto
 
-importar biblioteca.entrada_saida : { erro, escrevaln }
+importar padrao.es : { erro, escrevaln }
 
 declarar contem*(msg texto, busca texto) logico {
     alocar texto_len int = @tamanho_texto(msg)

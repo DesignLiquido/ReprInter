@@ -2,7 +2,7 @@
   "name": "reprinter",
   "displayName": "reprinter",
   "description": "Extensão para o IR ReprInter da HarpyVM",
-  "version": "0.0.9",
+  "version": "0.1.1",
   "publisher": "FarpyOrganization",
   "icon": "./imagens/icon.png",
   "engines": {

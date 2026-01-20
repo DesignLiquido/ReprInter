@@ -1,4 +1,4 @@
-importar biblioteca.entrada_saida
+importar padrao.es
 
 declarar principal vazio {
     escrevaln("Olá Mundo!")

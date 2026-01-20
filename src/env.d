@@ -11,7 +11,7 @@ void loadEnv()
         HOME = environment.get("HOME");
         MAIN_DIR = HOME ~ "/.harpy/";
         DIR_LIBS = MAIN_DIR ~ "libs/";
-        DIR_STD = MAIN_DIR ~ "biblioteca/";
+        DIR_STD = MAIN_DIR ~ "bibliotecas/";
         // cria o diretório padrão em ~/.harpy/
         if (!exists(MAIN_DIR))
             mkdir(MAIN_DIR);

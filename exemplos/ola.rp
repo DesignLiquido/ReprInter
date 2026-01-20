@@ -1,4 +1,4 @@
-importar biblioteca.entrada_saida : { escrevaf, entrada }
+importar padrao.es : { escrevaf, entrada }
 
 declarar principal vazio {
     escrevaf("Ola %s\n", entrada("Nome: "))

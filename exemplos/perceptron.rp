@@ -4,12 +4,13 @@ externo {
     declarar escrevaf(msg txt, ...) vazio;
 }
 
+
 declarar principal vazio {
     alocar pesos decimal[] = [0.3, 0.4]
     alocar entrada decimal[] = [1.0, 1.0]
     alocar erro decimal = 1.0
     alocar resultadoEsperado decimal = 0
-    alocar resultadoTmp qualquer = 0
+    alocar resultadoTmp decimal = 0.0
 
     enquanto erro != 0.0 {
         se entrada[0] == 1.0
@@ -18,7 +19,7 @@ declarar principal vazio {
         senao
             resultadoEsperado = 0.0
         
-        alocar somatoria qqr = (pesos[0] * entrada[0]) + (pesos[1] * entrada[1])
+        alocar somatoria decimal = (pesos[0] * entrada[0]) + (pesos[1] * entrada[1])
         
         se somatoria < 1.0
             resultadoTmp = 0.0

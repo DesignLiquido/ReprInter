@@ -6,5 +6,4 @@ declarar principal vazio {
     alocar codigo texto = "1 + 1\n"
     alocar tamanho inteiro = @tamanho_texto(codigo)
     escrevaln(interpretador(tabela, codigo, tamanho))
-    fim
 }

@@ -1,5 +1,5 @@
-importar biblioteca.entrada_saida
-importar biblioteca.arquivo
+importar padrao.es
+importar nucleo.arquivo
 
 declarar principal vazio {
     alocar arquivo ARQUIVO = lerArquivo("tests/teste.txt")

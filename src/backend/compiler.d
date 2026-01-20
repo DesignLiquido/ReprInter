@@ -5,6 +5,7 @@ import std.bitmanip : nativeToLittleEndian, littleEndianToNative;
 import std.exception : enforce;
 import std.path : extension, setExtension, baseName;
 import backend.harpyvm : OpCode, Value, EValue, Type, Instruction;
+import json : ProjetoConfig, Compilacao;
 
 // tipos de dados no formato binário da HarpyVM
 enum HarpyBinTipo : ubyte
@@ -28,6 +29,14 @@ enum HarpyBinTipo : ubyte
     BIBLIOTECA_NOME = 13, // nome da biblioteca
     BIBLIOTECA_DADOS = 14, // bytes da .so
     BIBLIOTECA_DEPENDENCIAS = 15, // lista de deps da lib
+
+    // metadados do projeto
+    METADADOS = 16,
+    M_NOME = 17,
+    M_VERSAO = 18,
+    M_AUTOR = 19,
+    M_DATA = 20,
+    M_DESCRICAO = 21,
 }
 
 private enum BUFFER_INICIAL = 4096; // 4KB inicial
@@ -43,8 +52,7 @@ void adicionarBiblioteca(ref ubyte[] buffer, string caminho)
     // calcular tamanho total da seção
     // 1 + 4 + nome.length (nome TLV)
     // 1 + 4 + dadosSo.length (dados TLV)
-    uint tamanhoTotal = (1 + 4 + cast(uint) nome.length) +
-        (1 + 4 + cast(uint) dadosSo.length);
+    uint tamanhoTotal = cast(uint)((1 + 4 + nome.length) + (1 + 4 + dadosSo.length));
 
     // SEÇÃO BIBLIOTECA com tamanho
     buffer ~= HarpyBinTipo.SECAO_BIBLIOTECA;
@@ -154,7 +162,7 @@ void adicionarInstrucao(ref ubyte[] buffer, OpCode op, Value val)
         tamanhoInstrucao += 1;
         break;
     case Type.String:
-        tamanhoInstrucao += 4 + cast(uint) val.value.str.length; // tamanho + string
+        tamanhoInstrucao += 4 + val.value.str.length; // tamanho + string
         break;
     case Type.Array:
     case Type.Struct:
@@ -209,6 +217,52 @@ void adicionarInstrucao(ref ubyte[] buffer, OpCode op, Value val)
     }
 }
 
+void adicionarMetadados(ref ubyte[] buffer, ProjetoConfig projeto = ProjetoConfig.init)
+{
+    import std.datetime;
+
+    string formatarDataBR()
+    {
+        // formata a data com fuso horario BR
+        auto tz = new immutable SimpleTimeZone(hours(-3));
+        auto data = Clock.currTime(tz);
+        import std.format;
+
+        return format("%02d/%02d/%d às %02d:%02d:%02d",
+            data.day,
+            data.month,
+            data.year,
+            data.hour,
+            data.minute,
+            data.second);
+    }
+
+    string dataBR = formatarDataBR();
+
+    // calcular tamanho total da seção de metadados
+    // cada campo tem: 1 byte (tipo do campo) + conteúdo TLV (1 + 4 + tamanho_string)
+    uint tamanhoTotal = 0;
+    tamanhoTotal += 1 + (1 + 4 + projeto.nome.length); // M_NOME
+    tamanhoTotal += 1 + (1 + 4 + projeto.versao.length); // M_VERSAO
+    tamanhoTotal += 1 + (1 + 4 + projeto.autor.length); // M_AUTOR
+    tamanhoTotal += 1 + (1 + 4 + dataBR.length); // M_DATA
+    tamanhoTotal += 1 + (1 + 4 + projeto.descricao.length); // M_DESCRICAO
+
+    buffer ~= HarpyBinTipo.METADADOS;
+    buffer ~= nativeToLittleEndian(tamanhoTotal);
+
+    buffer ~= HarpyBinTipo.M_NOME;
+    adicionarTLVTexto(buffer, projeto.nome);
+    buffer ~= HarpyBinTipo.M_VERSAO;
+    adicionarTLVTexto(buffer, projeto.versao);
+    buffer ~= HarpyBinTipo.M_AUTOR;
+    adicionarTLVTexto(buffer, projeto.autor);
+    buffer ~= HarpyBinTipo.M_DATA;
+    adicionarTLVTexto(buffer, dataBR);
+    buffer ~= HarpyBinTipo.M_DESCRICAO;
+    adicionarTLVTexto(buffer, projeto.descricao);
+}
+
 void adicionarPrograma(ref ubyte[] buffer, Instruction[] instrucoes,
     string[] bibliotecasUsadas = [])
 {
@@ -248,7 +302,7 @@ private uint calcularTamanhoInstrucao(ref Instruction inst)
         tam += 1;
         break;
     case Type.String:
-        tam += 4 + cast(uint) inst.val.value.str.length;
+        tam += 4 + inst.val.value.str.length;
         break;
     case Type.Array:
     case Type.Struct:

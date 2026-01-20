@@ -1,6 +1,6 @@
 // vm baseada em stack simples
 
-importar biblioteca.entrada_saida
+importar padrao.es
 
 estrutura Tabela* {
     simbolos Simbolo[]

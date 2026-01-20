@@ -308,6 +308,23 @@ public:
                     n ~= source[offsetSave .. offset];
                 }
 
+                if (n.length == 1 && n[0] == '0')
+                    if (offset < source.length && (peek() == 'x' || peek() == 'X'))
+                    {
+                        n ~= "x";
+                        advance();
+                        long offsetSave = offset;
+
+                        while (offset < source.length && isHexDigit(peek()))
+                            advance();
+
+                        n ~= source[offsetSave .. offset];
+                        auto hexOnly = n[2 .. $];
+
+                        createToken(TokenKind.I64, Variant(intern(to!string(parse!long(hexOnly, 16)))), n.length + 1);
+                        continue;
+                    }
+
                 if (offset < source.length)
                 {
                     char suffix = peek();

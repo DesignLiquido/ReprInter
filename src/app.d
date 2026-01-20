@@ -1,20 +1,21 @@
 import std.stdio, std.file, std.path, std.array, std.getopt, std.datetime.stopwatch, std.algorithm, std
-	.string, std.process, std.uuid;
+	.string, std.process, std.uuid, std.bitmanip;
 import frontend.lexer.token, frontend.lexer.lexer;
 import frontend.parser.ast, frontend.parser.parser;
 import middle.semantic_analyzer, middle.harpy_optimizer;
 import backend.codegen, backend.harpyvm, backend.compiler;
 import core.stdc.stdlib : exit;
 import core.sys.posix.dlfcn;
-import erro, builtin, env;
+import erro, builtin, env, json;
 
 const string VERSAO = "0.1.0";
 string[] arquivosTemporarios;
 void*[string] cacheGlobalBibliotecas;
+ProjetoConfig projeto;
 
 version (Windows)
 	string ext = ".dll";
-else
+else version (linux)
 	string ext = ".so";
 
 private struct Argumentos
@@ -30,6 +31,7 @@ private struct Argumentos
 	bool _asm;
 	bool estatico;
 	bool semBiblioteca;
+	bool info;
 	string saida = "harpy.hvm";
 	string[] importacoes;
 }
@@ -97,7 +99,7 @@ void executarHvm(ref string arquivo_, bool mostrarTempo = false, void*[string] b
 					ubyte[] dadosSo = lerTLVBytes(arquivo, tamDados);
 
 					// salvar em arquivo temporário
-					string tempPath = criarArquivoTemp(nome, dadosSo);
+					criarArquivoTemp(nome, dadosSo);
 
 					// carregar dinamicamente
 					void* handle = carregarBibliotecaDaMemoria(nome, dadosSo);
@@ -216,9 +218,11 @@ void compilarPrograma(ref Instruction[] instrucoes, string saida = "harpy.hvm", 
 	if (!estatico)
 		bibliotecasExternas = [];
 
+	adicionarMetadados(buffer, projeto);
 	adicionarPrograma(buffer, instrucoes, bibliotecasExternas);
-	writeln("Compilação concluida!");
 	salvarArquivoBinario(saida, buffer);
+
+	writeln("Compilação concluida!");
 	tempoCompilacao.stop();
 	tempo.tempoTotal.stop();
 
@@ -303,36 +307,153 @@ void mostrarStatus(string nome, StopWatch sw)
 	writefln("%-25s %10d µs", nome, sw.peek().total!"usecs");
 }
 
-void sair(string mensagem, int codigo)
+void sair(string mensagem, int codigo = 1)
 {
 	writeln(mensagem);
 	exit(codigo);
 }
 
-void sair_(string mensagem, int codigo)
+void sair_(string mensagem, int codigo = 1)
 {
 	writeln(mensagem);
 	ajuda();
 	exit(codigo);
 }
 
+void info(string arquivo)
+{
+	auto arq = File(arquivo, "rb");
+	scope (exit)
+		arq.close();
+
+	try
+	{
+		ubyte maior, menor, patch;
+
+		if (!validarCabecalho(arq, maior, menor, patch))
+			sair("Erro: Cabeçalho inválido!");
+
+		writefln("=== Informações do Binário ===\n");
+		writefln("Arquivo: %s", baseName(arquivo));
+		writefln("Tamanho: %.2f KB (%d bytes)", getSize(arquivo) / 1024.0, getSize(arquivo));
+		writefln("Versão do formato: %d.%d.%d", maior, menor, patch);
+
+		uint numInstrucoes = 0;
+		uint numBibliotecas = 0;
+		ulong tamanhoBibliotecas = 0;
+		ulong tamanhoBytecode = 0;
+		string[string] metadados;
+		string[] bibliotecas;
+		bool temMetadados = false;
+
+		while (!arq.eof())
+		{
+			ubyte tipo;
+			uint tamanho;
+
+			try
+				lerItemTLV(arq, tipo, tamanho);
+			catch (Exception)
+				break;
+
+			if (tipo == HarpyBinTipo.METADADOS)
+			{
+				temMetadados = true;
+				long posInicial = arq.tell();
+				long posFinal = posInicial + tamanho;
+
+				while (arq.tell() < posFinal)
+				{
+					ubyte[1] tipoMetaBuf;
+					arq.rawRead(tipoMetaBuf);
+					ubyte tipoMeta = tipoMetaBuf[0];
+
+					ubyte tipoTexto;
+					uint tamTexto;
+					lerItemTLV(arq, tipoTexto, tamTexto);
+					string valor = lerTLVTexto(arq, tamTexto);
+
+					switch (tipoMeta)
+					{
+					case HarpyBinTipo.M_NOME:
+						metadados["nome"] = valor;
+						break;
+					case HarpyBinTipo.M_VERSAO:
+						metadados["versao"] = valor;
+						break;
+					case HarpyBinTipo.M_AUTOR:
+						metadados["autor"] = valor;
+						break;
+					case HarpyBinTipo.M_DATA:
+						metadados["data"] = valor;
+						break;
+					case HarpyBinTipo.M_DESCRICAO:
+						metadados["descricao"] = valor;
+						break;
+					default:
+						break;
+					}
+				}
+			}
+			else if (tipo == HarpyBinTipo.SECAO_BIBLIOTECA)
+			{
+				numBibliotecas++;
+				tamanhoBibliotecas += tamanho;
+
+				ubyte tipoNome;
+				uint tamNome;
+				lerItemTLV(arq, tipoNome, tamNome);
+				string nomeBib = lerTLVTexto(arq, tamNome);
+
+				ubyte tipoDados;
+				uint tamDados;
+				lerItemTLV(arq, tipoDados, tamDados);
+
+				bibliotecas ~= format("%s (%.2f KB)", nomeBib, tamDados / 1024.0);
+				arq.seek(tamDados, SEEK_CUR);
+			}
+			else if (tipo == HarpyBinTipo.SECAO_BYTECODE)
+			{
+				tamanhoBytecode = tamanho;
+
+				ubyte[4] countBuf;
+				arq.rawRead(countBuf);
+				numInstrucoes = littleEndianToNative!uint(countBuf);
+				arq.seek(tamanho - 4, SEEK_CUR);
+			}
+			else
+				arq.seek(tamanho, SEEK_CUR);
+		}
+
+		if (temMetadados)
+		{
+			writeln("\n--- Metadados ---");
+			if ("nome" in metadados)
+				writefln("Nome: %s", metadados["nome"]);
+			if ("versao" in metadados)
+				writefln("Versão: %s", metadados["versao"]);
+			if ("autor" in metadados)
+				writefln("Autor: %s", metadados["autor"]);
+			if ("data" in metadados)
+				writefln("Data: %s", metadados["data"]);
+			if ("descricao" in metadados && metadados["descricao"].length > 0)
+				writefln("Descrição: %s", metadados["descricao"]);
+		}
+
+		if (numBibliotecas > 0)
+		{
+			writeln("\n--- Bibliotecas Incluídas ---");
+			writefln("Total: %d (%.2f KB)", numBibliotecas, tamanhoBibliotecas / 1024.0);
+			foreach (i, bib; bibliotecas)
+				writefln("  %d. %s", i + 1, bib);
+		}
+	}
+	catch (Exception e)
+		sair(format("Erro ao ler arquivo '%s'.", e.msg));
+}
+
 void main(string[] argumentos)
 {
-	// verifica se foram passados argumentos
-	// o argumentos[0] por padrão contem o nome do executavel que está sendo executado
-	if (argumentos.length == 1)
-		sair_("Era esperado um arquivo de extensão '.rp' como argumento.", 1);
-
-	// arquivo aparentemente passado, vamos validar
-	string arquivo = argumentos[1];
-
-	// é um arquivo ou existe?
-	if (!exists(arquivo))
-		sair(format("O arquivo '%s' não existe.", arquivo), 1);
-
-	if (!isFile(arquivo))
-		sair(format("'%s' não é um arquivo.", arquivo), 1);
-
 	loadEnv();
 
 	DiagnosticError erro = new DiagnosticError; // classe que gera os erros de todo o sistema
@@ -356,6 +477,7 @@ void main(string[] argumentos)
 			"E|estatico", &args.estatico,
 			"I|incluir", &args.importacoes,
 			"B|sem-biblioteca", &args.semBiblioteca,
+			"info", &args.info,
 		);
 
 		if (args.versao)
@@ -370,11 +492,70 @@ void main(string[] argumentos)
 			return;
 		}
 
+		// verifica se foram passados argumentos
+		// o argumentos[0] por padrão contem o nome do executavel que está sendo executado
+		if (argumentos.length == 1)
+			sair_("Era esperado um arquivo de extensão '.rp' como argumento.", 1);
+
+		// introduzindo um novo recurso ja que criei um sistema para arquivos de configuração, suporte a comandos basicamente
+		string comando = argumentos[1];
+		bool eComando = false;
+		string arquivo;
+
+		if (exists(APP))
+			projeto = carregarConfig();
+
+		switch (comando)
+		{
+		case "compilar":
+			arquivo = projeto.entrada;
+			args.compilar = true;
+			eComando = true;
+			break;
+
+		case "iniciar":
+			writeln("projeto");
+			return;
+
+		default:
+			// se não for um comando então só ignora e segue o resto
+			arquivo = comando;
+			break;
+		}
+
+		// verifica se o arquivo de configuração existe
+		// vamos carregar ele se um comando foi "ativado"
+		if (eComando)
+		{
+			projeto = carregarConfig();
+			args.saida = projeto.compilacao.saida;
+			args.otimizar = projeto.compilacao.otimizar;
+			args.estatico = projeto.compilacao.estatico;
+			args.semBiblioteca = projeto.compilacao.biblioteca_nativa ? false : true;
+			args.importacoes = projeto.dependencias;
+		}
+
+		// arquivo aparentemente passado, vamos validar
+		// é um arquivo ou existe?
+		if (!exists(arquivo))
+			sair(format("O arquivo '%s' não existe.", arquivo), 1);
+
+		if (!isFile(arquivo))
+			sair(format("'%s' não é um arquivo.", arquivo), 1);
+
+		if (args.info)
+		{
+			if (extension(arquivo) != ".hvm")
+				sair(format("Para usar a flag '%s' você deve fornecer um arquivo binário '.hvm'.", arquivo));
+			info(arquivo);
+			return;
+		}
+
 		// carrega bibliotecas externas, incluindo bibliotecas padrão da VM
 		// bibliotecas do sistema ja estará pré carregadas
 		string[] bibliotecasExternas;
 
-		if (!args.semBiblioteca)
+		if (args.semBiblioteca == false)
 			bibliotecasExternas = [
 				criarLibSys("entrada_saida"), criarLibSys("matematica"),
 				criarLibSys("arquivo")

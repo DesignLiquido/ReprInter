@@ -7,7 +7,7 @@ import std.stdio, std.format;
 import frontend.type, middle.semantic_analyzer : Symbol;
 import frontend.parser.ast;
 import backend.codegen : CodeGen;
-import backend.harpyvm : HarpyCG, HarpyVM, Instruction, Value, HapyType = Type, OpCode;
+import backend.harpyvm : HarpyCG, HarpyVM, Instruction, Value, EValue, HapyType = Type, OpCode;
 
 alias BuiltinFunctionSignature = void function(CodeGen, HarpyCG, CallExpr, HarpyVM);
 
@@ -111,6 +111,27 @@ private void tpi(CodeGen cg, HarpyCG hcg, CallExpr node, HarpyVM engine)
     hcg.emit(Instruction(OpCode.STOI));
 }
 
+// int para texto
+private void ipt(CodeGen cg, HarpyCG hcg, CallExpr node, HarpyVM engine)
+{
+    cg.generateNode(node.args[0]);
+    hcg.emit(Instruction(OpCode.ITOS));
+}
+
+// decimal para texto
+private void dpt(CodeGen cg, HarpyCG hcg, CallExpr node, HarpyVM engine)
+{
+    cg.generateNode(node.args[0]);
+    hcg.emit(Instruction(OpCode.FTOS));
+}
+
+// decimal para inteiro
+private void dpi(CodeGen cg, HarpyCG hcg, CallExpr node, HarpyVM engine)
+{
+    cg.generateNode(node.args[0]);
+    hcg.emit(Instruction(OpCode.FTOI));
+}
+
 private void tipoParaTexto(CodeGen cg, HarpyCG hcg, CallExpr node, HarpyVM engine)
 {
     cg.generateNode(node.args[0]);
@@ -132,6 +153,17 @@ private void sair(CodeGen cg, HarpyCG hcg, CallExpr node, HarpyVM engine)
 private void input(CodeGen cg, HarpyCG hcg, CallExpr node, HarpyVM engine)
 {
     hcg.emit(Instruction(OpCode.INPUT));
+}
+
+private void nsleep(CodeGen cg, HarpyCG hcg, CallExpr node, HarpyVM engine)
+{
+    cg.generateNode(node.args[0]);
+    hcg.emit(Instruction(OpCode.NSLEEP));
+}
+
+private void microtime(CodeGen cg, HarpyCG hcg, CallExpr node, HarpyVM engine)
+{
+    hcg.emit(Instruction(OpCode.MICROTIME));
 }
 
 // }} Funções FIM
@@ -225,6 +257,27 @@ private void registrarFuncoes(ref Builtin builtin)
         &tpi
     );
 
+    builtin.funcoes["@ipt"] = BuiltinFunction(
+        "@ipt",
+        Type(Types.Literal, BaseType.String),
+        [Type(Types.Literal, BaseType.Int)],
+        &ipt
+    );
+
+    builtin.funcoes["@dpt"] = BuiltinFunction(
+        "@dpt",
+        Type(Types.Literal, BaseType.String),
+        [Type(Types.Literal, BaseType.Double)],
+        &dpt
+    );
+
+    builtin.funcoes["@dpi"] = BuiltinFunction(
+        "@dpi",
+        Type(Types.Literal, BaseType.Int),
+        [Type(Types.Literal, BaseType.Double)],
+        &dpi
+    );
+
     builtin.funcoes["@tipo"] = BuiltinFunction(
         "@tipo",
         Type(Types.Literal, BaseType.String),
@@ -244,6 +297,20 @@ private void registrarFuncoes(ref Builtin builtin)
         Type(Types.Void, BaseType.Void),
         [Type(Types.Literal, BaseType.Int)],
         &sair
+    );
+
+    builtin.funcoes["@microtime"] = BuiltinFunction(
+        "@microtime",
+        Type(Types.Literal, BaseType.Int),
+        [],
+        &microtime
+    );
+
+    builtin.funcoes["@nsleep"] = BuiltinFunction(
+        "@nsleep",
+        Type(Types.Void, BaseType.Void),
+        [Type(Types.Literal, BaseType.Int)],
+        &nsleep
     );
 }
 

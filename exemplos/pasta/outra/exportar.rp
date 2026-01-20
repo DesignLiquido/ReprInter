@@ -1,5 +1,5 @@
 // forma mais simples de escrever funções externas
-importar biblioteca.entrada_saida : { escrevaln }
+importar padrao.es : { escrevaln }
 
 declarar soma_publica*(x int, y int) int {
     retorne x + y

@@ -1,7 +1,7 @@
-importar biblioteca.entrada_saida como es
-importar biblioteca.matematica : { PI, E } como math
+importar padrao.es como es
+importar padrao.matematica : { PI, E } como math
 importar pasta.outra.exportar : { E, Pagamento, Status } como outro
-importar biblioteca.arquivo como file
+importar nucleo.arquivo como file
 
 declarar mostrarPagamento(pen ref outro.Pagamento, pag ref outro.Pagamento) vazio {
     es.escrevaln("Pagamento pendente: ", pen.status)

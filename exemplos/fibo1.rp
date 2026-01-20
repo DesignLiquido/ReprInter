@@ -1,6 +1,4 @@
-externo {
-    declarar escrevaln(...) vazio;
-}
+importar padrao.es : { escrevaln }
 
 declarar fibonacci(n inteiro) inteiro {
     se n <= 1 retorne n

@@ -1,4 +1,4 @@
-importar biblioteca.entrada_saida
+importar padrao.es
 
 declarar soma(x qqr, y qqr) qualquer {
     retorne x + y

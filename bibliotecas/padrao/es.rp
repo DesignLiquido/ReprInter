@@ -27,7 +27,7 @@ declarar escreva_varrags(args qualquer[]) vazio {
         se @tipo(args[i]) == "decimal" { @escrevad(args[i], 2) continuar }
         se @tipo(args[i]) == "inteiro" { @escrevai(args[i]) continuar }
         se @tipo(args[i]) == "texto" { @escrevas(args[i]) continuar }
-        @escreva(args[i])
+        @escrevas(args[i])
     }
 }
 

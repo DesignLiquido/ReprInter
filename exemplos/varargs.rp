@@ -1,8 +1,6 @@
-importar biblioteca.entrada_saida
+importar padrao.es
 
 declarar somatorio(mensagem texto, ...inteiro|decimal) vazio {
-    escrevaln(mensagem)
-    escrevaln("varargc: ", varargc)
     para alocar i int = 0; i < varargc; i++
         escrevaln(varargs[i])
 }
@@ -11,11 +9,11 @@ declarar media(...decimal) decimal {
     alocar resultado decimal = 0.0
     para alocar i int = 0; i < varargc; i++
         resultado += varargs[i]
-    retorne resultado / varargc
+    retorne resultado / @ipd(varargc)
 }
 
 declarar principal vazio {
-    alocar m decimal = media(1.0, 10.0)
-    escrevaln(m)
+    alocar m decimal = media(1.0, 10.0, 3.0, 3.141592)
+    escrevaf("%.8f\n", m)
     fim
 }
