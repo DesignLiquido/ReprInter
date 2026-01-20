@@ -1,6 +1,0 @@
-importar padrao.es : { escrevaf, entrada }
-
-declarar principal vazio {
-    escrevaf("Ola %s\n", entrada("Nome: "))
-    fim
-}

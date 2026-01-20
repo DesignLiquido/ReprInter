@@ -1,8 +1,0 @@
-importar padrao.es
-importar padrao.matematica
-
-declarar principal vazio {
-    alocar x decimal = elevado(2.0, 4)
-    escrevaf("%.8f\n", x)
-    fim
-}

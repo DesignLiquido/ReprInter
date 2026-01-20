@@ -1,9 +1,0 @@
-declarar fibonacci(n int) int {
-    se n <= 1 retorne n
-    retorne fibonacci(n - 1) + fibonacci(n - 2)
-}
-
-declarar principal vazio {
-    @escreva("Fibonacci(10) = ", fibonacci(10), "\n")
-    fim
-}
