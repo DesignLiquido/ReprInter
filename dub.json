@@ -16,8 +16,8 @@
 		},
 		"release": {
 			"dflags-dmd": ["-O", "-release", "-inline"],
-			"dflags-ldc": ["-O3", "-release", "-enable-inlining", "-flto=full"],
-			"dflags-gdc": ["-O3", "-frelease", "-finline-functions", "-flto"]
+			"dflags-ldc": ["-O2", "-release", "-enable-inlining", "-flto=full"],
+			"dflags-gdc": ["-O2", "-frelease", "-finline-functions", "-flto"]
 		},
 		"release-size": {
 			"dflags-dmd": ["-O", "-release", "-inline"],

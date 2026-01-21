@@ -15,4 +15,4 @@ harpy-test-*
 *.so
 *.obj
 *.lst
-*.hvm
+# *.hvm
