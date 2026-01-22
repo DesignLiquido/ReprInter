@@ -28,7 +28,7 @@ enum HVMType : ubyte {
 }
 
 struct HVMString {
-    string value;
+    char* value;
     uint length;
 }
 

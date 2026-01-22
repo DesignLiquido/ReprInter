@@ -1,4 +1,4 @@
-module comp;
+module tests.comp;
 
 enum HVMOpCode : ubyte {
     Loadk, // carrega uma constante do pool

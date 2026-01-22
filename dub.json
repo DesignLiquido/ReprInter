@@ -8,6 +8,7 @@
 	"authors": [
 		"Fernando Dev"
 	],
+	"dflags": ["-betterC"],
 	"buildTypes": {
 		"debug": {
 			"dflags-dmd": ["-g", "-debug"],
