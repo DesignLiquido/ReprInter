@@ -2,18 +2,17 @@
 docs.json
 __dummy.html
 docs
-/harpy
-harpy.so
-harpy.dylib
-harpy.dll
-harpy.a
-harpy.lib
-harpy-test-*
+/hvm
+hvm.so
+hvm.dylib
+hvm.dll
+hvm.a
+hvm.lib
+hvm-test-*
 *.exe
 *.pdb
 *.o
 *.so
 *.obj
 *.lst
-*.hvm
-bin_testes
+# *.hvm

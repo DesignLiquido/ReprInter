@@ -1,13 +1,14 @@
 {
+	"name": "harpy",
+	"copyright": "Copyright © 2025, Fernando Dev",
+	"description": "The Harpy Virtual Machine",
+	"license": "MIT",
+	"targetType": "executable",
+	"targetName": "hvm",
 	"authors": [
 		"Fernando Dev"
 	],
-	"copyright": "Copyright © 2025, Fernando Dev",
-	"description": "A minimal D application.",
-	"license": "MIT",
-	"name": "reprinter",
-	"targetType": "executable",
-	"targetName": "harpy",
+	"dflags": ["-betterC"],
 	"buildTypes": {
 		"debug": {
 			"dflags-dmd": ["-g", "-debug"],
@@ -16,25 +17,8 @@
 		},
 		"release": {
 			"dflags-dmd": ["-O", "-release", "-inline"],
-			"dflags-ldc": ["-O3", "-release", "-enable-inlining", "-flto=full"],
-			"dflags-gdc": ["-O3", "-frelease", "-finline-functions", "-flto"]
-		},
-		"release-nobounds": {
-			"dflags-dmd": ["-O", "-release", "-inline", "-boundscheck=off"],
-			"dflags-ldc": [
-				"-O3",
-				"-release",
-				"-enable-inlining",
-				"-flto=full",
-				"-boundscheck=off"
-			],
-			"dflags-gdc": [
-				"-O3",
-				"-frelease",
-				"-finline-functions",
-				"-flto",
-				"-fno-bounds-check"
-			]
+			"dflags-ldc": ["-O2", "-release", "-enable-inlining", "-flto=full"],
+			"dflags-gdc": ["-O2", "-frelease", "-finline-functions", "-flto"]
 		},
 		"release-size": {
 			"dflags-dmd": ["-O", "-release", "-inline"],
