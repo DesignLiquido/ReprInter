@@ -15,4 +15,5 @@ hvm-test-*
 *.so
 *.obj
 *.lst
-# *.hvm
+*.hvm
+tests
