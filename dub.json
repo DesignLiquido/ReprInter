@@ -1,14 +1,14 @@
 {
 	"name": "harpy",
-	"copyright": "Copyright © 2025, Fernando Dev",
-	"description": "The Harpy Virtual Machine",
-	"license": "MIT",
+	"description": "The Harpy",
 	"targetType": "executable",
-	"targetName": "hvm",
+	"targetName": "harpy",
+	"license": "Apache-2.0",
+	"copyright": "Copyright © 2026, Fernando Dev",
 	"authors": [
 		"Fernando Dev"
 	],
-	"dflags": ["-betterC"],
+	"dflags": ["-L/usr/local/lib/libmir.a", "-L-lm", "-L-ldl", "-L-lpthread"],
 	"buildTypes": {
 		"debug": {
 			"dflags-dmd": ["-g", "-debug"],

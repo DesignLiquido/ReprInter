@@ -1,15 +1,19 @@
 module utils;
 
-public import core.stdc.stdio;
-public import core.stdc.stdlib;
-public import flib.arena;
+import core.stdc.stdlib : exit;
+import std.exception;
+import std.stdio;
+import std.format;
 
-static Arena* GLOBAL_ARENA = null;
-
-void hvmAssert(bool cond, string msg)
+void hpy_erro(string message)
 {
-    if (cond) return;
-    if (GLOBAL_ARENA) GLOBAL_ARENA.destruct();
-    printf("Assert: %s\n", cast(char*) msg);
+    writefln("Harpy Erro: %s", message);
     exit(1);
+}
+
+void hpy_validar(bool cond, string message)
+{
+    if (cond)
+        return;
+    hpy_erro(message);
 }
