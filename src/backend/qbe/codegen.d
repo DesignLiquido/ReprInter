@@ -1,0 +1,224 @@
+module backend.qbe.codegen;
+
+import backend.qbe.qbe_api;
+import std.stdio;
+import std.conv;
+import errors;
+import htype;
+import utils;
+import ast;
+
+struct QBEVarValue
+{
+    QBEValue value;
+    QBEType type; // tipo original
+    bool isParam;
+}
+
+class QBECodeGen
+{
+private:
+    // salva o endereço de cada variavel
+    string fn;
+    QBEVarValue[string][string] map;
+    QBEValue[string] functions;
+    QBEBuilder builder;
+    QBEValue[string] strings;
+
+    QBEValue compile(Node node)
+    {
+        switch (node.kind)
+        {
+        case NodeKind.Program:
+            Program p = cast(Program) node;
+            for (uint i; i < p.decls.length; i++)
+                compile(p.decls[i]);
+            return QBEValue.init;
+
+        case NodeKind.FuncDecl:
+            return compileFnDecl(cast(FuncDecl) node);
+
+        case NodeKind.InstructionStmt:
+            return compileInstr(cast(InstructionStmt) node);
+
+        case NodeKind.IntLit:
+            IntLit lit = cast(IntLit) node;
+            return QBEValue.makeConst(lit.val, hToQ(lit.type));
+
+        case NodeKind.DoubleLit:
+            DoubleLit lit = cast(DoubleLit) node;
+            return QBEValue.makeFloatConst(lit.val);
+
+        case NodeKind.StringLit:
+            StringLit lit = cast(StringLit) node;
+            if (QBEValue* val = lit.val in strings)
+                return *val;
+            string n = "_str" ~ to!string(strings.length);
+            QBEData data = builder.getModule().addData(n);
+            data.addString(lit.val);
+            QBEValue val = QBEValue.makeGlobal(n);
+            strings[lit.val] = val;
+            return val;
+
+        default:
+            debugNode(node);
+            hpy_erro("QBE: Node desconhecido.");
+            return QBEValue.init;
+        }
+    }
+
+    QBEValue makeLoad(QBEVarValue val)
+    {
+        if (val.isParam)
+            return val.value;
+        return builder.load(val.type, val.value);
+    }
+
+    string tryGetVarName(Node node)
+    {
+        hpy_validar(node.kind == NodeKind.IDentifier, "Esperado um nome para a variavel.");
+        return (cast(IDentifier) node).val;
+    }
+
+    QBEValue compileInstr(InstructionStmt node)
+    {
+        final switch (node.kind)
+        {
+        case Instruction.Aloca:
+            QBEType type = hToQ(node.type);
+            QBEValue alloc = builder.alloc(node.type.getSize(), type);
+            string var = tryGetVarName(node.a);
+            map[fn][var] = QBEVarValue(alloc, type);
+            return alloc;
+
+        case Instruction.Ret:
+            string var = tryGetVarName(node.a);
+            QBEVarValue addr = map[fn][var];
+
+            builder.ret(makeLoad(addr)); // carrega o valor e retorna
+            return addr.value;
+
+        case Instruction.Ime:
+            string var = tryGetVarName(node.a);
+            QBEVarValue addr = map[fn][var];
+            QBEValue value = compile(node.b);
+
+            builder.store(addr.type, value, addr.value);
+            return addr.value;
+
+        case Instruction.Soma:
+            string res = tryGetVarName(node.a);
+            string x = tryGetVarName(node.b);
+            string y = tryGetVarName(node.c);
+
+            QBEVarValue addr1 = map[fn][res];
+            QBEVarValue addr2 = map[fn][x];
+            QBEVarValue addr3 = map[fn][y];
+
+            QBEValue lx = makeLoad(addr2);
+            QBEValue ly = makeLoad(addr3);
+
+            QBEValue result = builder.add(addr1.type, lx, ly);
+            builder.store(addr1.type, result, addr1.value);
+
+            return result;
+
+        case Instruction.Chamada:
+            CallExpr call = cast(CallExpr) node.a;
+            QBEValue func = functions[call.name];
+            QBEValue[] args;
+            for (ulong i; i < call.args.length; i++)
+                args ~= makeLoad(map[fn][call.args[i]]);
+            QBEValue value = builder.call(func.type, func, args);
+            QBEValue res = map[fn][tryGetVarName(node.b)].value;
+            builder.store(func.type, value, res);
+            return res;
+
+        case Instruction.Conv:
+            QBEType de = hToQ(node.type);
+            QBEType para = hToQ(node.to);
+
+            QBEVarValue var1 = map[fn][tryGetVarName(node.a)]; // origem
+            QBEVarValue var2 = map[fn][tryGetVarName(node.b)]; // salvamento
+
+            QBEValue result = builder.cast_(para, de, makeLoad(var1));
+            builder.store(para, result, var2.value);
+
+            return var2.value;
+        }
+    }
+
+    QBEValue compileFnDecl(FuncDecl node)
+    {
+        string name = node.name;
+        fn = name;
+        map[name] = (QBEVarValue[string]).init;
+        QBEType type = hToQ(node.type);
+        functions[name] = QBEValue.makeGlobal(name, type);
+
+        if (node.isExtern)
+            return QBEValue.init;
+
+        QBEFunction func = builder.startFunction(name, type);
+        for (ulong i; i < node.args.length; i++)
+        {
+            FuncArg arg = node.args[i];
+            QBEType atype = hToQ(arg.type);
+            func.addParam(hToQ(arg.type), arg.name);
+            map[fn][arg.name] = QBEVarValue(QBEValue.makeTemp(arg.name, atype), atype, true);
+        }
+        builder.startBlock("entry");
+        for (ulong i; i < node.body.length; i++)
+            compile(node.body[i]);
+        return QBEValue.init;
+    }
+
+    QBEType hToQ(HType type)
+    {
+        if (type.kind == HTypeKind.Builtin)
+        {
+            HTypeBuiltin builtin = cast(HTypeBuiltin) type;
+            final switch (builtin.base)
+            {
+            case HTBase.Void:
+                return QBEType.Word; // valor padrao
+            case HTBase.I1:
+            case HTBase.I8:
+            case HTBase.U8:
+                return QBEType.Byte;
+            case HTBase.I16:
+            case HTBase.U16:
+                return QBEType.Halfword;
+            case HTBase.I32:
+            case HTBase.U32:
+                return QBEType.Word;
+            case HTBase.I64:
+            case HTBase.U64:
+                return QBEType.Long;
+            case HTBase.F32:
+                return QBEType.Single;
+            case HTBase.F64:
+                return QBEType.Double;
+            }
+        }
+        hpy_erro("Tipo desconhecido.");
+        return QBEType.init;
+    }
+
+public:
+    this()
+    {
+        this.builder = new QBEBuilder();
+    }
+
+    string compile(Program p)
+    {
+        compile(cast(Node) p);
+        return builder.getModule().toString();
+    }
+
+    void save(string file)
+    {
+        builder.getModule().writeToFile(file);
+    }
+}
