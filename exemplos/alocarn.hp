@@ -1,0 +1,42 @@
+funcao i32 main() {
+    alocar i32, $tam
+    imediato i32, $tam, 10
+
+    alocar i64, $arr
+    alocarn i32, $arr, $tam
+
+    alocar i64, $stride
+    imediato i64, $stride, 4
+
+    alocar i64, $idx0
+    imediato i64, $idx0, 0
+    alocar i64, $idx1
+    imediato i64, $idx1, 1
+
+    alocar i64, $off0
+    alocar i64, $off1
+    mul i64, $off0, $idx0, $stride   // $off0 = $idx0 * $stride
+    mul i64, $off1, $idx1, $stride   // $off1 = $idx1 * $stride
+
+    alocar i64, $ptr0
+    alocar i64, $ptr1
+    soma i64, $ptr0, $arr, $off0     // $ptr0 = $arr + $off0
+    soma i64, $ptr1, $arr, $off1     // $ptr1 = $arr + $off1
+
+    alocar i32, $v0
+    alocar i32, $v1
+    imediato i32, $v0, 60
+    imediato i32, $v1, 7
+    escreva $ptr0, $v0
+    escreva $ptr1, $v1
+
+    alocar i32, $r0
+    alocar i32, $r1
+    deref $ptr0, $r0
+    deref $ptr1, $r1
+
+    alocar i32, $res
+    soma i32, $res, $r0, $r1
+
+    retorne $res
+}

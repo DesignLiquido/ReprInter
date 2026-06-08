@@ -18,28 +18,45 @@ private:
     uint offset, l_offset;
     uint line = 1;
     immutable TokenKind[dstring] keywords = [
-        "aloca": TokenKind.Aloca,
         "alocar": TokenKind.Aloca,
+        "alocarn": TokenKind.Alocan,
 
         "estrutura": TokenKind.Estrutura,
-
         "chamada": TokenKind.Chamada,
-
+        
         "soma": TokenKind.Soma,
+        "sub": TokenKind.Sub,
+        "subtracao": TokenKind.Sub,
+        "subtração": TokenKind.Sub,
+        "mul": TokenKind.Mul,
+        "multiplicacao": TokenKind.Mul,
+        "multiplicação": TokenKind.Mul,
+        "div": TokenKind.Div,
+        "divisão": TokenKind.Div,
+        "mod": TokenKind.Mod,
+        "modulo": TokenKind.Mod,
 
+        "ref": TokenKind.Ref,
+        "referencia": TokenKind.Ref,
+
+        "deref": TokenKind.Deref,
+        "dereferencia": TokenKind.Deref,
+        
+        "escreva": TokenKind.Escreva,
+        
         "conv": TokenKind.Converter,
         "converter": TokenKind.Converter,
-
         "setar": TokenKind.Setar,
         "obter": TokenKind.Obter,
-
+        "salte": TokenKind.Salte,
+        "saltez": TokenKind.Saltez,
+        "saltenz": TokenKind.Saltenz,
+        "compare": TokenKind.Compare,
         "fn": TokenKind.Funcao,
         "funcao": TokenKind.Funcao,
         "função": TokenKind.Funcao,
-
         "ime": TokenKind.Imediato,
         "imediato": TokenKind.Imediato,
-
         "ret": TokenKind.Retorne,
         "retorne": TokenKind.Retorne,
     ];
@@ -201,8 +218,9 @@ public:
                     buffer ~= [advance()];
 
                 TokenKind kind = did ? TokenKind.Id : TokenKind.Identifier;
-                if (immutable TokenKind* k = buffer in keywords)
-                    kind = *k;
+                if (!did)
+                    if (immutable TokenKind* k = buffer in keywords)
+                        kind = *k;
 
                 tokens ~= new Token(kind, TokenRaw._s(buffer), getPosition(start, line));
                 continue;
@@ -273,6 +291,18 @@ public:
             TokenKind k = TokenKind.Eof;
             uint start = l_offset;
 
+            /*
+            
+
+            LThan,
+            GThan,
+            EEQuals,
+            LEquals,
+            GEquals,
+            NEquals,
+            
+            */
+
             switch (ch)
             {
             case '/':
@@ -285,6 +315,34 @@ public:
                             break;
                     continue;
                 }
+                break;
+            case '<':
+                k = TokenKind.LThan;
+                if (peek() == '=')
+                {
+                    k = TokenKind.LEquals;
+                    advance();
+                }
+                break;
+            case '>':
+                k = TokenKind.GThan;
+                if (peek() == '=')
+                {
+                    k = TokenKind.GEquals;
+                    advance();
+                }
+                break;
+            case '=':
+                k = TokenKind.EEquals;
+                if (peek() != '=')
+                    err.error(getPosition(start, line), "Simbolo inválido, '=' não é permitido.");
+                advance();
+                break;
+            case '!':
+                k = TokenKind.NEquals;
+                if (peek() != '=')
+                    err.error(getPosition(start, line), "Simbolo inválido, '!' não é permitido.");
+                advance();
                 break;
             case '(':
                 k = TokenKind.LParen;

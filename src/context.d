@@ -97,7 +97,6 @@ public:
             err.error(tk.pos, "A variavel não existe.");
             err.report();
             hpy_erro("Erro");
-            return ContextValue.init;
         }
         return *getVar(var);
     }

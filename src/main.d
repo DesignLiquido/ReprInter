@@ -24,15 +24,12 @@ import errors;
 import htype;
 import utils;
 
+const string VERSAO = "1.0.0";
+
 void verificar_erros(Diagnostics d)
 {
-    bool err;
-    if (d.hasErrors())
-        err = true;
     d.report();
-    import core.stdc.stdlib : exit;
-
-    if (err)
+    if (d.hasErrors())
         exit(1);
 }
 
@@ -57,7 +54,7 @@ void main(string[] args)
 {
     hpy_validar(args.length > 1, "Esperado ao menos um argumento.");
 
-    bool versao, jit, aot, dTime;
+    bool versao, jit, aot, dTime, sAst, sAsm, sSsa;
     string output = "";
 
     try
@@ -67,6 +64,9 @@ void main(string[] args)
             "A|aot", &aot,
             "s|saida", &output,
             "T|tempo", &dTime,
+            "ast", &sAst,
+            "asm", &sAsm,
+            "ssa", &sSsa,
         );
 
     catch (GetOptException e)
@@ -106,9 +106,6 @@ void main(string[] args)
     checkpoint(dTime, sw, "lexer");
     verificar_erros(diag);
 
-    // foreach (ref Token tk; tokens)
-    //     tk.print();
-
     TypeRegistry registry = new TypeRegistry();
     Context context = new Context(diag);
 
@@ -116,8 +113,9 @@ void main(string[] args)
     Program program = parser.parse();
     checkpoint(dTime, sw, "parser");
     verificar_erros(diag);
-    
-    // debugNode(program);
+
+    if (sAst)
+        debugNode(program);
 
     if (output == "")
         output = filename[0 .. $ - 3];
@@ -137,7 +135,12 @@ void main(string[] args)
         int code_cc = executeShell(format("cc %s -O%d -o %s", s, 0, output)).status;
         hpy_validar(code_cc == 0, "Erro ao compilar com o cc.");
 
-        executeShell(format("rm %s %s", ssa, s));
+        if (!sAsm)
+            executeShell("rm -f " ~ s);
+
+        if (!sSsa)
+            executeShell("rm -f " ~ ssa);
+
         if (dTime)
             printDebugTime(sw);
         return;

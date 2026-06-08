@@ -5,6 +5,7 @@ import type_registry;
 import std.stdio;
 import std.conv;
 import errors;
+import token;
 import htype;
 import utils;
 import ast;
@@ -64,6 +65,13 @@ private:
 
         case NodeKind.StructDecl:
             return compileStructDecl(cast(StructDecl) node);
+
+        case NodeKind.LabelStmt:
+            LabelStmt label = cast(LabelStmt) node;
+            builder.startBlock(label.name);
+            for (ulong i; i < label.body.length; i++)
+                compile(label.body[i]);
+            return QBEValue.makeTemp(label.name);
 
         default:
             debugNode(node);
@@ -150,7 +158,8 @@ private:
                 return QBEValue.init;
             }
 
-            QBEValue fieldPtr = builder.add(QBEType.Long, addr1.value, QBEValue.makeConst(field.offset));
+            QBEValue fieldPtr = builder.add(QBEType.Long, addr1.value, QBEValue.makeConst(
+                    field.offset));
             builder.store(hToQ(field.type), makeLoad(addr2), fieldPtr);
 
             return QBEValue.init;
@@ -179,12 +188,13 @@ private:
                 return QBEValue.init;
             }
 
-            QBEValue fieldPtr = builder.add(QBEType.Long, addr1.value, QBEValue.makeConst(field.offset));
+            QBEValue fieldPtr = builder.add(QBEType.Long, addr1.value, QBEValue.makeConst(
+                    field.offset));
             QBEValue loaded = builder.load(hToQ(field.type), fieldPtr);
             builder.store(hToQ(field.type), loaded, addr2.value);
             return addr2.value;
 
-        case Instruction.Soma:
+        case Instruction.Aritmetica:
             string res = tryGetVarName(node.a);
             string x = tryGetVarName(node.b);
             string y = tryGetVarName(node.c);
@@ -196,7 +206,37 @@ private:
             QBEValue lx = makeLoad(addr2);
             QBEValue ly = makeLoad(addr3);
 
-            QBEValue result = builder.add(addr1.type, lx, ly);
+            alias FnOP = QBEValue delegate(QBEType, QBEValue, QBEValue);
+            FnOP func = null;
+
+            switch (node.op)
+            {
+            case TokenKind.Soma:
+                func = &builder.add;
+                break;
+            case TokenKind.Sub:
+                func = &builder.sub;
+                break;
+            case TokenKind.Mul:
+                func = &builder.mul;
+                break;
+            case TokenKind.Div:
+                func = &builder.div;
+                break;
+            case TokenKind.Mod:
+                func = &builder.rem;
+                break;
+            default:
+                break;
+            }
+
+            if (func is null)
+            {
+                hpy_erro("Operador binario inválido.");
+                return QBEValue.init;
+            }
+
+            QBEValue result = func(addr1.type, lx, ly);
             builder.store(addr1.type, result, addr1.value);
 
             return result;
@@ -223,6 +263,109 @@ private:
             builder.store(para, result, var2.value);
 
             return var2.value;
+
+        case Instruction.Compare:
+            QBEType type = hToQ(node.type);
+
+            QBEVarValue x = map[fn][tryGetVarName(node.a)];
+            QBEVarValue y = map[fn][tryGetVarName(node.b)];
+            QBEVarValue z = map[fn][tryGetVarName(node.c)];
+
+            QBEValue lx = makeLoad(x);
+            QBEValue ly = makeLoad(y);
+
+            string getOp(TokenKind op)
+            {
+                bool isFloat = node.type.kind == HTypeKind.Builtin &&
+                    (
+                        (cast(HTypeBuiltin) node.type).base == HTBase.F32 ||
+                            (cast(HTypeBuiltin) node.type).base == HTBase.F64
+                    );
+
+                bool isUnsigned = node.type.kind == HTypeKind.Builtin &&
+                    (
+                        (cast(HTypeBuiltin) node.type).base == HTBase.U8 ||
+                            (cast(HTypeBuiltin) node.type).base == HTBase.U16 ||
+                            (cast(HTypeBuiltin) node.type)
+                            .base == HTBase.U32 ||
+                            (cast(HTypeBuiltin) node.type).base == HTBase.U64
+                    );
+
+                switch (op)
+                {
+                case TokenKind.EEquals:
+                    return "eq";
+                case TokenKind.NEquals:
+                    return "ne";
+                case TokenKind.LEquals:
+                    return isFloat ? "le" : (isUnsigned ? "ule" : "sle");
+                case TokenKind.GEquals:
+                    return isFloat ? "ge" : (isUnsigned ? "uge" : "sge");
+                case TokenKind.LThan:
+                    return isFloat ? "lt" : (isUnsigned ? "ult" : "slt");
+                case TokenKind.GThan:
+                    return isFloat ? "gt" : (isUnsigned ? "ugt" : "sgt");
+                default:
+                    return "<err>";
+                }
+            }
+
+            builder.store(type, builder.cmp(getOp(node.op), type, lx, ly), z.value);
+            return QBEValue.init;
+
+        case Instruction.Saltez:
+        case Instruction.Saltenz:
+            bool isNz = node.kind == Instruction.Saltenz;
+            QBEVarValue cond = map[fn][tryGetVarName(node.a)];
+            QBEValue condVal = makeLoad(cond);
+            if (isNz)
+                builder.jnz(condVal, node.d, node.e);
+            else
+                builder.jnz(condVal, node.e, node.d);
+            return QBEValue.init;
+
+        case Instruction.Salte:
+            builder.jmp(node.d);
+            return QBEValue.init;
+
+        case Instruction.Ref:
+            // ref $a, $b
+            // $b = &$a
+            QBEVarValue a = map[fn][tryGetVarName(node.a)];
+            QBEVarValue b = map[fn][tryGetVarName(node.b)];
+            builder.store(QBEType.Long, a.value, b.value);
+            return QBEValue.init;
+
+        case Instruction.Deref:
+            // deref $a, $b
+            // $b = *$a
+            QBEVarValue a = map[fn][tryGetVarName(node.a)];
+            QBEVarValue b = map[fn][tryGetVarName(node.b)];
+
+            QBEValue ptr = makeLoad(a);
+            QBEValue val = builder.load(b.type, ptr);
+
+            builder.store(b.type, val, b.value);
+            return QBEValue.init;
+
+        case Instruction.Escreva:
+            // escreva $a, $b
+            // *$a = $b
+            QBEVarValue a = map[fn][tryGetVarName(node.a)];
+            QBEVarValue b = map[fn][tryGetVarName(node.b)];
+            builder.store(b.type, makeLoad(b), makeLoad(a));
+            return QBEValue.init;
+
+        case Instruction.Alocan:
+            // alocarn T, $target, $tam
+
+            QBEType type = hToQ(node.type);
+            string varName = tryGetVarName(node.a);
+            ulong total = node.f * node.type.getSize();
+
+            QBEValue mem = builder.alloc(total, type);
+            map[fn][varName] = QBEVarValue(mem, QBEType.Long, true);
+            return QBEValue.init;
         }
     }
 

@@ -1,13 +1,13 @@
 fn i32 soma_(i32 $x, i32 $y) {
-    aloca i32, $res
+    alocar i32, $res
     soma i32, $res, $x, $y
     ret $res
 }
 
 fn i32 main() {
-    aloca i32, $resultado
-    aloca i32, $a
-    aloca i32, $b
+    alocar i32, $resultado
+    alocar i32, $a
+    alocar i32, $b
     ime i32, $a, 60
     ime i32, $b, 7
     chamada i32, soma_($a, $b), $resultado
