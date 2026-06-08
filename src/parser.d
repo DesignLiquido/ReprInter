@@ -84,6 +84,11 @@ private:
         return expect(TokenKind.Id, "Esperado um identificador com prefixo '$'.");
     }
 
+    Token expectIdentifier()
+    {
+        return expect(TokenKind.Identifier, "Esperado um identificador.");
+    }
+
     Token expect(TokenKind k, string msg)
     {
         if (check(k))
@@ -170,24 +175,6 @@ private:
 
             return instrAloca(type, id, tk.pos);
 
-        case TokenKind.Soma:
-            // soma T, $a, $b, $c
-            HType type = parseType();
-            expectComma();
-
-            Token a = expectId();
-            checkType(type, context.tryGetVar(a).type, a.pos);
-            expectComma();
-
-            Token b = expectId();
-            checkType(type, context.tryGetVar(b).type, b.pos);
-            expectComma();
-
-            Token c = expectId();
-            checkType(type, context.tryGetVar(c).type, c.pos);
-
-            return instrSoma(type, a, b, c, tk.pos);
-
         case TokenKind.Chamada:
             // chamada T, CALLEXPR, $res
             HType type = parseType();
@@ -222,6 +209,34 @@ private:
             checkType(to, context.tryGetVar(b).type, b.pos);
 
             return instrConverter(from, to, a, b, tk.pos);
+
+        case TokenKind.Obter:
+        case TokenKind.Setar:
+        case TokenKind.Soma:
+            // obter | converter T, $a, $b, $c
+            // soma T, $a, $b, $c
+            bool cond = tk.kind == TokenKind.Setar || tk.kind == TokenKind.Obter;
+
+            HType type = parseType();
+            expectComma();
+
+            Token a = expectId();
+            checkType(type, context.tryGetVar(a).type, a.pos);
+            expectComma();
+
+            Token b = cond ? expectIdentifier() : expectId();
+            if (!cond) checkType(type, context.tryGetVar(b).type, b.pos);
+            expectComma();
+
+            Token c = expectId();
+            if (!cond) checkType(type, context.tryGetVar(c).type, c.pos);
+
+            if (tk.kind == TokenKind.Obter)
+                return instrObter(type, a, b, c, tk.pos);
+            else if (tk.kind == TokenKind.Setar)
+                return instrSetar(type, a, b, c, tk.pos);
+
+            return instrSoma(type, a, b, c, tk.pos);
 
         default:
             err.error(tk.pos, "Esperado uma instrução válida.");
@@ -267,6 +282,83 @@ private:
         return new FuncDecl(to!string(name.value.s), retType, args, body, isExtern, isVariadic, pos);
     }
 
+    Node parseStructDecl(Position pos)
+    {
+        Token name = expect(TokenKind.Identifier, "Esperado um nome para a estrutura.");
+        string sName = to!string(name.value.s);
+
+        if (registry.exists(sName))
+        {
+            err.error(name.pos, "A estrutura já existe.");
+            return StructDecl.init;
+        }
+
+        expect(TokenKind.LBrace, "Esperado '{' após a estrutura.");
+        
+        // preciso calcular o tamanho da struct junto com os alinhamentos e tudo mais nesse exato momento
+        StructField[] fields;
+        StructField[string] tFields;
+        uint structSize; // precisa alinhar ainda
+        uint maxFieldSize; // o alinhamento deve ser feito com base no maior campo
+        
+        while (!isAtEnd() && !check(TokenKind.RBrace))
+        {
+            HType fType = parseType();
+            uint fSize = fType.getSize();
+            structSize += fSize;
+            
+            if (fSize > maxFieldSize)
+                maxFieldSize = fSize;
+
+            Token fName = expect(TokenKind.Identifier, "Esperado um home pro campo da estrutura.");
+            fields ~= new StructField(to!string(fName.value.s), fType, fName.pos);
+            
+            if (!check(TokenKind.RBrace))
+                expect(TokenKind.Comma, "Esperado ','.");
+        }
+
+        // normaliza em 8 no máximo
+        if (maxFieldSize > 8)
+            maxFieldSize = 8;
+
+        // itera os fields dnv
+        for (ulong i; i < fields.length; i++)
+        {
+            StructField field = fields[i];
+            uint fSize = field.type.getSize();
+            uint diff;
+            // calcula o padding necessario inicialmente
+            if (fSize < maxFieldSize)
+            {
+                diff = maxFieldSize - fSize;
+                field.setPadding(diff);
+            }
+
+            // calcula o offset dessa bomba
+            // teoricamente seria i * (fSize + diff)
+            field.setOffset(i * (fSize + diff));
+
+            if (field.name in tFields)
+            {
+                err.error(field.pos, "O campo já existe.");
+                continue;
+            }
+
+            tFields[field.name] = field;
+        }
+
+        // o tamanho da struct deve ser alinhado na base do maxFieldSize
+        structSize = alignUp(structSize, maxFieldSize);
+
+        // cria e registra o tipo
+        HTypeStruct type = new HTypeStruct(sName, tFields);
+        type.size = structSize;
+        registry.setType(sName, type);
+
+        expect(TokenKind.RBrace, "Esperado '}' após o corpo da estrutura.");
+        return new StructDecl(sName, fields, pos);
+    }
+
     Node parseDecl()
     {
         Token tk = advance();
@@ -274,6 +366,8 @@ private:
         {
         case TokenKind.Funcao:
             return parseFnDecl(tk.pos);
+        case TokenKind.Estrutura:
+            return parseStructDecl(tk.pos);
         default:
             err.error(tk.pos, "Esperado uma declaração válida.");
             return Node.init;

@@ -17,3 +17,9 @@ void hpy_validar(bool cond, string message)
         return;
     hpy_erro(message);
 }
+
+pragma(inline, true)
+uint alignUp(uint size, uint base)
+{
+    return (size + base - 1) & ~(base - 1);
+}

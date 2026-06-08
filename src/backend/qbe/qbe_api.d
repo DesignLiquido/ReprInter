@@ -19,12 +19,12 @@ alias StrBuf = Appender!string;
 
 enum QBEType
 {
-    Byte,
-    Halfword,
-    Word,
-    Single,
-    Double,
-    Long,
+    Byte, // 1
+    Halfword, // 2
+    Word, // 4
+    Single, // 4
+    Double, // 8
+    Long, // 8
 }
 
 enum Linkage

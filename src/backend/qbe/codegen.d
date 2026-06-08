@@ -1,6 +1,7 @@
 module backend.qbe.codegen;
 
 import backend.qbe.qbe_api;
+import type_registry;
 import std.stdio;
 import std.conv;
 import errors;
@@ -24,6 +25,7 @@ private:
     QBEValue[string] functions;
     QBEBuilder builder;
     QBEValue[string] strings;
+    TypeRegistry registry;
 
     QBEValue compile(Node node)
     {
@@ -60,11 +62,29 @@ private:
             strings[lit.val] = val;
             return val;
 
+        case NodeKind.StructDecl:
+            return compileStructDecl(cast(StructDecl) node);
+
         default:
             debugNode(node);
             hpy_erro("QBE: Node desconhecido.");
             return QBEValue.init;
         }
+    }
+
+    QBEValue compileStructDecl(StructDecl node)
+    {
+        QBEAggregate t = new QBEAggregate(node.name);
+        for (ulong i; i < node.fields.length; i++)
+        {
+            StructField field = node.fields[i];
+            t.addField(hToQ(field.type));
+            // testando padding após o campo
+            if (field.padding > 0)
+                t.addField(QBEType.Byte, field.padding);
+        }
+        builder.getModule().addType(t);
+        return QBEValue.init;
     }
 
     QBEValue makeLoad(QBEVarValue val)
@@ -105,6 +125,64 @@ private:
 
             builder.store(addr.type, value, addr.value);
             return addr.value;
+
+        case Instruction.Setar:
+            string estr = tryGetVarName(node.a);
+            string fName = tryGetVarName(node.b);
+            string val = tryGetVarName(node.c);
+
+            if (node.type.kind != HTypeKind.Struct)
+            {
+                // TODO: melhorar
+                hpy_erro("Setar em um tipo inválido.");
+                return QBEValue.init;
+            }
+
+            QBEVarValue addr1 = map[fn][estr]; // a variavel alvo
+            QBEVarValue addr2 = map[fn][val]; // variavel com o valor destino
+
+            HTypeStruct type = cast(HTypeStruct) node.type;
+            StructField* field = fName in type.fields;
+
+            if (field is null)
+            {
+                hpy_erro("O Campo não existe.");
+                return QBEValue.init;
+            }
+
+            QBEValue fieldPtr = builder.add(QBEType.Long, addr1.value, QBEValue.makeConst(field.offset));
+            builder.store(hToQ(field.type), makeLoad(addr2), fieldPtr);
+
+            return QBEValue.init;
+
+        case Instruction.Obter:
+            string estr = tryGetVarName(node.a);
+            string fName = tryGetVarName(node.b);
+            string val = tryGetVarName(node.c);
+
+            if (node.type.kind != HTypeKind.Struct)
+            {
+                // TODO: melhorar
+                hpy_erro("Obter em um tipo inválido.");
+                return QBEValue.init;
+            }
+
+            QBEVarValue addr1 = map[fn][estr]; // a variavel alvo
+            QBEVarValue addr2 = map[fn][val]; // variavel com o valor destino
+
+            HTypeStruct type = cast(HTypeStruct) node.type;
+            StructField* field = fName in type.fields;
+
+            if (field is null)
+            {
+                hpy_erro("O Campo não existe.");
+                return QBEValue.init;
+            }
+
+            QBEValue fieldPtr = builder.add(QBEType.Long, addr1.value, QBEValue.makeConst(field.offset));
+            QBEValue loaded = builder.load(hToQ(field.type), fieldPtr);
+            builder.store(hToQ(field.type), loaded, addr2.value);
+            return addr2.value;
 
         case Instruction.Soma:
             string res = tryGetVarName(node.a);
@@ -201,13 +279,14 @@ private:
                 return QBEType.Double;
             }
         }
-        hpy_erro("Tipo desconhecido.");
-        return QBEType.init;
+        // writeln("Tipo desconhecido.");
+        return QBEType.Long;
     }
 
 public:
-    this()
+    this(TypeRegistry registry)
     {
+        this.registry = registry;
         this.builder = new QBEBuilder();
     }
 

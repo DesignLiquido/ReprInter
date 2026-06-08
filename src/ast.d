@@ -8,12 +8,18 @@ import htype;
 enum NodeKind : ubyte
 {
     Program,
+    
+    StructDecl,
     FuncDecl,
+    
     InstructionStmt,
+    
     CallExpr,
+    
     Identifier, // x
     IDentifier, // $x
     IntLit,
+
     DoubleLit,
     StringLit,
 }
@@ -137,6 +143,44 @@ class CallExpr : Node
     }
 }
 
+class StructField {
+    string name;
+    HType type;
+    Position pos;
+
+    ulong offset;
+    uint padding;
+
+    this(string name, HType type, Position pos)
+    {
+        this.name = name;
+        this.type = type;
+        this.pos = pos;
+    }
+
+    void setOffset(ulong off)
+    {
+        this.offset = off;
+    }
+
+    void setPadding(uint padd)
+    {
+        this.padding = padd;
+    }
+}
+
+class StructDecl : Node {
+    string name;
+    StructField[] fields;
+
+    this(string name, StructField[] fields, Position pos)
+    {
+        super(NodeKind.StructDecl, pos);
+        this.name = name;
+        this.fields = fields;
+    }
+}
+
 // classe generica pra toda e qualquer instrução
 // alloca i32 $x
 
@@ -148,6 +192,8 @@ enum Instruction : ubyte
     Chamada,
     Conv,
     Soma,
+    Setar,
+    Obter,
 }
 
 class InstructionStmt : Node
@@ -222,6 +268,26 @@ InstructionStmt instrConverter(HType de, HType para, Token a, Token b, Position 
     return instr;
 }
 
+// setar T $ptr, field, $val
+InstructionStmt instrSetar(HType type, Token ptr, Token field, Token val, Position pos)
+{
+    InstructionStmt instr = new InstructionStmt(Instruction.Setar, type, pos);
+    instr.a = new IDentifier(ptr.value.s, ptr.pos);
+    instr.b = new IDentifier(field.value.s, field.pos);
+    instr.c = new IDentifier(val.value.s, val.pos);
+    return instr;
+}
+
+// obter T $ptr, field, $val
+InstructionStmt instrObter(HType type, Token ptr, Token field, Token val, Position pos)
+{
+    InstructionStmt instr = new InstructionStmt(Instruction.Obter, type, pos);
+    instr.a = new IDentifier(ptr.value.s, ptr.pos);
+    instr.b = new IDentifier(field.value.s, field.pos);
+    instr.c = new IDentifier(val.value.s, val.pos);
+    return instr;
+}
+
 void printIndent(int indent = 0)
 {
     for (int i; i < indent; i++)
@@ -275,7 +341,9 @@ void debugNode(Node node, int indent = 0)
                 return;
 
             case Instruction.Soma:
-                writef("Soma %s, ", instr.type.toStr());
+            case Instruction.Setar:
+            case Instruction.Obter:
+                writef("%s %s, ", instr.kind, instr.type.toStr());
                 debugNode(instr.a);
                 write(", ");
                 debugNode(instr.b);
@@ -328,6 +396,18 @@ void debugNode(Node node, int indent = 0)
                 write(", ");
         }
         writeln(")");
+        return;
+
+    case NodeKind.StructDecl:
+        StructDecl decl = cast(StructDecl) node;
+        writefln("StructDecl(%s):", decl.name);
+        for (ulong i; i < decl.fields.length; i++)
+        {
+            printIndent(indent+2);
+            StructField field = decl.fields[i];
+            writefln("%s: %s -> offset(%d) -> padding(%d)", field.name, field.type.toStr(), 
+                field.offset, field.padding);
+        }
         return;
 
     case NodeKind.Identifier:
