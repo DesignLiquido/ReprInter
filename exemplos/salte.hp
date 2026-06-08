@@ -1,0 +1,15 @@
+funcao i32 main() {
+    alocar i32, $ret
+    salte .meio
+
+.inicio:
+    imediato i32, $ret, 69
+    salte .fim
+
+.meio:
+    imediato i32, $ret, 67
+    salte .inicio
+    
+.fim:
+    retorne $ret // 69
+}

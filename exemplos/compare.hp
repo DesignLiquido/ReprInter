@@ -1,0 +1,22 @@
+funcao i32 main() {
+    alocar i32, $ret
+    alocar i32, $val
+    alocar i32, $res
+
+    imediato i32, $ret, 100
+    imediato i32, $val, 100
+
+    compare i32, $ret != $val, $res
+    saltez $res, .erro, .sucesso
+
+.sucesso:
+    imediato i32, $ret, 18
+    salte .fim
+
+.erro:
+    imediato i32, $ret, 69
+    salte .fim
+    
+.fim:
+    retorne $ret
+}

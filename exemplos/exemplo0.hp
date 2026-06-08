@@ -4,7 +4,7 @@
 // ret = retorne
 
 fn i32 main() {
-    aloca i32, $a  // cria uma variavel
+    alocar i32, $a  // cria uma variavel
     ime i32, $a, 16 // armazena um valor imediato
     ret $a
 }

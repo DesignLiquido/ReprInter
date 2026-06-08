@@ -15,6 +15,18 @@ enum TokenKind : ubyte
     Converter,
     Setar,
     Obter,
+    Salte,
+    Saltez,
+    Saltenz,
+    Compare,
+    Sub,
+    Mul,
+    Div,
+    Mod,
+    Ref,
+    Deref,
+    Escreva,
+    Alocan,
 
     // literals
     Id, // $x
@@ -33,6 +45,13 @@ enum TokenKind : ubyte
     Variadic, // ...
     Colon,
     SemiColon,
+
+    LThan,
+    GThan,
+    EEquals,
+    LEquals,
+    GEquals,
+    NEquals,
 
     // eof
     Eof,

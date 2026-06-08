@@ -5,9 +5,9 @@
 // ret $z
 
 fn i32 main() {
-    aloca f64, $x
+    alocar f64, $x
     ime f64, $x, 60.0
-    aloca i32, $z
+    alocar i32, $z
     conv f64, i32, $x, $z
     ret $z
 }

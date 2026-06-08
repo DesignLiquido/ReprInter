@@ -1,0 +1,25 @@
+funcao i32 main() {
+    alocar i32, $i
+    alocar i32, $soma
+    alocar i32, $limite
+    alocar i32, $cond
+
+    imediato i32, $i, 0
+    imediato i32, $soma, 0
+    imediato i32, $limite, 10
+
+.loop:
+    compare i32, $i != $limite, $cond
+    saltez $cond, .fim, .corpo
+
+.corpo:
+    soma i32, $soma, $soma, $i
+    // i++
+    alocar i32, $um
+    imediato i32, $um, 1
+    soma i32, $i, $i, $um
+    salte .loop
+
+.fim:
+    retorne $soma // 0+1+2+...+9 = 45
+}

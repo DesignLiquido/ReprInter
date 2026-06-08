@@ -1,0 +1,148 @@
+funcao i32 printf(i64 $msg, ...);
+
+funcao i32 fib(i32 $n) {
+    alocar i32, $cond
+    alocar i32, $um
+    alocar i32, $dois
+    alocar i32, $res
+    alocar i32, $n1
+    alocar i32, $n2
+    alocar i32, $ra
+    alocar i32, $rb
+
+    imediato i32, $um, 1
+    imediato i32, $dois, 2
+
+    compare i32, $n < $dois, $cond
+    saltenz $cond, .base, .recursivo
+
+.base:
+    retorne $n
+
+.recursivo:
+    sub i32, $n1, $n, $um
+    sub i32, $n2, $n, $dois
+    chamada i32, fib($n1), $ra
+    chamada i32, fib($n2), $rb
+    soma i32, $res, $ra, $rb
+    retorne $res
+}
+
+funcao i32 fatorial(i32 $n) {
+    alocar i32, $cond
+    alocar i32, $um
+    alocar i32, $res
+    alocar i32, $n1
+    alocar i32, $tmp
+
+    imediato i32, $um, 1
+    imediato i32, $res, 1
+
+    compare i32, $n < $um, $cond
+    saltenz $cond, .base, .recursivo
+
+.base:
+    retorne $res
+
+.recursivo:
+    sub i32, $n1, $n, $um
+    chamada i32, fatorial($n1), $tmp
+    mul i32, $res, $n, $tmp
+    retorne $res
+}
+
+funcao i32 soma_range(i32 $inicio, i32 $fim) {
+    alocar i32, $acc
+    alocar i32, $i
+    alocar i32, $cond
+    alocar i32, $um
+
+    imediato i32, $acc, 0
+    imediato i32, $um, 1
+    imediato i32, $i, 0
+    soma i32, $i, $i, $inicio
+
+.loop:
+    compare i32, $i != $fim, $cond
+    saltez $cond, .fim, .corpo
+
+.corpo:
+    soma i32, $acc, $acc, $i
+    soma i32, $i, $i, $um
+    salte .loop
+
+.fim:
+    retorne $acc
+}
+
+funcao i32 eh_par(i32 $n) {
+    alocar i32, $dois
+    alocar i32, $res
+
+    imediato i32, $dois, 2
+    mod i32, $res, $n, $dois
+    retorne $res
+}
+
+funcao i32 potencia(i32 $base, i32 $exp) {
+    alocar i32, $res
+    alocar i32, $i
+    alocar i32, $cond
+    alocar i32, $um
+    alocar i32, $zero
+
+    imediato i32, $res, 1
+    imediato i32, $i, 0
+    imediato i32, $um, 1
+    imediato i32, $zero, 0
+
+.loop:
+    compare i32, $i != $exp, $cond
+    saltez $cond, .fim, .corpo
+
+.corpo:
+    mul i32, $res, $res, $base
+    soma i32, $i, $i, $um
+    salte .loop
+
+.fim:
+    retorne $res
+}
+
+funcao i32 main() {
+    alocar i32, $r1
+    alocar i32, $r2
+    alocar i32, $r3
+    alocar i32, $r4
+    alocar i32, $r5
+    alocar i32, $n10
+    alocar i32, $n5
+    alocar i32, $n2
+    alocar i32, $n0
+    alocar i32, $n100
+    alocar i32, $total
+    alocar i64, $fmt
+
+    imediato i32, $n10, 10
+    imediato i32, $n5, 5
+    imediato i32, $n2, 2
+    imediato i32, $n0, 0
+    imediato i32, $n100, 100
+    imediato i64, $fmt, "resultado: %d\n"
+
+    chamada i32, fib($n10), $r1
+    chamada i32, fatorial($n5), $r2
+    chamada i32, soma_range($n0, $n100), $r3
+    chamada i32, eh_par($n10), $r4
+    chamada i32, potencia($n2, $n10), $r5
+
+    soma i32, $total, $r1, $r2
+    soma i32, $total, $total, $r3
+    soma i32, $total, $total, $r4
+    soma i32, $total, $total, $r5
+
+    chamada i32, printf($fmt, $total), $r1
+
+    imediato i32, $r1, 0
+    retorne $r1
+}

@@ -89,6 +89,13 @@ private:
         return expect(TokenKind.Identifier, "Esperado um identificador.");
     }
 
+    string expectLabelName()
+    {
+        expect(TokenKind.Dot, "Esperado um '.'.");
+        Token name = expectIdentifier();
+        return to!string("." ~ name.value.s);
+    }
+
     Token expect(TokenKind k, string msg)
     {
         if (check(k))
@@ -122,6 +129,7 @@ private:
             }
             expect(TokenKind.RParen, "Esperado ')' após a chamada.");
             return new CallExpr(to!string(tk.value.s), args, tk.pos);
+
         default:
             tk.print();
             err.error(tk.pos, "Esperado uma expressão válida.");
@@ -212,9 +220,18 @@ private:
 
         case TokenKind.Obter:
         case TokenKind.Setar:
+
         case TokenKind.Soma:
+        case TokenKind.Sub:
+        case TokenKind.Div:
+        case TokenKind.Mul:
+        case TokenKind.Mod:
             // obter | converter T, $a, $b, $c
             // soma T, $a, $b, $c
+            // sub T, $a, $b, $c
+            // mul T, $a, $b, $c
+            // div T, $a, $b, $c
+            // mod T, $a, $b, $c
             bool cond = tk.kind == TokenKind.Setar || tk.kind == TokenKind.Obter;
 
             HType type = parseType();
@@ -225,18 +242,132 @@ private:
             expectComma();
 
             Token b = cond ? expectIdentifier() : expectId();
-            if (!cond) checkType(type, context.tryGetVar(b).type, b.pos);
+            if (!cond)
+                checkType(type, context.tryGetVar(b).type, b.pos);
             expectComma();
 
             Token c = expectId();
-            if (!cond) checkType(type, context.tryGetVar(c).type, c.pos);
+            if (!cond)
+                checkType(type, context.tryGetVar(c).type, c.pos);
 
             if (tk.kind == TokenKind.Obter)
                 return instrObter(type, a, b, c, tk.pos);
             else if (tk.kind == TokenKind.Setar)
                 return instrSetar(type, a, b, c, tk.pos);
 
-            return instrSoma(type, a, b, c, tk.pos);
+            return instrBiOp(tk.kind, type, a, b, c, tk.pos);
+
+        case TokenKind.Salte:
+            // salte .label
+            string label = expectLabelName();
+            return instrSalte(label, tk.pos);
+
+        case TokenKind.Saltez:
+        case TokenKind.Saltenz:
+            // salte(z|nz) $cond, .label1, .label2
+            Token cond = expectId();
+            expectComma();
+            string label1 = expectLabelName();
+            expectComma();
+            string label2 = expectLabelName();
+            return instrSalteCond(cond, label1, label2, tk.kind == TokenKind.Saltenz, tk.pos);
+
+        case TokenKind.Compare:
+            // compare T, $x Op $y, $z
+            HType type = parseType();
+            expectComma();
+
+            Token x = expectId();
+            checkType(type, context.tryGetVar(x).type, x.pos);
+
+            Token op = advance();
+            if (op.kind != TokenKind.LThan
+                && op.kind != TokenKind.GThan
+                && op.kind != TokenKind.EEquals
+                && op.kind != TokenKind.NEquals
+                && op.kind != TokenKind.LEquals
+                && op.kind != TokenKind.GEquals)
+                err.error(op.pos, "Operador inválido.");
+
+            Token y = expectId();
+            checkType(type, context.tryGetVar(y).type, y.pos);
+            expectComma();
+
+            Token z = expectId();
+            checkType(type, context.tryGetVar(z).type, z.pos);
+
+            return instrCompare(type, x, op.kind, y, z, tk.pos);
+
+        case TokenKind.Dot:
+            Token name = expectIdentifier();
+            Node[] body;
+
+            expect(TokenKind.Colon, "Esperado ':' após o nome do rótulo (label).");
+            while (!isAtEnd() && !check(TokenKind.RBrace) && !check(TokenKind.Dot))
+                body ~= parseStmt();
+
+            return new LabelStmt(to!string("." ~ name.value.s), body, name.pos);
+
+        case TokenKind.Ref:
+        case TokenKind.Deref:
+        case TokenKind.Escreva:
+            // o padrão é sempre left to right
+            // ref|deref|escreva $a, $b
+
+            Token a = expectId();
+            expectComma();
+
+            Token b = expectId();
+            Instruction kind = Instruction.Ref;
+
+            if (tk.kind == TokenKind.Deref)
+                kind = Instruction.Deref;
+            else if (tk.kind == TokenKind.Escreva)
+                kind = Instruction.Escreva;
+
+            // ponteiros são i64, verifica se o $b é do tipo
+            if (kind == Instruction.Ref)
+                checkType(new HTypeBuiltin(HTBase.I64), context.tryGetVar(b).type, b.pos);
+
+            return instrMem(kind, a, b, tk.pos);
+
+        case TokenKind.Alocan:
+            // alocarn T, $target, $size
+
+            HType type = parseType();
+            expectComma();
+
+            Token a = expectId();
+            checkType(new HTypeBuiltin(HTBase.I64), context.tryGetVar(a).type, a.pos);
+            
+            expectComma();
+
+            Token b = expectId();
+            ContextValue val = context.tryGetVar(b);
+
+            if (!val.isConst)
+            {
+                err.error(b.pos, "O valor da variavel não pode ser provado em tempo de compilação.");
+                return Node.init;
+            }
+
+            Node value = val.value;
+
+            if (value.kind != NodeKind.IntLit)
+            {
+                err.error(value.pos, "A variavel deve ser um inteiro válido.");
+                return Node.init;
+            }
+
+            IntLit lit = cast(IntLit) value;
+
+            if (lit.val < 1)
+            {
+                err.error(value.pos, "O valor deve ser maior que zero para ser utilizado no 'alocarn'.");
+                return Node.init;
+            }
+
+            return instrAlocan(type, a, lit.val, tk.pos);
 
         default:
             err.error(tk.pos, "Esperado uma instrução válida.");
@@ -294,25 +425,25 @@ private:
         }
 
         expect(TokenKind.LBrace, "Esperado '{' após a estrutura.");
-        
+
         // preciso calcular o tamanho da struct junto com os alinhamentos e tudo mais nesse exato momento
         StructField[] fields;
         StructField[string] tFields;
         uint structSize; // precisa alinhar ainda
         uint maxFieldSize; // o alinhamento deve ser feito com base no maior campo
-        
+
         while (!isAtEnd() && !check(TokenKind.RBrace))
         {
             HType fType = parseType();
             uint fSize = fType.getSize();
             structSize += fSize;
-            
+
             if (fSize > maxFieldSize)
                 maxFieldSize = fSize;
 
             Token fName = expect(TokenKind.Identifier, "Esperado um home pro campo da estrutura.");
             fields ~= new StructField(to!string(fName.value.s), fType, fName.pos);
-            
+
             if (!check(TokenKind.RBrace))
                 expect(TokenKind.Comma, "Esperado ','.");
         }

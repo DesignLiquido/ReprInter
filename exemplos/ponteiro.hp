@@ -1,0 +1,15 @@
+funcao i32 main() {
+    alocar i32, $a 
+    alocar i64, $b
+    alocar i32, $c
+    alocar i32, $d
+
+    imediato i32, $a, 100 // $a = 100
+    imediato i32, $c, 67 // $c = 67
+
+    ref $a, $b // $b = &$a
+    escreva $b, $c // *$b = $c
+    deref $b, $d // $d = *$b
+
+    retorne $d
+}

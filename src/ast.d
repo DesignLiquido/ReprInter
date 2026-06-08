@@ -13,6 +13,7 @@ enum NodeKind : ubyte
     FuncDecl,
     
     InstructionStmt,
+    LabelStmt,
     
     CallExpr,
     
@@ -181,6 +182,19 @@ class StructDecl : Node {
     }
 }
 
+class LabelStmt : Node
+{
+    string name;
+    Node[] body;
+
+    this(string name, Node[] body, Position pos)
+    {
+        super(NodeKind.LabelStmt, pos);
+        this.name = name;
+        this.body = body;
+    }
+}
+
 // classe generica pra toda e qualquer instrução
 // alloca i32 $x
 
@@ -191,9 +205,17 @@ enum Instruction : ubyte
     Ret,
     Chamada,
     Conv,
-    Soma,
     Setar,
     Obter,
+    Salte,
+    Saltez,
+    Saltenz,
+    Compare,
+    Aritmetica,
+    Ref,
+    Deref,
+    Escreva,
+    Alocan,
 }
 
 class InstructionStmt : Node
@@ -203,6 +225,9 @@ class InstructionStmt : Node
     HType to;
     // algumas instruções precisam de varios campos
     Node a, b, c;
+    string d, e;
+    ulong f;
+    TokenKind op;
 
     this(Instruction kind, HType type, Position pos)
     {
@@ -248,16 +273,6 @@ InstructionStmt instrChamada(HType t, Node call, Token res, Position pos)
     return instr;
 }
 
-// soma T, $a, $b, $c
-InstructionStmt instrSoma(HType t, Token a, Token b, Token c, Position pos)
-{
-    InstructionStmt instr = new InstructionStmt(Instruction.Soma, t, pos);
-    instr.a = new IDentifier(a.value.s, a.pos);
-    instr.b = new IDentifier(b.value.s, b.pos);
-    instr.c = new IDentifier(c.value.s, c.pos);
-    return instr;
-}
-
 // converter DE, PARA, $a, $b
 InstructionStmt instrConverter(HType de, HType para, Token a, Token b, Position pos)
 {
@@ -285,6 +300,64 @@ InstructionStmt instrObter(HType type, Token ptr, Token field, Token val, Positi
     instr.a = new IDentifier(ptr.value.s, ptr.pos);
     instr.b = new IDentifier(field.value.s, field.pos);
     instr.c = new IDentifier(val.value.s, val.pos);
+    return instr;
+}
+
+// salte .label
+InstructionStmt instrSalte(string label, Position pos)
+{
+    InstructionStmt instr = new InstructionStmt(Instruction.Salte, HType.init, pos);
+    instr.d = label;
+    return instr;
+}
+
+// salte(z|nz) $cond, .label1, .label2
+InstructionStmt instrSalteCond(Token cond, string label1, string label2, bool nz, Position pos)
+{
+    InstructionStmt instr = new InstructionStmt(nz ? Instruction.Saltenz : Instruction.Saltez, HType.init, pos);
+    instr.a = new IDentifier(cond.value.s, cond.pos);
+    instr.d = label1;
+    instr.e = label2;
+    return instr;
+}
+
+// compare T $x OP $y, $z
+InstructionStmt instrCompare(HType type, Token x, TokenKind op, Token y, Token z, Position pos)
+{
+    InstructionStmt instr = new InstructionStmt(Instruction.Compare, type, pos);
+    instr.a = new IDentifier(x.value.s, x.pos);
+    instr.b = new IDentifier(y.value.s, y.pos);
+    instr.c = new IDentifier(z.value.s, z.pos);
+    instr.op = op;
+    return instr;
+}
+
+// (soma|sub|...) T, $a, $b, $c
+InstructionStmt instrBiOp(TokenKind op, HType t, Token a, Token b, Token c, Position pos)
+{
+    InstructionStmt instr = new InstructionStmt(Instruction.Aritmetica, t, pos);
+    instr.a = new IDentifier(a.value.s, a.pos);
+    instr.b = new IDentifier(b.value.s, b.pos);
+    instr.c = new IDentifier(c.value.s, c.pos);
+    instr.op = op;
+    return instr;
+}
+
+// (ref|deref|escreva) $a, $b
+InstructionStmt instrMem(Instruction kind, Token a, Token b, Position pos)
+{
+    InstructionStmt instr = new InstructionStmt(kind, HType.init, pos);
+    instr.a = new IDentifier(a.value.s, a.pos);
+    instr.b = new IDentifier(b.value.s, b.pos);
+    return instr;
+}
+
+// alocarn T, $target, size
+InstructionStmt instrAlocan(HType type, Token a, ulong size, Position pos)
+{
+    InstructionStmt instr = new InstructionStmt(Instruction.Alocan, type, pos);
+    instr.a = new IDentifier(a.value.s, a.pos);
+    instr.f = size;
     return instr;
 }
 
@@ -339,11 +412,11 @@ void debugNode(Node node, int indent = 0)
                 debugNode(instr.a);
                 writeln();
                 return;
-
-            case Instruction.Soma:
+                
+            case Instruction.Aritmetica:
             case Instruction.Setar:
             case Instruction.Obter:
-                writef("%s %s, ", instr.kind, instr.type.toStr());
+                writef("%s %s, ", instr.kind == Instruction.Aritmetica ? instr.op : instr.kind, instr.type.toStr());
                 debugNode(instr.a);
                 write(", ");
                 debugNode(instr.b);
@@ -383,6 +456,43 @@ void debugNode(Node node, int indent = 0)
                 debugNode(instr.b);
                 writeln();
                 return;
+
+            case Instruction.Salte:
+                writefln("Salte %s", instr.d);
+                return;
+
+            case Instruction.Saltez:
+            case Instruction.Saltenz:
+                writef("Salte%s ", instr.kind == Instruction.Saltenz ? "nz" : "z");
+                debugNode(instr.a);
+                writefln(", %s, %s", instr.d, instr.e);
+                return;
+
+            case Instruction.Compare:
+                writef("Compare %s, ", instr.type.toStr());
+                debugNode(instr.a);
+                writef(" %s ", instr.op);
+                debugNode(instr.b);
+                write(", ");
+                debugNode(instr.c);
+                writeln();
+                return;
+
+            case Instruction.Ref:
+            case Instruction.Deref:
+            case Instruction.Escreva:
+                writef("%s, ", instr.kind);
+                debugNode(instr.a);
+                write(", ");
+                debugNode(instr.b);
+                writeln();
+                return;
+
+            case Instruction.Alocan:
+                write("Alocan, ");
+                debugNode(instr.a);
+                writefln(", %d", instr.f);
+                return;
         }
         return;
 
@@ -408,6 +518,13 @@ void debugNode(Node node, int indent = 0)
             writefln("%s: %s -> offset(%d) -> padding(%d)", field.name, field.type.toStr(), 
                 field.offset, field.padding);
         }
+        return;
+
+    case NodeKind.LabelStmt:
+        LabelStmt label = cast(LabelStmt) node;
+        writefln("LabelStmt(%s):", label.name);
+        for (ulong i; i < label.body.length; i++)
+            debugNode(label.body[i], indent + 4);
         return;
 
     case NodeKind.Identifier:
