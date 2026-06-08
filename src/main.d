@@ -124,7 +124,7 @@ void main(string[] args)
 
     if (aot)
     {
-        QBECodeGen qbe = new QBECodeGen();
+        QBECodeGen qbe = new QBECodeGen(registry);
         qbe.compile(program);
         checkpoint(dTime, sw, "qbe");
         string ssa = output ~ ".ssa";
@@ -137,7 +137,7 @@ void main(string[] args)
         int code_cc = executeShell(format("cc %s -O%d -o %s", s, 0, output)).status;
         hpy_validar(code_cc == 0, "Erro ao compilar com o cc.");
 
-        // executeShell(format("rm %s %s", ssa, s));
+        executeShell(format("rm %s %s", ssa, s));
         if (dTime)
             printDebugTime(sw);
         return;

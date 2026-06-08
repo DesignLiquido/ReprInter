@@ -5,7 +5,7 @@ import ast;
 enum HTypeKind : ubyte
 {
     Builtin,
-    // Struct,
+    Struct,
 }
 
 enum HTBase : string
@@ -73,5 +73,29 @@ class HTypeBuiltin : HType
         case F64:
             return 8;
         }
+    }
+}
+
+class HTypeStruct : HType
+{
+    string name;
+    StructField[string] fields;
+    uint size;
+
+    this(string name, StructField[string] fields)
+    {
+        super(HTypeKind.Struct);
+        this.name = name;
+        this.fields = fields;
+    }
+
+    override string toStr()
+    {
+        return name;
+    }
+
+    override uint getSize()
+    {
+        return size;
     }
 }

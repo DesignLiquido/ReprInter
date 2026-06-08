@@ -1,0 +1,13 @@
+função i32 printf(i64 $message, ...); // função externa da libc
+
+função i32 main() {
+    aloca i64, $str
+    ime i64, $str, "Olá Mundo!\n" // strings são ponteiros por padrão, e todo ponteiro é um i64
+
+    aloca i32, $res
+    chamada i32, printf($str), $res
+
+    aloca i32, $x
+    ime i32, $x, 0
+    ret $x
+}

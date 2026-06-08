@@ -13,6 +13,8 @@ enum TokenKind : ubyte
     Estrutura,
     Chamada,
     Converter,
+    Setar,
+    Obter,
 
     // literals
     Id, // $x

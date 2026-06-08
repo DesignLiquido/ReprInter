@@ -30,6 +30,9 @@ private:
         "conv": TokenKind.Converter,
         "converter": TokenKind.Converter,
 
+        "setar": TokenKind.Setar,
+        "obter": TokenKind.Obter,
+
         "fn": TokenKind.Funcao,
         "funcao": TokenKind.Funcao,
         "função": TokenKind.Funcao,

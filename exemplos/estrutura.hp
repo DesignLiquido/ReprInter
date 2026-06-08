@@ -1,0 +1,25 @@
+funcao i32 printf(i64 $msg, ...);
+
+estrutura Usuario {
+    i64 nome, // 8 bytes
+    i16 idade // 2 bytes
+    // 6 bytes de padding
+}
+
+funcao i32 main() {
+    aloca i32, $x
+    aloca Usuario, $u
+
+    aloca i64, $nome1
+    aloca i64, $nome2
+
+    ime i64, $nome1, "Fernandu\n"
+    ime i64, $nome2, ""
+
+    setar Usuario, $u, nome, $nome1 // u-> = $nome1
+    obter Usuario, $u, nome, $nome2 // $nome2 = u->nome
+
+    chamada i32, printf($nome2), $x
+
+    ret $x
+}
