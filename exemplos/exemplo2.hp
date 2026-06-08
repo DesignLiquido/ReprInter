@@ -1,0 +1,13 @@
+// como todos os valores são constantes e provados em comptime
+// com constant folding daria pra retornar o valor imediato diretamente
+// como:
+// ime i32, $z, 60
+// ret $z
+
+fn i32 main() {
+    aloca f64, $x
+    ime f64, $x, 60.0
+    aloca i32, $z
+    conv f64, i32, $x, $z
+    ret $z
+}
