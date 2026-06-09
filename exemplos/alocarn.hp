@@ -1,3 +1,5 @@
+//# 67
+
 funcao i32 main() {
     alocar i32, $tam
     imediato i32, $tam, 10

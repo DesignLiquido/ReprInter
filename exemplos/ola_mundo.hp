@@ -1,3 +1,5 @@
+//! Olá Mundo!\n
+
 função i32 printf(i64 $message, ...); // função externa da libc
 
 função i32 main() {

@@ -1,3 +1,5 @@
+//# 45
+
 funcao i32 main() {
     alocar i32, $i
     alocar i32, $soma

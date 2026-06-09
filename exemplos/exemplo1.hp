@@ -1,3 +1,5 @@
+//# 67
+
 fn i32 soma_(i32 $x, i32 $y) {
     alocar i32, $res
     soma i32, $res, $x, $y

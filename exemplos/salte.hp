@@ -1,3 +1,5 @@
+//# 69
+
 funcao i32 main() {
     alocar i32, $ret
     salte .meio

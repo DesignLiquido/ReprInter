@@ -1,3 +1,5 @@
+//! resultado: 6149\n
+
 funcao i32 printf(i64 $msg, ...);
 
 funcao i32 fib(i32 $n) {
