@@ -16,7 +16,6 @@ harpy-test-*
 *.obj
 *.lst
 *.harpy
-tests
 *.ssa
 *.s
 out
