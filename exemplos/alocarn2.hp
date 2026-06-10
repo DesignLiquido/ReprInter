@@ -1,0 +1,9 @@
+//# 10
+
+fn i32 main() {
+    alocar i32, $x
+    ime i32, $x, 10
+    alocar i64, $arr
+    alocarn i32, $arr, $x
+    ret $x
+}

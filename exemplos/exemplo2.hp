@@ -3,6 +3,7 @@
 // como todos os valores são constantes e provados em comptime
 // com constant folding daria pra retornar o valor imediato diretamente
 // como:
+// alocar i32, $z
 // ime i32, $z, 60
 // ret $z
 

@@ -1,12 +1,7 @@
 //# 16
 
-// funciona tanto com o nome curto quanto com o nome completo
-// fn = funcao
-// ime = imediato
-// ret = retorne
-
 fn i32 main() {
-    alocar i32, $a  // cria uma variavel
-    ime i32, $a, 16 // armazena um valor imediato
-    ret $a
+    alocar i32, $valor
+    imediato i32, $valor, 16
+    retorne $valor
 }

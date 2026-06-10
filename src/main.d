@@ -67,21 +67,22 @@ void checkpoint(bool time, StopWatch sw, string name)
     if (!time)
         return;
     auto now = sw.peek.total!"usecs";
-    writeln(name, ": ", now - last);
+    writeln("[DEBUG TIME] ", name, ": ", now - last, "µs");
     last = now;
 }
 
 void printDebugTime(StopWatch sw)
 {
     sw.stop();
-    writeln(sw.peek.total!"usecs", " us");
+    writeln("[DEBUG TIME] TOTAL: ", sw.peek.total!"usecs", " µs");
 }
 
-void main(string[] args)
+int main(string[] args)
 {
     hpy_validar(args.length > 1, "Esperado ao menos um argumento.");
 
-    bool versao, jit, aot, dTime, sAst, sAsm, sSsa;
+    bool versao, jit, aot, dTime, sAst, sAsm, sSsa, sMir;
+    int opt = 0;
     string output = "";
 
     try
@@ -94,18 +95,19 @@ void main(string[] args)
             "ast", &sAst,
             "asm", &sAsm,
             "ssa", &sSsa,
+            "mir", &sMir,
         );
 
     catch (GetOptException e)
     {
         writefln("Flag invalida: %s\n", e.msg);
-        return;
+        return 1;
     }
 
     if (versao)
     {
         // TODO
-        return;
+        return 0;
     }
 
     string filename = args[1];
@@ -149,9 +151,10 @@ void main(string[] args)
 
     if (aot)
     {
-        QBECodeGen qbe = new QBECodeGen(registry);
+        QBECodeGen qbe = new QBECodeGen();
         qbe.compile(program);
         checkpoint(dTime, sw, "qbe");
+        
         string ssa = output ~ ".ssa";
         string s = output ~ ".s";
         qbe.save(ssa);
@@ -170,13 +173,23 @@ void main(string[] args)
 
         if (dTime)
             printDebugTime(sw);
-        return;
+            
+        return 0;
     }
     else if (jit)
     {
-        writeln("O JIT está sendo reescrito.");
-        return;
+        MIRCodeGen mir = new MIRCodeGen();
+        
+        mir.compile(program);
+        checkpoint(dTime, sw, "mir");
+        
+        int code = mir.run(sMir, opt, dTime, sw);
+        if (dTime)
+            printDebugTime(sw);
+
+        return code;
     }
 
     hpy_erro("Escolha um backend pra execução, seja (-A|--aot) ou (-J|--jit)");
+    return 1;
 }

@@ -33,16 +33,22 @@ extern (C):
 // Helpers de tipo públicos
 // =============================================================================
 
+alias MirType = MIR_type_t;
+alias MirVar = MIR_var_t;
+alias MirItem = MIR_item_t;
+alias MirStr = MIR_str_t;
+
 /// Atalho para construir MIR_var_t de forma legível.
 /// Uso: MIR_var("x", MIR_type_t.MIR_T_I64)
-MIR_var_t MIR_var(const(char)* name, MIR_type_t type, size_t size = 0) pure
+MirVar MIR_var(const(char)* name, MIR_type_t type, size_t size = 0) pure
 {
-    MIR_var_t v;
+    MirVar v;
     v.name = name;
     v.type = type;
     v.size = size;
     return v;
 }
+
 
 // =============================================================================
 // MirOp — wrapper fino sobre MIR_op_t para encadear operandos
@@ -672,7 +678,7 @@ public:
      *   auto rPtr = func.newReg("buf", MIR_T_P);
      *   func.alloca(rPtr, func.imm(64));   // 64 bytes na pilha
      */
-    void alloca_(MirOp dest, MirOp size)
+    void alloca(MirOp dest, MirOp size)
     {
         _emit2(MIR_insn_code_t.MIR_ALLOCA, dest, size);
     }
@@ -1141,17 +1147,17 @@ public:
      * Define arquivo de debug para o gerador `genNum`.
      * Imprime IR intermediária e código gerado.
      */
-    void setDebugFile(FILE* f, int genNum = 0)
+    void setDebugFile(FILE* f)
     {
-        MIR_gen_set_debug_file(_ctx, genNum, cast(void*) f);
+        MIR_gen_set_debug_file(_ctx, cast(void*) f);
     }
 
     /**
      * Define nível de verbosidade de debug (0 = silencioso, 3 = máximo).
      */
-    void setDebugLevel(int level, int genNum = 0)
+    void setDebugLevel(int level)
     {
-        MIR_gen_set_debug_level(_ctx, genNum, level);
+        MIR_gen_set_debug_level(_ctx, level);
     }
 
     /**

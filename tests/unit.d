@@ -1,5 +1,4 @@
 module tests.unit;
-
 import std.format;
 import std.stdio;
 import std.file;
@@ -19,8 +18,8 @@ string escape(string str)
         char ch = str[offset++];
         if (ch == '\\' && offset < str.length)
         {
-            char escape = str[offset];
-            switch (escape)
+            char esc = str[offset];
+            switch (esc)
             {
             case 'n':
                 buffer ~= '\n';
@@ -35,95 +34,149 @@ string escape(string str)
     return buffer;
 }
 
+enum Backend { AOT, JIT }
+
+struct TestResult
+{
+    string filename;
+    Backend backend;
+    bool ok;
+    string err;
+    bool ignored;
+}
+
+TestResult runTest(string filename, Backend backend)
+{
+    alias Exec = Tuple!(int, "status", string, "output");
+    TestResult res;
+    res.filename = filename;
+    res.backend  = backend;
+
+    File content = File(filename, "r");
+    string firstLine = content.byLine().front.idup;
+    content.close();
+
+    bool fromCode   = firstLine.length > 3 && firstLine[0 .. 3] == "//#";
+    bool fromOutput = firstLine.length > 3 && firstLine[0 .. 3] == "//!";
+
+    if (!fromCode && !fromOutput)
+    {
+        res.ignored = true;
+        return res;
+    }
+
+    firstLine = firstLine[4 .. $];
+
+    string output;
+    int    code;
+
+    if (backend == Backend.AOT)
+    {
+        string outputFile = filename[0 .. $ - 3];
+        Exec comp = executeShell(format("./harpy %s --aot", filename));
+        if (comp.status != 0)
+        {
+            res.ok  = false;
+            res.err = "Falha na compilação AOT:\n" ~ comp.output;
+            return res;
+        }
+        Exec run = executeShell(format("./%s", outputFile));
+        code   = run.status;
+        output = run.output;
+        executeShell(format("rm -f %s", outputFile));
+    }
+    else // JIT
+    {
+        Exec run = executeShell(format("./harpy %s --jit", filename));
+        code   = run.status;
+        output = run.output;
+        // remove aviso do JIT da saída
+        output = output.replace("AVISO: O JIT está sendo reescrito, por isso alguns exemplos podem dar erro.\n", "");
+    }
+
+    res.ok = true;
+
+    if (fromCode)
+    {
+        int expected = to!int(firstLine);
+        if (expected != code)
+        {
+            res.ok  = false;
+            res.err = format("Código esperado '%d', recebido '%d'.", expected, code);
+        }
+    }
+    else if (fromOutput)
+    {
+        string expected = escape(firstLine);
+        if (output != expected)
+        {
+            res.ok  = false;
+            res.err = format("Saída esperada '%s', recebida '%s'.", expected, output);
+        }
+    }
+
+    return res;
+}
+
 void main()
 {
     string folder = "exemplos";
-
-    string commandComp = "./harpy %s --aot";
-    string commandExec = "./%s";
-    string commandRm = "rm -f %s";
-    string testResult = "TEST %s - %s";
     ulong sucesso, erros, ignorados;
 
-    DirEntry[] dir = dirEntries(folder, SpanMode.depth).filter!(x => x.name.endsWith(".hp")).array;
+    DirEntry[] dir = dirEntries(folder, SpanMode.depth)
+        .filter!(x => x.name.endsWith(".hp"))
+        .array
+        .sort!((a, b) => a.name < b.name)
+        .array;
 
+    writeln("=== AOT ===");
     foreach (DirEntry key; dir)
     {
-        string filename = key.name();
-        string outputFile = filename[0 .. $ - 3];
-
-        alias Exec = Tuple!(int, "status", string, "output");
-
-        Exec comp = executeShell(format(commandComp, filename));
-
-        if (comp.status != 0)
+        TestResult res = runTest(key.name, Backend.AOT);
+        if (res.ignored)
         {
-            writefln(testResult, filename, "ERRO");
-            writeln(comp.output);
-            continue;
-        }
-
-        Exec result = executeShell(format(commandExec, outputFile));
-
-        int code = result.status;
-        string output = result.output;
-
-        File content = File(filename, "r");
-        string firstLine = content.byLine().front.idup;
-        bool fromCode, fromOutput;
-        bool ok = true;
-        string err;
-
-        if (firstLine[0 .. 3] == "//#")
-            fromCode = true;
-        else if (firstLine[0 .. 3] == "//!")
-            fromOutput = true;
-
-        if (fromCode || fromOutput)
-            firstLine = firstLine[4 .. $];
-
-        if (fromCode)
-        {
-            int fileCode = to!int(firstLine);
-            if (fileCode != code)
-            {
-                err = format("Código esperado '%d', recebido '%d'.", fileCode, code);
-                ok = false;
-            }
-        }
-
-        if (fromOutput)
-        {
-            firstLine = escape(firstLine);
-            if (output != firstLine)
-            {
-                err = format("Saída esperada '%s', recebido '%s'.", firstLine, output);
-                ok = true;
-            }
-        }
-
-        if (!ok)
-        {
-            writeln(format(testResult, filename, "ERRO"));
-            writeln(err);
-            erros++;
-        }
-        else if (ok && (fromCode || fromOutput))
-        {
-            writefln(format(testResult, filename, "SUCESSO"));
-            sucesso++;
-        }
-
-        if (!fromCode && !fromOutput)
-        {
-            writefln("Ignorando arquivo: %s", filename);
+            writefln("  IGNORADO  %s", res.filename);
             ignorados++;
         }
-
-        executeShell(format(commandRm, outputFile));
+        else if (res.ok)
+        {
+            writefln("  SUCESSO   %s", res.filename);
+            sucesso++;
+        }
+        else
+        {
+            writefln("  ERRO      %s", res.filename);
+            writeln("            ", res.err);
+            erros++;
+        }
     }
 
     writeln();
-    writefln("SUCESSOS: %d\nERROS: %d\nIGNORADOS: %d\nTOTAL: %d", 
-        sucesso, erros, ignorados, sucesso + erros + ignorados);
+    writeln("=== JIT ===");
+    foreach (DirEntry key; dir)
+    {
+        TestResult res = runTest(key.name, Backend.JIT);
+        if (res.ignored)
+        {
+            writefln("  IGNORADO  %s", res.filename);
+            ignorados++;
+        }
+        else if (res.ok)
+        {
+            writefln("  SUCESSO   %s", res.filename);
+            sucesso++;
+        }
+        else
+        {
+            writefln("  ERRO      %s", res.filename);
+            writeln("            ", res.err);
+            erros++;
+        }
+    }
+
+    writeln();
+    writefln("SUCESSOS:  %d", sucesso);
+    writefln("ERROS:     %d", erros);
+    writefln("IGNORADOS: %d", ignorados);
+    writefln("TOTAL:     %d", sucesso + erros + ignorados);
 }

@@ -670,10 +670,10 @@ void MIR_set_interp_interface(MIR_context_t ctx, MIR_item_t func_item);
 // =============================================================================
 
 void MIR_gen_init(MIR_context_t ctx);
+void MIR_gen_set_debug_file(MIR_context_t ctx, void* f);      // sem gen_num
+void MIR_gen_set_debug_level(MIR_context_t ctx, int debug_level); // sem gen_num
 void MIR_gen_set_optimize_level(MIR_context_t ctx, uint level);
-void* MIR_gen(MIR_context_t ctx, MIR_item_t func_item);
-void MIR_gen_set_debug_file(MIR_context_t ctx, int gen_num, void* f);
-void MIR_gen_set_debug_level(MIR_context_t ctx, int gen_num, int debug_level);
+void* MIR_gen(MIR_context_t ctx, MIR_item_t func_item);       // sem gen_num
 void MIR_gen_finish(MIR_context_t ctx);
 void MIR_set_gen_interface(MIR_context_t ctx, MIR_item_t func_item);
 void MIR_set_parallel_gen_interface(MIR_context_t ctx, MIR_item_t func_item);

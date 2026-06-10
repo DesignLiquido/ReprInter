@@ -4,19 +4,25 @@ import std.utf : decodeFront, decode;
 import std.exception : enforce;
 import std.format;
 import std.stdio;
+import std.array;
 import std.conv;
 
 import token;
 import errors;
 
+alias String = Appender!dstring;
+alias Tokens = Appender!(Token[]);
+
 class Lexer
 {
 private:
     Diagnostics err;
-    Token[] tokens;
+    Tokens tokens;
+    
     string source, filename;
     uint offset, l_offset;
     uint line = 1;
+    
     immutable TokenKind[dstring] keywords = [
         "alocar": TokenKind.Aloca,
         "alocarn": TokenKind.Alocan,
@@ -132,7 +138,9 @@ public:
 
     dstring lexNumer(dchar ch, uint start, out bool isDouble, out bool dotInvalid, bool d = true)
     {
-        dstring buffer = [ch];
+        String buffer = String();
+        buffer.reserve(20); // se precisar de mais ele irá realocar automaticamente
+        buffer.put([ch]);
         while (!isAtEnd() && (isNumeric(peek()) || peek() == '.'))
         {
             if (!d && peek() == '.')
@@ -148,9 +156,9 @@ public:
             }
             if (peek() == '.' && !isDouble)
                 isDouble = true;
-            buffer ~= [advance()];
+            buffer.put([advance()]);
         }
-        return buffer;
+        return buffer.data;
     }
 
     Position getPosition(uint s, uint l)
@@ -199,7 +207,7 @@ public:
                 else
                     raw.i = to!long(buffer);
 
-                tokens ~= new Token(kind, raw, getPosition(start, line));
+                tokens.put(new Token(kind, raw, getPosition(start, line)));
                 continue;
             }
 
@@ -212,17 +220,19 @@ public:
             if (isAlpha(ch))
             {
                 uint start = did ? l_offset - 1 : l_offset;
-                dstring buffer = [ch];
+                String buffer = String();
+                buffer.reserve(64);
+                buffer.put([ch]);
 
                 while (!isAtEnd() && isAlphaNumeric(peek()))
-                    buffer ~= [advance()];
+                    buffer.put([advance()]);
 
                 TokenKind kind = did ? TokenKind.Id : TokenKind.Identifier;
                 if (!did)
-                    if (immutable TokenKind* k = buffer in keywords)
+                    if (immutable TokenKind* k = buffer.data in keywords)
                         kind = *k;
 
-                tokens ~= new Token(kind, TokenRaw._s(buffer), getPosition(start, line));
+                tokens.put(new Token(kind, TokenRaw._s(buffer.data), getPosition(start, line)));
                 continue;
             }
 
@@ -230,7 +240,8 @@ public:
             {
                 uint start = l_offset;
                 uint l = line;
-                dstring buffer;
+                String buffer = String();
+                buffer.reserve(64);
 
                 while (!isAtEnd() && peek() != '"')
                 {
@@ -242,23 +253,23 @@ public:
                         switch (peek())
                         {
                         case 'n':
-                            buffer ~= '\n';
+                            buffer.put('\n');
                             advance();
                             break;
                         case 'r':
-                            buffer ~= '\r';
+                            buffer.put('\r');
                             advance();
                             break;
                         case 't':
-                            buffer ~= '\t';
+                            buffer.put('\t');
                             advance();
                             break;
                         case '"':
-                            buffer ~= '"';
+                            buffer.put('"');
                             advance();
                             break;
                         case '\\':
-                            buffer ~= '\\';
+                            buffer.put('\\');
                             advance();
                             break;
                         default:
@@ -275,33 +286,21 @@ public:
                         line++;
                         l_offset = 0;
                     }
-                    buffer ~= [advance()];
+                    buffer.put([advance()]);
                 }
 
                 if (isAtEnd() || !match('"'))
                 {
                     err.error(getPosition(start, l), "String não foi fechada.");
-                    return tokens;
+                    return tokens.data;
                 }
 
-                tokens ~= new Token(TokenKind.String, TokenRaw._s(buffer), getPosition(start, l));
+                tokens.put(new Token(TokenKind.String, TokenRaw._s(buffer.data), getPosition(start, l)));
                 continue;
             }
 
             TokenKind k = TokenKind.Eof;
             uint start = l_offset;
-
-            /*
-            
-
-            LThan,
-            GThan,
-            EEQuals,
-            LEquals,
-            GEquals,
-            NEquals,
-            
-            */
 
             switch (ch)
             {
@@ -384,8 +383,8 @@ public:
                 continue;
             }
 
-            tokens ~= new Token(k, TokenRaw.init, getPosition(start, line));
+            tokens.put(new Token(k, TokenRaw.init, getPosition(start, line)));
         }
-        return tokens;
+        return tokens.data;
     }
 }

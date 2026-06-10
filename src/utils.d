@@ -4,6 +4,7 @@ import core.stdc.stdlib : exit;
 import std.exception;
 import std.stdio;
 import std.format;
+import std.string;
 
 void hpy_erro(string message)
 {
@@ -23,3 +24,5 @@ uint alignUp(uint size, uint base)
 {
     return (size + base - 1) & ~(base - 1);
 }
+
+const(char)* cStr(string str) => str.toStringz;

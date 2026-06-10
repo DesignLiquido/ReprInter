@@ -1,7 +1,6 @@
 module backend.qbe.codegen;
 
 import backend.qbe.qbe_api;
-import type_registry;
 import std.stdio;
 import std.conv;
 import errors;
@@ -26,8 +25,7 @@ private:
     QBEValue[string] functions;
     QBEBuilder builder;
     QBEValue[string] strings;
-    TypeRegistry registry;
-
+    
     QBEValue compile(Node node)
     {
         switch (node.kind)
@@ -427,9 +425,8 @@ private:
     }
 
 public:
-    this(TypeRegistry registry)
+    this()
     {
-        this.registry = registry;
         this.builder = new QBEBuilder();
     }
 
