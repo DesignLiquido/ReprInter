@@ -22,16 +22,9 @@
 			"platforms": ["windows"],
 			"lflags": [
 			  "$PACKAGE_DIR/vendor/mir/lib/windows/libmir.a",
-			  "$PACKAGE_DIR/vendor/mir/lib/windows/mingwex/lib64_libmingwex_a-mingw_vsnprintf.o",
-			  "$PACKAGE_DIR/vendor/mir/lib/windows/mingwex/lib64_libmingwex_a-mingw_sprintf.o",
-			  "$PACKAGE_DIR/vendor/mir/lib/windows/mingwex/lib64_libmingwex_a-mingw_vfprintf.o",
-			  "$PACKAGE_DIR/vendor/mir/lib/windows/mingwex/lib64_libmingwex_a-mingw_fprintf.o",
-			  "$PACKAGE_DIR/vendor/mir/lib/windows/mingwex/lib64_libmingwex_a-mingw_snprintf.o",
-			  "$PACKAGE_DIR/vendor/mir/lib/windows/mingwex/lib64_libmingwex_a-strtof.o",
-			  "$PACKAGE_DIR/vendor/mir/lib/windows/mingwex/lib64_libmingwex_a-strtodg.o",
-			  "$PACKAGE_DIR/vendor/mir/lib/windows/mingwex/lib64_libmingwex_a-strtodnrp.o",
-			  "$PACKAGE_DIR/vendor/mir/lib/windows/mingwex/lib64_libmingwex_a-dtoa.o",
-			  "$PACKAGE_DIR/vendor/mir/lib/windows/mingwex/lib64_libmingwex_a-gdtoa.o"
+			  "/LIBPATH:C:/Program Files/w64devkit/lib",
+			  "libmingwex.a",
+			  "/FORCE:MULTIPLE"
 			]
 		}
 	],
