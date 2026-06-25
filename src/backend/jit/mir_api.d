@@ -1122,14 +1122,6 @@ public:
     }
 
     /**
-     * Define a interface de geração paralela (multi-thread).
-     */
-    void setParallelInterface(MirFunc func)
-    {
-        MIR_set_parallel_gen_interface(_ctx, func.item);
-    }
-
-    /**
      * Define a interface de geração lazy (compilação sob demanda).
      */
     void setLazyInterface(MirFunc func)
@@ -1356,21 +1348,6 @@ public:
     void setInterpInterface(MirFunc func)
     {
         MIR_set_interp_interface(_ctx, func.item);
-    }
-
-    // -------------------------------------------------------------------------
-    // Busca de itens globais
-    // -------------------------------------------------------------------------
-
-    /**
-     * Retorna o MIR_item_t global pelo nome após a linkagem.
-     *
-     * Uso:
-     *   auto item = ctx.globalItem("minha_func");
-     */
-    MIR_item_t globalItem(const(char)* name)
-    {
-        return MIR_get_global_item(_ctx, name);
     }
 
     // -------------------------------------------------------------------------

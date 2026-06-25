@@ -535,7 +535,7 @@ void MIR_load_external(MIR_context_t ctx, const(char)* name, void* addr);
 void MIR_link(MIR_context_t ctx,
     void function(MIR_context_t, MIR_item_t) set_interface,
     void* function(const(char)*) import_resolver);
-MIR_item_t MIR_get_global_item(MIR_context_t ctx, const(char)* name);
+// MIR_item_t MIR_get_global_item(MIR_context_t ctx, const(char)* name);
 void MIR_change_module_ctx(MIR_context_t old_ctx, MIR_module_t m, MIR_context_t new_ctx);
 
 // Itens de módulo
@@ -676,7 +676,6 @@ void MIR_gen_set_debug_file(MIR_context_t ctx, int gen_num, void* f);
 void MIR_gen_set_debug_level(MIR_context_t ctx, int gen_num, int debug_level);
 void MIR_gen_finish(MIR_context_t ctx);
 void MIR_set_gen_interface(MIR_context_t ctx, MIR_item_t func_item);
-void MIR_set_parallel_gen_interface(MIR_context_t ctx, MIR_item_t func_item);
 void MIR_set_lazy_gen_interface(MIR_context_t ctx, MIR_item_t func_item);
 
 // =============================================================================
