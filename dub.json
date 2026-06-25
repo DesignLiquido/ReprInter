@@ -29,7 +29,9 @@
 			  "$PACKAGE_DIR/vendor/mir/lib/windows/mingwex/lib64_libmingwex_a-mingw_snprintf.o",
 			  "$PACKAGE_DIR/vendor/mir/lib/windows/mingwex/lib64_libmingwex_a-strtof.o",
 			  "$PACKAGE_DIR/vendor/mir/lib/windows/mingwex/lib64_libmingwex_a-strtodg.o",
-			  "$PACKAGE_DIR/vendor/mir/lib/windows/mingwex/lib64_libmingwex_a-strtodnrp.o"
+			  "$PACKAGE_DIR/vendor/mir/lib/windows/mingwex/lib64_libmingwex_a-strtodnrp.o",
+			  "$PACKAGE_DIR/vendor/mir/lib/windows/mingwex/lib64_libmingwex_a-dtoa.o",
+			  "$PACKAGE_DIR/vendor/mir/lib/windows/mingwex/lib64_libmingwex_a-gdtoa.o"
 			]
 		}
 	],
