@@ -23,8 +23,7 @@
 			"lflags": [
 			  "$PACKAGE_DIR/vendor/mir/lib/windows/libmir.a",
 			  "/LIBPATH:C:/Program Files/w64devkit/lib",
-			  "libmingwex.a",
-			  "libmingw32.a"
+			  "libmingwex.a"
 			]
 		}
 	],
