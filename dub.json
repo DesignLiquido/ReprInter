@@ -20,7 +20,7 @@
 		{
 			"name": "windows",
 			"platforms": ["windows"],
-			"lflags": ["$PACKAGE_DIR/vendor/mir/lib/windows/libmir.a"]
+			"lflags": ["$PACKAGE_DIR/vendor/mir/lib/windows/libmir.a", "-l:libmingwex.a", "-l:libmingw32.a"]
 		}
 	],
 	"buildTypes": {
