@@ -10,7 +10,6 @@ harpy.a
 harpy.lib
 harpy-test-*
 *.pdb
-*.o
 *.so
 *.obj
 *.lst
