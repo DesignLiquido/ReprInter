@@ -52,8 +52,6 @@ void printDebugTime(StopWatch sw)
 
 void main(string[] args)
 {
-    hpy_validar(args.length > 1, "Esperado ao menos um argumento.");
-
     bool versao, jit, aot, dTime, sAst, sAsm, sSsa;
     string output = "";
 
@@ -81,6 +79,7 @@ void main(string[] args)
         return;
     }
 
+    hpy_validar(args.length > 1, "Esperado ao menos um argumento.");
     string filename = args[1];
 
     if (filename.length < 4)

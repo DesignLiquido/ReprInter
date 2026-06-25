@@ -8,7 +8,21 @@
 	"authors": [
 		"Fernando Dev"
 	],
-	"dflags": ["-L/usr/local/lib/libmir.a", "-L-lm", "-L-ldl", "-L-lpthread"],
+	"configurations": [
+		{
+			"name": "linux",
+			"platforms": ["linux"],
+			"lflags": ["$PACKAGE_DIR/vendor/mir/lib/linux/libmir.a"],
+			"dflags-ldc": ["-L-lm", "-L-ldl", "-L-lpthread"],
+			"dflags-dmd": ["-L-lm", "-L-ldl", "-L-lpthread"],
+			"dflags-gdc": ["-L-lm", "-L-ldl", "-L-lpthread"]
+		},
+		{
+			"name": "windows",
+			"platforms": ["windows"],
+			"lflags": ["$PACKAGE_DIR/vendor/mir/lib/windows/libmir.a"]
+		}
+	],
 	"buildTypes": {
 		"debug": {
 			"dflags-dmd": ["-g", "-debug"],

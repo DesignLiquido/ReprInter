@@ -20,3 +20,5 @@ tests
 *.ssa
 *.s
 out
+c/
+api/
