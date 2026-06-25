@@ -9,7 +9,6 @@ harpy.dll
 harpy.a
 harpy.lib
 harpy-test-*
-*.exe
 *.pdb
 *.o
 *.so
